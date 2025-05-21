@@ -12,55 +12,47 @@ export async function GET() {
     // Verify authentication
     const { authenticated, user } = await verifyAuthentication();
     
-    // If not authenticated, return 401 unauthorized
     if (!authenticated || !user) {
-      console.log('User not authenticated, returning 401 unauthorized');
+      console.log('User not authenticated, returning 401 unauthorized for GET /api/settings');
       return NextResponse.json({ 
         error: 'Authentication required',
-        message: 'You must be logged in to access settings'
+        message: 'You must be logged in to access settings.'
       }, { 
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    // Create server client with user's session
     const supabase = createServerClient();
-    
+    let data, error;
+
     try {
       // Get settings from database
-      const { data, error } = await supabase
+      ({ data, error } = await supabase
         .from('user_settings')
         .select('settings')
         .eq('user_id', user.id)
-        .single();
+        .single());
       
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching settings:', error);
-        // Still return a valid JSON response even in error case
+      if (error && error.code !== 'PGRST116') { // PGRST116: Row not found, not an error for us here
+        console.error('Error fetching user settings in GET /api/settings:', error);
         return NextResponse.json({ 
-          error: 'Failed to fetch settings',
-          message: error.message,
-          details: error
-        }, { status: 500 });
+          error: 'Failed to retrieve settings',
+          message: 'Could not retrieve your settings at this time. Please try again later.'
+        }, { status: 500, headers: { 'Content-Type': 'application/json' } });
       }
     } catch (dbError) {
-      console.error('Unexpected database error in settings GET:', dbError);
-      // Ensure we return a valid JSON response
+      // Catch any other unexpected errors during DB operation
+      console.error('Unexpected database error during settings fetch in GET /api/settings:', dbError);
       return NextResponse.json({ 
         error: 'Database error',
-        message: dbError instanceof Error ? dbError.message : 'Unknown error'
-      }, { status: 500 });
+        message: 'An unexpected error occurred while fetching your settings.'
+      }, { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
     
-    // Use the central loadServerSettings function to get default settings
-    // if no user settings are found
     const serverSettings = loadServerSettings();
-    
-    // Return settings or defaults with timestamp for synchronization
     const responseSettings = data?.settings || serverSettings;
     
-    // Ensure there's a timestamp for synchronization
     if (!responseSettings.updatedAt) {
       responseSettings.updatedAt = Date.now();
     }
@@ -69,10 +61,10 @@ export async function GET() {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    console.error('Error in settings API:', error);
+    console.error('Unhandled error in GET /api/settings:', error);
     return NextResponse.json({ 
       error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: 'An unexpected error occurred while retrieving settings.'
     }, { 
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -83,50 +75,47 @@ export async function GET() {
 // Update settings
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication first
     const { authenticated, user } = await verifyAuthentication();
     
     if (!authenticated || !user) {
+      console.log('User not authenticated, returning 401 unauthorized for POST /api/settings');
       return NextResponse.json({ 
         error: 'Authentication required',
-        message: 'You must be logged in to update settings'
+        message: 'You must be logged in to update settings.'
       }, { 
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    // Parse request body - catch JSON parse errors explicitly
     let settings: UserSettings;
     try {
       settings = await request.json();
     } catch (parseError) {
-      console.error('Error parsing request JSON in settings POST:', parseError);
+      console.error('Error parsing request JSON in POST /api/settings:', parseError);
       return NextResponse.json({ 
-        error: 'Invalid JSON in request body',
-        message: parseError instanceof Error ? parseError.message : 'Unknown parsing error' 
+        error: 'Invalid request format',
+        message: 'The request body was not valid JSON.'
       }, { 
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    // Validate settings
     if (!settings.aiProvider) {
-      return NextResponse.json({ error: 'AI Provider is required' }, { 
+      return NextResponse.json({ error: 'Invalid settings', message: 'AI Provider is required.' }, { 
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
     if (!settings.aiModel) {
-      return NextResponse.json({ error: 'AI Model is required' }, { 
+      return NextResponse.json({ error: 'Invalid settings', message: 'AI Model is required.' }, { 
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    // Ensure there's a timestamp for synchronization
     if (!settings.updatedAt) {
       settings.updatedAt = Date.now();
     }
@@ -137,14 +126,12 @@ export async function POST(request: NextRequest) {
       updatedAt: settings.updatedAt
     }));
     
-    // Update settings in database
     const supabase = createServerClient();
     
-    // Add debugging to track the actual database operation
     console.log(`Executing upsert on user_settings table for user ${user.id}`);
-    console.log(`Settings object:`, JSON.stringify(settings, null, 2));
+    // console.log(`Settings object for upsert:`, JSON.stringify(settings, null, 2)); // Can be verbose
     
-    const { error, data } = await supabase
+    const { error: upsertError } = await supabase
       .from('user_settings')
       .upsert({
         user_id: user.id,
@@ -155,96 +142,97 @@ export async function POST(request: NextRequest) {
         returning: 'minimal'
       });
       
-    console.log(`Upsert completed - error: ${error ? JSON.stringify(error) : 'none'}`);
-    
-    // If the upsert failed, try a direct update as a fallback
-    if (error) {
-      console.log(`Upsert failed, trying direct update instead`);
-      
-      // First check if the row exists
-      const { data: existingRow, error: checkError } = await supabase
-        .from('user_settings')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-        
-      if (checkError) {
-        console.log(`No existing row found for user ${user.id}, trying insert`);
-        
-        // Insert as new row
-        const { error: insertError } = await supabase
+    let mutableError = upsertError;
+
+    if (mutableError) {
+      console.error('Error during initial upsert in POST /api/settings:', mutableError);
+      console.log(`Upsert failed for user ${user.id}. Attempting fallback...`); // Keep this for flow visibility
+      let fallbackError = null;
+
+      try {
+        const { data: existingRow, error: checkError } = await supabase
           .from('user_settings')
-          .insert({
-            user_id: user.id,
-            settings,
-            updated_at: new Date().toISOString()
-          });
-          
-        if (insertError) {
-          console.error(`Insert failed:`, insertError);
+          .select('id') 
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+          console.error('Error selecting user settings for fallback in POST /api/settings:', checkError);
+          fallbackError = checkError; 
+        } else if (checkError && checkError.code === 'PGRST116') {
+          console.log(`No existing row for user ${user.id} (PGRST116), trying fallback insert.`);
+          const { error: insertError } = await supabase
+            .from('user_settings')
+            .insert({ user_id: user.id, settings, updated_at: new Date().toISOString() });
+          if (insertError) {
+            console.error('Error during fallback insert in POST /api/settings:', insertError);
+            fallbackError = insertError;
+          } else {
+            console.log(`Fallback insert successful for user ${user.id}`);
+            mutableError = null; 
+          }
+        } else if (existingRow) {
+          console.log(`Existing row found for user ${user.id}, attempting fallback update.`);
+          const { error: updateError } = await supabase
+            .from('user_settings')
+            .update({ settings, updated_at: new Date().toISOString() })
+            .eq('user_id', user.id);
+          if (updateError) {
+            console.error('Error during fallback update in POST /api/settings:', updateError);
+            fallbackError = updateError;
+          } else {
+            console.log(`Fallback update successful for user ${user.id}`);
+            mutableError = null;
+          }
         } else {
-          console.log(`Insert successful for user ${user.id}`);
+           console.log(`No existing row for user ${user.id} (unexpected case after maybeSingle), trying fallback insert.`);
+           const { error: insertError } = await supabase
+            .from('user_settings')
+            .insert({ user_id: user.id, settings, updated_at: new Date().toISOString() });
+          if (insertError) {
+            console.error('Error during fallback insert (unexpected case) in POST /api/settings:', insertError);
+            fallbackError = insertError;
+          } else {
+            console.log(`Fallback insert (unexpected case) successful for user ${user.id}`);
+            mutableError = null;
+          }
         }
-      } else {
-        // Row exists, do update
-        console.log(`Existing row found with id ${existingRow.id}, updating`);
-        
-        const { error: updateError } = await supabase
-          .from('user_settings')
-          .update({
-            settings,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id);
-          
-        if (updateError) {
-          console.error(`Update failed:`, updateError);
-        } else {
-          console.log(`Update successful for user ${user.id}`);
-        }
+      } catch (dbFallbackError) {
+        console.error('Unexpected database error during fallback logic in POST /api/settings:', dbFallbackError);
+        fallbackError = dbFallbackError; // Assign if it's a generic error
+      }
+
+      if (fallbackError) {
+        mutableError = fallbackError;
       }
     }
-    
-    if (error) {
-      console.error('Error saving settings:', error);
-      return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
+
+    if (mutableError) {
+      console.error('Failed to save settings after all attempts in POST /api/settings:', mutableError);
+      return NextResponse.json({ 
+        error: 'Failed to save settings',
+        message: 'Your settings could not be saved at this time. Please try again later.'
+      }, { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
     
-    // Apply settings to AI configuration directly to ensure changes take effect immediately
     try {
-      // Update AI_CONFIG directly to ensure changes take effect immediately
       updateAIConfig(settings);
-      
       console.log('Applied settings directly to AI configuration');
-      
-      // Log current configuration state for verification
-      console.log('Current AI configuration after update:', {
-        openrouter: AI_CONFIG.openrouter.model,
-        anthropic: AI_CONFIG.anthropic.model,
-        requesty: AI_CONFIG.requesty.model,
-        openai: AI_CONFIG.openai.model,
-        gemini: AI_CONFIG.gemini.model,
-        vertex: AI_CONFIG.vertex.model
-      });
+      // console.log('Current AI configuration after update:', AI_CONFIG); // Can be verbose
     } catch (configError) {
-      console.warn('Error updating AI configuration:', configError);
-      // Continue execution even if direct config update fails
+      console.warn('Error updating live AI configuration after saving settings:', configError);
     }
     
-    // Update global settings cache
     if (typeof global !== 'undefined') {
       global.userSettings = { ...settings };
       console.log('Updated global settings cache with new settings');
-      
-      // Reset refresh timestamp
       if (global._aiConfigState) {
         global._aiConfigState.lastSettingsRefresh = 0;
       }
     }
     
-    // Verify settings were saved by reading them back
     try {
-      console.log(`Verifying settings were saved correctly for user ${user.id}...`);
+      console.log(`Verifying settings for user ${user.id} after save...`);
       const { data: verificationData, error: verificationError } = await supabase
         .from('user_settings')
         .select('settings')
@@ -252,58 +240,52 @@ export async function POST(request: NextRequest) {
         .single();
         
       if (verificationError) {
-        console.error('Error verifying settings were saved:', verificationError);
-        // Still return success since we tried our best
+        console.error('Error verifying saved settings in POST /api/settings:', verificationError);
         return NextResponse.json({ 
           success: true, 
-          settings,
+          settings, // original settings from request
           updatedAt: settings.updatedAt,
           verification: 'failed',
-          message: 'Settings were applied but verification failed'
-        }, {
-          headers: { 'Content-Type': 'application/json' }
-        });
+          message: 'Settings were applied, but verification after save encountered an issue.'
+        }, { headers: { 'Content-Type': 'application/json' } });
+      } else if (!verificationData?.settings) {
+        console.error('Error verifying saved settings in POST /api/settings: verificationData or verificationData.settings is null/undefined');
+        return NextResponse.json({
+          success: true,
+          settings, // original settings from request
+          updatedAt: settings.updatedAt,
+          verification: 'failed', 
+          message: 'Settings were applied, but verification found missing or corrupted settings data in the database.'
+        }, { headers: { 'Content-Type': 'application/json' } });
+      } else {
+        // Current success logic:
+        // console.log(`Verification successful for user ${user.id}:`, verificationData);
+        return NextResponse.json({ 
+          success: true, 
+          settings, // original settings from request
+          updatedAt: settings.updatedAt,
+          verification: 'success',
+          dbSettings: { 
+            provider: verificationData.settings.aiProvider,
+            model: verificationData.settings.aiModel
+          }
+        }, { headers: { 'Content-Type': 'application/json' } });
       }
-      
-      console.log(`Verification successful, settings found in database:`, 
-        JSON.stringify({
-          provider: verificationData.settings.aiProvider,
-          model: verificationData.settings.aiModel,
-          updatedAt: verificationData.settings.updatedAt
-        })
-      );
-      
-      // Return updated settings with success confirmation
-      return NextResponse.json({ 
-        success: true, 
-        settings,
-        updatedAt: settings.updatedAt,
-        verification: 'success',
-        dbSettings: {
-          provider: verificationData.settings.aiProvider,
-          model: verificationData.settings.aiModel
-        }
-      }, {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    } catch (verificationError) {
-      console.error('Error during verification:', verificationError);
-      // Still return success since we tried our best
+    } catch (unexpectedVerificationError) {
+      console.error('Unexpected error during settings verification in POST /api/settings:', unexpectedVerificationError);
       return NextResponse.json({ 
         success: true, 
         settings,
         updatedAt: settings.updatedAt,
         verification: 'error',
-        message: 'Settings were applied but verification encountered an error'
-      }, {
-        headers: { 'Content-Type': 'application/json' }
-      });
+        message: 'Settings were applied, but an unexpected error occurred during verification.'
+      }, { headers: { 'Content-Type': 'application/json' } });
     }
   } catch (error) {
-    console.error('Error in settings API:', error);
+    console.error('Unhandled error in POST /api/settings:', error);
     return NextResponse.json({ 
       error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: 'An unexpected error occurred while saving settings.'
     }, { 
       status: 500,
       headers: { 'Content-Type': 'application/json' }
