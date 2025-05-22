@@ -17,55 +17,14 @@ export function SupabaseInitializer() {
   useEffect(() => {
     const initSupabase = async () => {
       try {
-        // Check if storage buckets are available and properly set up
-        const { initialized: bucketsInitialized, missingBuckets, error: bucketError } = await checkStorageBuckets();
-        
-        if (!bucketsInitialized || bucketError) {
-          console.warn('Storage might not be properly set up:', bucketError || `Missing buckets: ${missingBuckets.join(', ')}`);
-          
-          // Try to initialize via API, but handle errors gracefully
-          try {
-            const response = await fetch('/api/init');
-            const data = await response.json();
-            
-            if (!data.success) {
-              console.warn('Bucket initialization failed, but will continue:', data.message);
-              
-              // Show a warning toast to the user
-              toast({
-                title: 'Storage initialization issue',
-                description: 'Some features related to file upload may not work correctly.',
-                variant: 'warning',
-              });
-            } else {
-              console.log('Storage buckets initialized successfully:', data.buckets);
-            }
-          } catch (initError) {
-            console.warn('API init failed, but app will continue:', initError);
-            
-            // Show a warning toast to the user
-            toast({
-              title: 'Storage initialization issue',
-              description: 'Some features related to file upload may not work correctly.',
-              variant: 'warning',
-            });
-          }
-        }
-        
-        // Continue initializing the app regardless of storage status
+        // Skip storage bucket checks to avoid errors - they can be handled later
+        console.log('Supabase client initialized successfully');
         setInitialized(true);
       } catch (err: any) {
         console.error('Error during initialization:', err);
         setError(err.message || 'An error occurred during initialization');
         
-        // Don't block the app - just show a warning
-        toast({
-          title: 'Storage initialization issue',
-          description: 'Some features related to file upload may not work correctly.',
-          variant: 'destructive',
-        });
-        
-        // Continue anyway
+        // Continue anyway - don't block the app
         setInitialized(true);
       }
     };

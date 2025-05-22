@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 type JobApplication = {
   id: string;
@@ -12,6 +13,17 @@ type JobApplication = {
   job_title: string;
   status: string;
   created_at: string;
+};
+
+type ApplicationStats = {
+  total: number;
+  to_apply: number;
+  applied: number;
+  interviewing: number;
+  offered: number;
+  rejected: number;
+  applied_this_week: number;
+  applied_this_month: number;
 };
 
 type JobMatch = {
@@ -28,6 +40,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [jobMatches, setJobMatches] = useState<JobMatch[]>([]);
+  const [resumeCount, setResumeCount] = useState(0);
+  const [totalApplications, setTotalApplications] = useState(0);
+  const [totalJobMatches, setTotalJobMatches] = useState(0);
+  const [applicationStats, setApplicationStats] = useState<ApplicationStats | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -44,7 +60,7 @@ export default function DashboardPage() {
           
           setProfile(profileData);
           
-          // Fetch job applications
+          // Fetch job applications (recent)
           const { data: applicationsData } = await supabase
             .from("job_applications")
             .select(`
@@ -71,7 +87,15 @@ export default function DashboardPage() {
             })));
           }
 
-          // Fetch job matches
+          // Fetch total application count
+          const { count: totalAppCount } = await supabase
+            .from("job_applications")
+            .select("*", { count: 'exact', head: true })
+            .eq("user_id", userData.user.id);
+            
+          setTotalApplications(totalAppCount || 0);
+
+          // Fetch job matches (recent)
           const { data: matchesData } = await supabase
             .from("job_matches")
             .select("*")
@@ -81,6 +105,33 @@ export default function DashboardPage() {
             
           if (matchesData) {
             setJobMatches(matchesData);
+          }
+
+          // Fetch total job matches count
+          const { count: totalMatchCount } = await supabase
+            .from("job_matches")
+            .select("*", { count: 'exact', head: true })
+            .eq("user_id", userData.user.id);
+            
+          setTotalJobMatches(totalMatchCount || 0);
+
+          // Fetch resume count
+          const { count: resumeCount } = await supabase
+            .from("resumes")
+            .select("*", { count: 'exact', head: true })
+            .eq("user_id", userData.user.id);
+            
+          setResumeCount(resumeCount || 0);
+
+          // Fetch application statistics
+          try {
+            const statsResponse = await fetch(`/api/applications/stats?userId=${userData.user.id}`);
+            if (statsResponse.ok) {
+              const { stats } = await statsResponse.json();
+              setApplicationStats(stats);
+            }
+          } catch (statsError) {
+            console.error('Error fetching application stats:', statsError);
           }
         }
       } catch (error) {
@@ -130,7 +181,7 @@ export default function DashboardPage() {
             <CardDescription>Upload and manage your resumes</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{resumeCount}</div>
             <p className="text-xs text-muted-foreground">resumes created</p>
           </CardContent>
           <CardFooter>
@@ -146,8 +197,8 @@ export default function DashboardPage() {
             <CardDescription>Jobs matching your profile</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{jobMatches.length}</div>
-            <p className="text-xs text-muted-foreground">new job matches</p>
+            <div className="text-2xl font-bold">{totalJobMatches}</div>
+            <p className="text-xs text-muted-foreground">total job matches</p>
           </CardContent>
           <CardFooter>
             <Link href="/dashboard/job-matching" className="w-full">
@@ -162,8 +213,20 @@ export default function DashboardPage() {
             <CardDescription>Track your job applications</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{applications.length}</div>
-            <p className="text-xs text-muted-foreground">active applications</p>
+            <div className="text-2xl font-bold">{applicationStats?.total || 0}</div>
+            <p className="text-xs text-muted-foreground">total applications</p>
+            {applicationStats && (
+              <div className="mt-3 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span>This week:</span>
+                  <Badge variant="secondary">{applicationStats.applied_this_week}</Badge>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>This month:</span>
+                  <Badge variant="secondary">{applicationStats.applied_this_month}</Badge>
+                </div>
+              </div>
+            )}
           </CardContent>
           <CardFooter>
             <Link href="/dashboard/applications" className="w-full">
@@ -172,6 +235,40 @@ export default function DashboardPage() {
           </CardFooter>
         </Card>
       </div>
+
+      {/* Application Analytics */}
+      {applicationStats && applicationStats.total > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Application Analytics</CardTitle>
+            <CardDescription>Your job application progress breakdown</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-5">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{applicationStats.to_apply}</div>
+                <p className="text-xs text-muted-foreground">To Apply</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-yellow-600">{applicationStats.applied}</div>
+                <p className="text-xs text-muted-foreground">Applied</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{applicationStats.interviewing}</div>
+                <p className="text-xs text-muted-foreground">Interviewing</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{applicationStats.offered}</div>
+                <p className="text-xs text-muted-foreground">Offered</p>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">{applicationStats.rejected}</div>
+                <p className="text-xs text-muted-foreground">Rejected</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

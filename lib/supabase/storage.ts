@@ -6,6 +6,9 @@ import { supabaseAdmin } from './client';
  */
 export async function initializeStorageBuckets() {
   try {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available - missing service role key');
+    }
     // Create bucket for user resumes
     const { data: resumesBucket, error: resumesError } = await supabaseAdmin.storage.getBucket('resumes');
     if (!resumesBucket && resumesError) {
@@ -66,6 +69,9 @@ export async function initializeStorageBuckets() {
  */
 export async function getFileUrl(bucket: string, path: string, expiresIn = 60) {
   try {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available - missing service role key');
+    }
     const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUrl(path, expiresIn);
     
     if (error) throw error;
@@ -85,6 +91,9 @@ export async function getFileUrl(bucket: string, path: string, expiresIn = 60) {
  */
 export async function uploadFile(bucket: string, path: string, file: File) {
   try {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available - missing service role key');
+    }
     const { data, error } = await supabaseAdmin.storage.from(bucket).upload(path, file, {
       cacheControl: '3600',
       upsert: false
@@ -106,6 +115,9 @@ export async function uploadFile(bucket: string, path: string, file: File) {
  */
 export async function deleteFile(bucket: string, path: string) {
   try {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available - missing service role key');
+    }
     const { data, error } = await supabaseAdmin.storage.from(bucket).remove([path]);
     
     if (error) throw error;
@@ -124,6 +136,9 @@ export async function deleteFile(bucket: string, path: string) {
  */
 export async function listFiles(bucket: string, path?: string) {
   try {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available - missing service role key');
+    }
     const { data, error } = await supabaseAdmin.storage.from(bucket).list(path || '');
     
     if (error) throw error;
@@ -140,6 +155,9 @@ export async function listFiles(bucket: string, path?: string) {
  */
 export async function checkStorageBuckets() {
   try {
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available - missing service role key');
+    }
     const { data: buckets, error } = await supabaseAdmin.storage.listBuckets();
     
     if (error) throw error;

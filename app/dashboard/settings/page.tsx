@@ -34,7 +34,8 @@ const AI_MODELS = {
   openrouter: [
     { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Recommended)' },
     { id: 'google/gemini-2.5-pro-preview', name: 'Gemini 2.5 Pro Preview' },
-    { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash' },
+    { id: 'google/gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash Preview (Latest)' },
+    { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (April)' },
     { id: 'anthropic/claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
@@ -70,6 +71,7 @@ interface UserSettings {
   aiModel: string;
   documentAiOnly: boolean;
   enableLogging: boolean;
+  showAiAttribution: boolean;
   updatedAt?: number;
 }
 
@@ -79,6 +81,7 @@ const defaultSettings: UserSettings = {
   aiModel: 'qwen/qwen3-235b-a22b:free',
   documentAiOnly: true,
   enableLogging: true,
+  showAiAttribution: false,
   updatedAt: Date.now()
 };
 
@@ -91,6 +94,7 @@ export default function SettingsPage() {
   const [selectedModel, setSelectedModel] = useState<string>('qwen/qwen3-235b-a22b:free');
   const [documentAiOnly, setDocumentAiOnly] = useState<boolean>(true);
   const [enableLogging, setEnableLogging] = useState<boolean>(true);
+  const [showAiAttribution, setShowAiAttribution] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [dbStorageStatus, setDbStorageStatus] = useState<'unknown' | 'success' | 'error'>('unknown');
   const { toast } = useToast();
@@ -101,21 +105,15 @@ export default function SettingsPage() {
       try {
         setLoading(true);
         
-        // Check authentication status - with middleware we should always be authenticated here
-        // But we double-check as a best practice
+        // Check authentication status - authentication is now optional
         const { data } = await supabase.auth.getSession();
         const isAuth = !!data.session;
         setIsAuthenticated(isAuth);
-        console.log(`Authentication status on load: ${isAuth ? 'Authenticated' : 'Not authenticated'}`);
+        console.log(`Authentication status on load: ${isAuth ? 'Authenticated' : 'Not authenticated (optional)'}`);
         
-        if (!isAuth) {
-          // Should not normally happen due to middleware, but handle it gracefully
-          console.error('Not authenticated on settings page - redirecting to login');
-          window.location.href = '/login?redirectTo=/dashboard/settings';
-          return;
-        }
+        // Authentication is now optional - proceed with loading settings regardless
         
-        // Load settings from the API (we're authenticated)
+        // Load settings from the API (authentication is optional)
         try {
           const response = await fetch('/api/settings');
           
@@ -131,6 +129,7 @@ export default function SettingsPage() {
               setSelectedModel(defaultSettings.aiModel);
               setDocumentAiOnly(defaultSettings.documentAiOnly);
               setEnableLogging(defaultSettings.enableLogging);
+              setShowAiAttribution(defaultSettings.showAiAttribution);
               return;
             }
             
@@ -140,14 +139,20 @@ export default function SettingsPage() {
             setSelectedModel(settings.aiModel || defaultSettings.aiModel);
             setDocumentAiOnly(settings.documentAiOnly !== undefined ? settings.documentAiOnly : defaultSettings.documentAiOnly);
             setEnableLogging(settings.enableLogging !== undefined ? settings.enableLogging : defaultSettings.enableLogging);
+            setShowAiAttribution(settings.showAiAttribution !== undefined ? settings.showAiAttribution : defaultSettings.showAiAttribution);
             
             // Save to localStorage for backup
             localStorage.setItem('userSettings', JSON.stringify(settings));
             setDbStorageStatus('success');
           } else if (response.status === 401) {
-            console.error('Authentication expired - redirecting to login');
-            window.location.href = '/login?redirectTo=/dashboard/settings';
-            return;
+            console.warn('Authentication required for enhanced features');
+            // Continue with defaults instead of redirecting
+            setSelectedProvider(defaultSettings.aiProvider);
+            setSelectedModel(defaultSettings.aiModel);
+            setDocumentAiOnly(defaultSettings.documentAiOnly);
+            setEnableLogging(defaultSettings.enableLogging);
+            setShowAiAttribution(defaultSettings.showAiAttribution);
+            setDbStorageStatus('error');
           } else {
             console.error('API returned error status:', response.status);
             setDbStorageStatus('error');
@@ -347,17 +352,16 @@ export default function SettingsPage() {
         aiModel: selectedModel,
         documentAiOnly,
         enableLogging,
+        showAiAttribution,
         updatedAt: Date.now()
       };
       
-      // Verify authenticated status - with middleware we should always be authenticated here
+      // Check authentication status - authentication is now optional
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (!session) {
-        console.error('Authentication lost while on settings page - redirecting to login');
-        window.location.href = '/login?redirectTo=/dashboard/settings';
-        return;
-      }
+      console.log(`Saving settings with authentication: ${session ? 'Yes' : 'No (optional)'}`);
+      
+      // Authentication is optional - continue with saving
       
       // Debug log to see what settings we're saving
       console.log('Saving settings:', settings);
@@ -365,7 +369,7 @@ export default function SettingsPage() {
       // Save to localStorage as a backup
       localStorage.setItem('userSettings', JSON.stringify(settings));
       
-      // User is authenticated - save to API
+      // Save to API (authentication is optional)
       const apiResponse = await fetch('/api/settings', {
         method: 'POST',
         headers: {
@@ -377,10 +381,14 @@ export default function SettingsPage() {
       
       console.log('API response status:', apiResponse.status);
       
-      // Handle authentication errors
+      // Handle authentication errors (but continue with local storage)
       if (apiResponse.status === 401) {
-        console.error('Authentication expired - redirecting to login');
-        window.location.href = '/login?redirectTo=/dashboard/settings';
+        console.warn('Authentication required for enhanced features - settings saved locally only');
+        setDbStorageStatus('error');
+        toast({
+          title: 'Settings saved locally',
+          description: 'Settings saved to your browser. Sign in for cloud storage.',
+        });
         return;
       }
       
@@ -403,12 +411,12 @@ export default function SettingsPage() {
           const apiResult = await apiResponse.json();
           console.log('API response data:', apiResult);
           
-          // Check verification status
-          if (apiResult.verification === 'success') {
-            console.log('Database verification succeeded:', apiResult.dbSettings);
+          // Check database storage status from new API format
+          if (apiResult.database?.success) {
+            console.log('Settings storage succeeded:', apiResult.database.message);
             setDbStorageStatus('success');
           } else {
-            console.warn('Database verification failed or had an error:', apiResult.verification);
+            console.warn('Settings storage failed or using memory only:', apiResult.database?.message);
             setDbStorageStatus('error');
           }
         } catch (jsonError) {
@@ -441,9 +449,8 @@ export default function SettingsPage() {
         console.log('Apply response status:', applyResponse.status);
         
         if (applyResponse.status === 401) {
-          console.error('Authentication expired - redirecting to login');
-          window.location.href = '/login?redirectTo=/dashboard/settings';
-          return;
+          console.warn('Authentication required for apply endpoint - skipping');
+          // Continue without applying - settings are already saved
         }
         
         if (!applyResponse.ok) {
@@ -579,6 +586,20 @@ export default function SettingsPage() {
                     id="enable-logging"
                     checked={enableLogging}
                     onCheckedChange={setEnableLogging}
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="show-ai-attribution">Show AI Model Attribution</Label>
+                    <p className="text-sm text-gray-500">
+                      Display which AI model processed each resume for quality assurance
+                    </p>
+                  </div>
+                  <Switch
+                    id="show-ai-attribution"
+                    checked={showAiAttribution}
+                    onCheckedChange={setShowAiAttribution}
                   />
                 </div>
                 

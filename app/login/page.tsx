@@ -36,7 +36,9 @@ export default function LoginPage() {
             : '/dashboard';
             
           console.log('Already authenticated, redirecting to:', destination);
+          // Use window.location for immediate redirect
           window.location.href = destination;
+          return; // Exit early to prevent further processing
         }
       } catch (err) {
         console.error('Error checking session:', err);
@@ -81,7 +83,7 @@ export default function LoginPage() {
       
       console.log('Login successful, redirecting to:', safeRedirectTo);
       
-      // Use immediate redirect instead of setTimeout
+      // Use window.location for immediate redirect after login
       window.location.href = safeRedirectTo;
     } catch (error: any) {
       console.error("Error during login:", error);
@@ -123,6 +125,7 @@ export default function LoginPage() {
                 placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
                 required
               />
             </div>
@@ -142,6 +145,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
               />
             </div>

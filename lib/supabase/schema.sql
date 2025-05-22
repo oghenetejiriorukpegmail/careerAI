@@ -16,6 +16,11 @@ CREATE TABLE IF NOT EXISTS resumes (
   file_path TEXT NOT NULL,
   file_name TEXT NOT NULL,
   file_type TEXT NOT NULL,
+  file_size INTEGER,
+  extracted_text TEXT,
+  processing_status TEXT DEFAULT 'pending',
+  ai_provider TEXT,
+  ai_model TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   parsed_data JSONB -- Parsed resume data by AI
@@ -24,14 +29,25 @@ CREATE TABLE IF NOT EXISTS resumes (
 -- Create job_descriptions table
 CREATE TABLE IF NOT EXISTS job_descriptions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES profiles(id) NOT NULL,
+  user_id TEXT NOT NULL, -- Using TEXT to support both UUID and session IDs
   job_title TEXT,
   company_name TEXT,
   location TEXT,
   description TEXT NOT NULL,
   url TEXT,
+  input_method TEXT NOT NULL DEFAULT 'manual', -- 'url', 'text_paste', 'manual'
+  employment_type TEXT, -- 'Full-time', 'Part-time', 'Contract', 'Internship'
+  salary_range TEXT,
+  posted_date TIMESTAMP WITH TIME ZONE,
+  application_deadline TIMESTAMP WITH TIME ZONE,
+  processing_status TEXT DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'
+  ai_provider TEXT,
+  ai_model TEXT,
+  match_score FLOAT, -- AI-calculated match score against user profile (0-100)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  parsed_data JSONB -- Parsed job description data by AI
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  parsed_data JSONB, -- Parsed job description data by AI
+  raw_content TEXT -- Original scraped/pasted content for reference
 );
 
 -- Create linkedin_profiles table
@@ -124,3 +140,26 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Create user_settings table for storing AI configuration and user preferences
+-- This table supports both authenticated users and session-based users
+CREATE TABLE IF NOT EXISTS user_settings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id TEXT NOT NULL UNIQUE, -- Using TEXT to support both UUID and session IDs
+  settings JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Enable RLS for user_settings
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for user_settings (service role bypasses these)
+CREATE POLICY "Users can view their own settings" 
+  ON user_settings FOR SELECT USING (auth.uid()::text = user_id);
+CREATE POLICY "Users can insert their own settings" 
+  ON user_settings FOR INSERT WITH CHECK (auth.uid()::text = user_id);
+CREATE POLICY "Users can update their own settings" 
+  ON user_settings FOR UPDATE USING (auth.uid()::text = user_id);
+CREATE POLICY "Users can delete their own settings" 
+  ON user_settings FOR DELETE USING (auth.uid()::text = user_id);

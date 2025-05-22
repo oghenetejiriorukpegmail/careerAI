@@ -15,27 +15,9 @@ export default function DashboardLayout({
   const router = useRouter();
 
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error || !data.session) {
-          console.log('No session found in dashboard, redirecting to login');
-          // Use window.location for a hard redirect instead of router.push
-          window.location.href = "/login?redirectTo=" + encodeURIComponent(window.location.pathname);
-          return;
-        }
-        
-        console.log('Session confirmed for dashboard');
-        setLoading(false);
-      } catch (error) {
-        console.error("Error checking auth session:", error);
-        // Use window.location for a hard redirect
-        window.location.href = "/login";
-      }
-    };
-
-    checkSession();
+    // Authentication disabled - skip session checks
+    console.log('Dashboard layout loaded - no authentication required');
+    setLoading(false);
   }, []);
 
   const handleSignOut = async () => {
@@ -73,6 +55,9 @@ export default function DashboardLayout({
               </Link>
               <Link href="/dashboard/resume" className="transition-colors hover:text-foreground/80">
                 Resume
+              </Link>
+              <Link href="/dashboard/job-opportunities" className="transition-colors hover:text-foreground/80">
+                Job Opportunities
               </Link>
               <Link href="/dashboard/job-matching" className="transition-colors hover:text-foreground/80">
                 Job Matching

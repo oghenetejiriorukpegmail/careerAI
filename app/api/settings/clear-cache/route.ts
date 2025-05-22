@@ -78,22 +78,8 @@ export async function POST(request: NextRequest) {
     
     console.log('AI provider configuration reset to defaults');
     
-    // 3. Try to clear module caches by dynamically importing related modules
+    // 3. Force garbage collection if available
     try {
-      // Dynamic import of document parser to clear its in-memory state
-      import('@/lib/documents/pdf-parser').then(pdfParser => {
-        if (pdfParser && typeof pdfParser.setDebugMode === 'function') {
-          // Toggle debug mode to force re-initialization
-          pdfParser.setDebugMode(false);
-          pdfParser.setDebugMode(true);
-          console.log('PDF parser cache cleared');
-        }
-      }).catch(() => {});
-      
-      // Try to clear advanced document parser cache if it exists
-      import('@/lib/documents/advanced-document-parser').catch(() => {});
-      
-      // Force garbage collection if available
       // @ts-ignore - gc() is available when Node is run with --expose-gc flag
       if (global && typeof global.gc === 'function') {
         // @ts-ignore
@@ -101,7 +87,7 @@ export async function POST(request: NextRequest) {
         console.log('Garbage collection triggered');
       }
     } catch (clearError) {
-      console.warn('Error clearing module caches:', clearError);
+      console.warn('Error triggering garbage collection:', clearError);
     }
     
     // Return success with timestamp
@@ -111,7 +97,7 @@ export async function POST(request: NextRequest) {
       timestamp: Date.now(),
       aiConfigReset: true,
       globalCachesCleared: true,
-      moduleCachesReset: true
+      moduleCachesReset: false
     });
   } catch (error) {
     console.error('Error in settings/clear-cache API:', error);

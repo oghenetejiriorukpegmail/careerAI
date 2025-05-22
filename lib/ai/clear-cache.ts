@@ -30,19 +30,8 @@ export async function clearAllCaches(): Promise<void> {
       }
     }
     
-    // Clear document parser caches by toggling debug mode
-    try {
-      const pdfParser = await import('../documents/pdf-parser');
-      if (pdfParser && typeof pdfParser.setDebugMode === 'function') {
-        const debugEnabled = pdfParser.setDebugMode !== undefined;
-        // Toggle twice to force reinitialization
-        pdfParser.setDebugMode(!debugEnabled);
-        pdfParser.setDebugMode(debugEnabled);
-        console.log('PDF parser cache cleared');
-      }
-    } catch (parserError) {
-      console.warn('Failed to clear PDF parser cache:', parserError);
-    }
+    // Document parser caches are no longer available
+    console.log('Document parser cache clearing skipped (dependencies not available)');
     
     // Force garbage collection if available
     if (typeof global !== 'undefined' && typeof (global as any).gc === 'function') {

@@ -9,7 +9,7 @@ CareerAI is an AI-powered job application platform that helps users optimize the
 - **Job Matching**: Discover relevant job opportunities from major job boards (Indeed, LinkedIn, Dice) matched to your profile.
 - **Application Tracking**: Centralized dashboard to track all your job applications and their statuses.
 - **LinkedIn Profile Optimization**: Get actionable suggestions to improve your LinkedIn profile visibility and attractiveness to recruiters.
-- **Profile Management**: Secure user accounts with profile information storage and management.
+- **Flexible Authentication**: Optional user authentication - core features work without login, authentication enables persistent settings and advanced features.
 
 ## Tech Stack
 
@@ -66,6 +66,22 @@ npm run dev
 ```
 
 6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Authentication & Data Persistence
+
+CareerAI uses a flexible authentication model:
+
+- **Core Features**: All AI processing, resume generation, and job matching work without authentication
+- **Optional Authentication**: User login enables additional features:
+  - Persistent AI settings in database
+  - Document history and management
+  - Job application tracking
+  - Profile optimization features
+
+**Settings Persistence:**
+- **Without Authentication**: Settings stored in memory during session
+- **With Authentication**: Settings automatically saved to Supabase database
+- All AI processing respects user-configured provider and model preferences
 
 ## Deployment
 

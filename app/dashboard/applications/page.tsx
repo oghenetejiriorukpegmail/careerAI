@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,7 @@ export default function ApplicationsPage() {
   const [loading, setLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     const fetchApplications = async () => {
@@ -41,27 +43,14 @@ export default function ApplicationsPage() {
         const { data: userData } = await supabase.auth.getUser();
         
         if (userData && userData.user) {
-          // Fetch job applications with related data
-          const { data: appData, error: appError } = await supabase
-            .from("job_applications")
-            .select(`
-              id,
-              status,
-              applied_date,
-              created_at,
-              job_descriptions (
-                job_title,
-                company_name,
-                location,
-                url
-              ),
-              resume_id,
-              cover_letter_id
-            `)
-            .eq("user_id", userData.user.id)
-            .order("created_at", { ascending: false });
-            
-          if (appError) throw appError;
+          // Use the new applications API
+          const response = await fetch(`/api/applications?userId=${userData.user.id}`);
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch applications');
+          }
+          
+          const { applications: appData } = await response.json();
           
           // Transform the data for easier use in the UI
           const transformedData = (appData || []).map((app: any) => ({
@@ -72,47 +61,39 @@ export default function ApplicationsPage() {
             status: app.status,
             applied_date: app.applied_date,
             created_at: app.created_at,
-            resume_id: app.resume_id,
-            cover_letter_id: app.cover_letter_id,
+            resume_id: app.resume?.id || null,
+            cover_letter_id: app.cover_letter?.id || null,
             job_url: app.job_descriptions?.url || null,
           }));
           
           setApplications(transformedData);
           
-          // Fetch generated documents for all applications
-          const docIds = new Set<string>();
-          transformedData.forEach(app => {
-            if (app.resume_id) docIds.add(app.resume_id);
-            if (app.cover_letter_id) docIds.add(app.cover_letter_id);
+          // Process documents from the API response
+          const docsByApp: Record<string, GeneratedDocument[]> = {};
+          
+          appData?.forEach((app: any) => {
+            docsByApp[app.id] = [];
+            
+            if (app.resume) {
+              docsByApp[app.id].push({
+                id: app.resume.id,
+                doc_type: 'resume',
+                file_name: app.resume.file_name,
+                file_path: app.resume.file_path
+              });
+            }
+            
+            if (app.cover_letter) {
+              docsByApp[app.id].push({
+                id: app.cover_letter.id,
+                doc_type: 'cover_letter', 
+                file_name: app.cover_letter.file_name,
+                file_path: app.cover_letter.file_path
+              });
+            }
           });
           
-          if (docIds.size > 0) {
-            const { data: docData, error: docError } = await supabase
-              .from("generated_documents")
-              .select("id, doc_type, file_name, file_path")
-              .in("id", Array.from(docIds));
-              
-            if (docError) throw docError;
-            
-            // Group documents by application ID
-            const docsByApp: Record<string, GeneratedDocument[]> = {};
-            
-            transformedData.forEach(app => {
-              docsByApp[app.id] = [];
-              
-              if (app.resume_id) {
-                const resumeDoc = docData?.find(doc => doc.id === app.resume_id);
-                if (resumeDoc) docsByApp[app.id].push(resumeDoc);
-              }
-              
-              if (app.cover_letter_id) {
-                const coverLetterDoc = docData?.find(doc => doc.id === app.cover_letter_id);
-                if (coverLetterDoc) docsByApp[app.id].push(coverLetterDoc);
-              }
-            });
-            
-            setDocuments(docsByApp);
-          }
+          setDocuments(docsByApp);
         }
       } catch (error: any) {
         toast({
@@ -132,7 +113,14 @@ export default function ApplicationsPage() {
     try {
       setStatusUpdating(id);
       
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        throw new Error('User not authenticated');
+      }
+      
       const updates: any = {
+        applicationId: id,
+        userId: userData.user.id,
         status,
       };
       
@@ -141,12 +129,18 @@ export default function ApplicationsPage() {
         updates.applied_date = new Date().toISOString();
       }
       
-      const { error } = await supabase
-        .from("job_applications")
-        .update(updates)
-        .eq("id", id);
-        
-      if (error) throw error;
+      const response = await fetch('/api/applications', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update status');
+      }
       
       // Update local state
       setApplications(apps => 

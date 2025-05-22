@@ -1,16 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Default values for local development - DO NOT use these in production
-const DEFAULT_SUPABASE_URL = 'https://edfcwbtzcnfosiiymbqg.supabase.co';
-// Remove hardcoded key - must be set in environment variables
-const DEFAULT_ANON_KEY = '';
-// Remove hardcoded key - must be set in environment variables
-const DEFAULT_SERVICE_KEY = '';
+// Get these from environment variables - required for all environments
+export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Get these from environment variables, fallback to defaults for local development
-export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_ANON_KEY;
-export const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SERVICE_KEY;
+// Validate required environment variables
+if (!supabaseUrl) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
+}
+if (!supabaseAnonKey) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
+}
 
 // Log environment variable status (for development debugging only)
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -21,19 +22,40 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   });
 }
 
+// Singleton pattern to prevent multiple instances
+let supabaseInstance: any = null;
+let supabaseAdminInstance: any = null;
+
 // Create a single supabase client for the entire app
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
+export function getSupabaseClient() {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+        storageKey: 'careerai-auth-token'
+      }
+    });
   }
-});
+  return supabaseInstance;
+}
+
+// Export the client instance
+export const supabase = getSupabaseClient();
 
 // Create a service role client for admin operations (server-side only)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+export function getSupabaseAdminClient() {
+  if (!supabaseAdminInstance && supabaseServiceRoleKey) {
+    supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
   }
-});
+  return supabaseAdminInstance;
+}
+
+// Export the admin client instance
+export const supabaseAdmin = getSupabaseAdminClient();

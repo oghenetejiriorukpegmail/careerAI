@@ -4,7 +4,7 @@
  */
 
 import { UserSettings, defaultSettings } from '../utils/settings';
-import { AI_CONFIG, resetSettingsRefreshTimestamp } from './config';
+import { AI_CONFIG } from './config';
 
 // Flag to track if we've applied settings on startup
 let initialSettingsApplied = false;
@@ -63,16 +63,14 @@ export async function forceSettingsUpdate(settings: UserSettings): Promise<boole
       console.warn('Could not import clear-cache module:', importError);
     }
     
-    // Use helper function to reset cache timestamp
-    resetSettingsRefreshTimestamp();
-    console.log('Reset settings refresh timestamp');
+    console.log('Cleared settings refresh cache');
     
     // Log the configuration to verify it's correct
     console.log('Verifying AI configuration after update:');
     console.log(`Active provider: ${settings.aiProvider}`);
     console.log(`Active model: ${settings.aiModel}`);
     console.log(`OpenRouter: ${AI_CONFIG.openrouter.model}`);
-    console.log(`Anthropic: ${AI_CONFIG.anthropic.model}`);
+    console.log(`Anthropic: ${settings.aiProvider === 'anthropic' ? settings.aiModel : 'Not configured'}`);
     console.log(`Requesty: ${AI_CONFIG.requesty.model}`);
     console.log(`OpenAI: ${AI_CONFIG.openai.model}`);
     console.log(`Gemini: ${AI_CONFIG.gemini.model}`);
@@ -153,7 +151,7 @@ export function updateConfigDirectly(settings: UserSettings): void {
   // Then update all provider configurations to ensure consistency
   // This gives double protection - both the specific update above AND the general updates below
   AI_CONFIG.openrouter.model = settings.aiProvider === 'openrouter' ? settings.aiModel : AI_CONFIG.openrouter.model;
-  AI_CONFIG.anthropic.model = settings.aiProvider === 'anthropic' ? settings.aiModel : AI_CONFIG.anthropic.model;
+  // Note: AI_CONFIG.anthropic doesn't exist - anthropic is handled by queryAI function directly
   AI_CONFIG.requesty.model = settings.aiProvider === 'requesty' ? settings.aiModel : AI_CONFIG.requesty.model;
   AI_CONFIG.openai.model = settings.aiProvider === 'openai' ? settings.aiModel : AI_CONFIG.openai.model;
   AI_CONFIG.gemini.model = settings.aiProvider === 'google' ? settings.aiModel : AI_CONFIG.gemini.model;
@@ -175,7 +173,7 @@ export function updateConfigDirectly(settings: UserSettings): void {
   console.log(`Active provider: ${settings.aiProvider}`);
   console.log(`Active model: ${settings.aiModel}`);
   console.log('OpenRouter:', AI_CONFIG.openrouter.model);
-  console.log('Anthropic:', AI_CONFIG.anthropic.model);
+  console.log('Anthropic:', settings.aiProvider === 'anthropic' ? settings.aiModel : 'Not configured');
   console.log('Requesty:', AI_CONFIG.requesty.model);
   console.log('OpenAI:', AI_CONFIG.openai.model);
   console.log('Gemini:', AI_CONFIG.gemini.model);
@@ -212,8 +210,8 @@ export async function forceRefreshSettings(): Promise<boolean> {
       global.userSettings = undefined;
     }
     
-    // Reset timestamp to force immediate refresh
-    resetSettingsRefreshTimestamp();
+    // Clear any cached settings to force immediate refresh
+    console.log('Cleared cached settings for refresh');
     
     // Import the settings module dynamically to avoid circular dependencies
     const settingsModule = await import('../utils/settings');

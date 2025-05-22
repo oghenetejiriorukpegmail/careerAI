@@ -58,14 +58,51 @@ export async function generateAtsResume(
           }
         ],
         "skills": ["", ""],
+        "certifications": [
+          {
+            "name": "",
+            "issuer": "",
+            "date": "",
+            "expiryDate": "",
+            "credentialId": ""
+          }
+        ],
+        "trainings": [
+          {
+            "name": "",
+            "provider": "",
+            "date": "",
+            "duration": "",
+            "description": ""
+          }
+        ],
         "projects": [
           {
             "name": "",
             "description": ""
           }
+        ],
+        "references": [
+          {
+            "name": "",
+            "title": "",
+            "company": "",
+            "phone": "",
+            "email": "",
+            "relationship": ""
+          }
         ]
       }
 
+      Include certifications, training, and projects ONLY if they are available in the candidate's resume data.
+      If these sections are not present in the original data, omit them from the output or leave them as empty arrays.
+      
+      For references:
+      - If the candidate has provided specific references in their data, include them
+      - If no specific references are provided, include a standard "References available upon request" entry:
+        [{"name": "References available upon request", "title": "", "company": "", "phone": "", "email": "", "relationship": ""}]
+      - Always include the references section unless specifically inappropriate for the role
+      
       Ensure all the experience descriptions are achievement-oriented and quantifiable where possible.
       Include the most relevant skills from the candidate's profile that match the job requirements.
       Keep the content truthful and based on the provided information.
@@ -80,8 +117,35 @@ export async function generateAtsResume(
     // Call the AI service
     const response = await queryAI(prompt, systemPrompt);
     
+    // Extract content from the AI response object
+    let parsedContent: string;
+    if (response && typeof response === 'object' && response.choices && response.choices.length > 0) {
+      parsedContent = response.choices[0].message.content;
+    } else if (typeof response === 'string') {
+      parsedContent = response;
+    } else {
+      throw new Error('Invalid AI response format');
+    }
+
+    // Clean up the response if it contains markdown code blocks or explanatory text
+    let cleanedContent = parsedContent;
+    
+    // Remove markdown code blocks
+    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+    const codeBlockMatch = codeBlockRegex.exec(cleanedContent);
+    if (codeBlockMatch) {
+      cleanedContent = codeBlockMatch[1].trim();
+    }
+    
+    // If the response starts with explanatory text, try to extract JSON from it
+    const jsonStart = cleanedContent.indexOf('{');
+    const jsonEnd = cleanedContent.lastIndexOf('}');
+    if (jsonStart > 0 && jsonEnd > jsonStart) {
+      cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
+    }
+    
     // Parse the response to get the tailored resume data
-    const tailoredResumeData: ResumeData = JSON.parse(response.choices[0].message.content);
+    const tailoredResumeData: ResumeData = JSON.parse(cleanedContent);
     
     // Generate the PDF
     const pdf = await generateResumePDF(tailoredResumeData);
@@ -165,8 +229,35 @@ export async function generateCoverLetter(
     // Call the AI service
     const response = await queryAI(prompt, systemPrompt);
     
+    // Extract content from the AI response object
+    let parsedContent: string;
+    if (response && typeof response === 'object' && response.choices && response.choices.length > 0) {
+      parsedContent = response.choices[0].message.content;
+    } else if (typeof response === 'string') {
+      parsedContent = response;
+    } else {
+      throw new Error('Invalid AI response format');
+    }
+
+    // Clean up the response if it contains markdown code blocks or explanatory text
+    let cleanedContent = parsedContent;
+    
+    // Remove markdown code blocks
+    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+    const codeBlockMatch = codeBlockRegex.exec(cleanedContent);
+    if (codeBlockMatch) {
+      cleanedContent = codeBlockMatch[1].trim();
+    }
+    
+    // If the response starts with explanatory text, try to extract JSON from it
+    const jsonStart = cleanedContent.indexOf('{');
+    const jsonEnd = cleanedContent.lastIndexOf('}');
+    if (jsonStart > 0 && jsonEnd > jsonStart) {
+      cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
+    }
+    
     // Parse the response to get the cover letter data
-    const coverLetterData: CoverLetterData = JSON.parse(response.choices[0].message.content);
+    const coverLetterData: CoverLetterData = JSON.parse(cleanedContent);
     
     // Generate the PDF
     const pdf = await generateCoverLetterPDF(coverLetterData);

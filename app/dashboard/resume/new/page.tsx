@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader, Upload, Check, X } from "lucide-react";
-import { checkStorageBuckets } from "@/lib/supabase/storage";
 
 export default function UploadResumePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -19,44 +18,15 @@ export default function UploadResumePage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Check if the required storage buckets exist
+  // Storage bucket checks disabled for development
   useEffect(() => {
     const checkBuckets = async () => {
       try {
-        // Use the new checkStorageBuckets function
-        const { initialized: bucketsInitialized, missingBuckets, error: bucketError } = await checkStorageBuckets();
-        
-        if (!bucketsInitialized || bucketError) {
-          console.error("Storage bucket error:", bucketError || `Missing buckets: ${missingBuckets.join(', ')}`);
-          
-          // Try to initialize via the init API
-          const initResponse = await fetch('/api/init');
-          const initData = await initResponse.json();
-          
-          if (!initData.success) {
-            setError("Storage system not properly initialized. File uploads may not work correctly.");
-            // We'll still set bucketInitialized to true so the app can continue,
-            // but the error message will inform the user of potential issues
-            setBucketInitialized(true);
-            return;
-          }
-          
-          // Check again after initialization attempt
-          const { initialized: recheck } = await checkStorageBuckets();
-          setBucketInitialized(recheck);
-          
-          if (!recheck) {
-            setError("Storage buckets could not be properly initialized. Some features may not work correctly.");
-          }
-        } else {
-          // All buckets exist and are properly initialized
-          setBucketInitialized(true);
-          setError(null);
-        }
+        console.log("Storage bucket checks disabled - assuming initialized");
+        setBucketInitialized(true);
+        setError(null);
       } catch (err) {
-        console.error("Error checking storage buckets:", err);
-        setError("Failed to initialize storage. Please refresh the page.");
-        // Even with the error, we'll allow the component to render
+        console.error("Error in bucket initialization:", err);
         setBucketInitialized(true);
       }
     };

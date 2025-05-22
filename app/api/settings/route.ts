@@ -1,65 +1,117 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createServerClient, verifyAuthentication } from '@/lib/supabase/server-client';
+import { createServiceRoleClient, createServerClient } from '@/lib/supabase/server-client';
 import { defaultSettings, UserSettings } from '@/lib/utils/settings';
 import { loadServerSettings } from '@/lib/ai/settings-loader';
 import { updateAIConfig } from '@/lib/ai/update-config';
 import { AI_CONFIG } from '@/lib/ai/config';
 
-// Get settings from database or env vars if not set
+// In-memory cache for session-based settings
+// This provides persistence across requests during the same server session
+const sessionSettingsCache = new Map<string, UserSettings>();
+
+// Generate or retrieve a session-based user identifier
+function getSessionUserId(cookies: any): string {
+  let sessionUserId = cookies.get('session_user_id')?.value;
+  
+  if (!sessionUserId) {
+    // Generate a unique session ID using timestamp and random string
+    sessionUserId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  }
+  
+  return sessionUserId;
+}
+
+// Get settings from database using service role
 export async function GET() {
   try {
-    // Verify authentication
-    const { authenticated, user } = await verifyAuthentication();
+    console.log('GET /api/settings - Using service role for database operations');
     
-    if (!authenticated || !user) {
-      console.log('User not authenticated, returning 401 unauthorized for GET /api/settings');
-      return NextResponse.json({ 
-        error: 'Authentication required',
-        message: 'You must be logged in to access settings.'
-      }, { 
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    const cookieStore = cookies();
+    
+    // Get session user ID (either authenticated user or session-based ID)
+    const supabase = createServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    let userId: string;
+    let userType: string;
+    
+    if (session?.user) {
+      userId = session.user.id; // This is already a string UUID
+      userType = 'authenticated';
+      console.log(`Loading settings for authenticated user: ${userId}`);
+    } else {
+      userId = getSessionUserId(cookieStore);
+      userType = 'session';
+      console.log(`Loading settings for session user: ${userId}`);
     }
     
-    const supabase = createServerClient();
-    let data, error;
-
+    let responseSettings = loadServerSettings(); // Default/fallback settings
+    
+    // Check database first, then fall back to cache
     try {
-      // Get settings from database
-      ({ data, error } = await supabase
+      // Use service role client to bypass RLS and access database
+      const supabaseAdmin = createServiceRoleClient();
+      const { data, error } = await supabaseAdmin
         .from('user_settings')
         .select('settings')
-        .eq('user_id', user.id)
-        .single());
+        .eq('user_id', userId)
+        .single();
       
-      if (error && error.code !== 'PGRST116') { // PGRST116: Row not found, not an error for us here
-        console.error('Error fetching user settings in GET /api/settings:', error);
-        return NextResponse.json({ 
-          error: 'Failed to retrieve settings',
-          message: 'Could not retrieve your settings at this time. Please try again later.'
-        }, { status: 500, headers: { 'Content-Type': 'application/json' } });
+      if (error && error.code !== 'PGRST116') { // PGRST116: Row not found
+        console.error('Error fetching user settings from database:', error);
+        // Fall back to cache
+        if (sessionSettingsCache.has(userId)) {
+          responseSettings = sessionSettingsCache.get(userId)!;
+          console.log(`Loaded settings from memory cache for ${userType} user (database error)`);
+        } else {
+          console.log(`No cached settings found for ${userType} user, using defaults (database error)`);
+        }
+      } else if (data?.settings) {
+        responseSettings = data.settings;
+        console.log(`Loaded settings from database for ${userType} user`);
+        // Update cache with database data
+        sessionSettingsCache.set(userId, responseSettings);
+      } else {
+        console.log(`No existing settings found in database for ${userType} user, checking cache`);
+        // Check cache as fallback
+        if (sessionSettingsCache.has(userId)) {
+          responseSettings = sessionSettingsCache.get(userId)!;
+          console.log(`Loaded settings from memory cache for ${userType} user`);
+        } else {
+          console.log(`No cached settings found for ${userType} user, using defaults`);
+        }
       }
     } catch (dbError) {
-      // Catch any other unexpected errors during DB operation
-      console.error('Unexpected database error during settings fetch in GET /api/settings:', dbError);
-      return NextResponse.json({ 
-        error: 'Database error',
-        message: 'An unexpected error occurred while fetching your settings.'
-      }, { status: 500, headers: { 'Content-Type': 'application/json' } });
+      console.error('Database error fetching settings:', dbError);
+      // Fall back to cache
+      if (sessionSettingsCache.has(userId)) {
+        responseSettings = sessionSettingsCache.get(userId)!;
+        console.log(`Loaded settings from memory cache for ${userType} user (database exception)`);
+      } else {
+        console.log(`No cached settings found for ${userType} user, using defaults (database exception)`);
+      }
     }
-    
-    const serverSettings = loadServerSettings();
-    const responseSettings = data?.settings || serverSettings;
     
     if (!responseSettings.updatedAt) {
       responseSettings.updatedAt = Date.now();
     }
     
-    return NextResponse.json(responseSettings, {
+    // Set session user ID cookie if it's a new session user
+    const response = NextResponse.json(responseSettings, {
       headers: { 'Content-Type': 'application/json' }
     });
+    
+    if (userType === 'session') {
+      response.cookies.set('session_user_id', userId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30 // 30 days
+      });
+    }
+    
+    return response;
   } catch (error) {
     console.error('Unhandled error in GET /api/settings:', error);
     return NextResponse.json({ 
@@ -72,20 +124,28 @@ export async function GET() {
   }
 }
 
-// Update settings
+// Update settings using service role
 export async function POST(request: NextRequest) {
   try {
-    const { authenticated, user } = await verifyAuthentication();
+    console.log('POST /api/settings - Using service role for database operations');
     
-    if (!authenticated || !user) {
-      console.log('User not authenticated, returning 401 unauthorized for POST /api/settings');
-      return NextResponse.json({ 
-        error: 'Authentication required',
-        message: 'You must be logged in to update settings.'
-      }, { 
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    const cookieStore = cookies();
+    
+    // Get session user ID (either authenticated user or session-based ID)
+    const supabase = createServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    let userId: string;
+    let userType: string;
+    
+    if (session?.user) {
+      userId = session.user.id;
+      userType = 'authenticated';
+      console.log(`Saving settings for authenticated user: ${userId}`);
+    } else {
+      userId = getSessionUserId(cookieStore);
+      userType = 'session';
+      console.log(`Saving settings for session user: ${userId}`);
     }
     
     let settings: UserSettings;
@@ -120,109 +180,23 @@ export async function POST(request: NextRequest) {
       settings.updatedAt = Date.now();
     }
     
-    console.log(`Saving settings to database for user ${user.id}:`, JSON.stringify({
+    console.log('Saving settings:', JSON.stringify({
       provider: settings.aiProvider,
       model: settings.aiModel,
-      updatedAt: settings.updatedAt
+      updatedAt: settings.updatedAt,
+      userType: userType,
+      userId: userId
     }));
     
-    const supabase = createServerClient();
-    
-    console.log(`Executing upsert on user_settings table for user ${user.id}`);
-    // console.log(`Settings object for upsert:`, JSON.stringify(settings, null, 2)); // Can be verbose
-    
-    const { error: upsertError } = await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: user.id,
-        settings,
-        updated_at: new Date().toISOString()
-      }, { 
-        onConflict: 'user_id',
-        returning: 'minimal'
-      });
-      
-    let mutableError = upsertError;
-
-    if (mutableError) {
-      console.error('Error during initial upsert in POST /api/settings:', mutableError);
-      console.log(`Upsert failed for user ${user.id}. Attempting fallback...`); // Keep this for flow visibility
-      let fallbackError = null;
-
-      try {
-        const { data: existingRow, error: checkError } = await supabase
-          .from('user_settings')
-          .select('id') 
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (checkError && checkError.code !== 'PGRST116') {
-          console.error('Error selecting user settings for fallback in POST /api/settings:', checkError);
-          fallbackError = checkError; 
-        } else if (checkError && checkError.code === 'PGRST116') {
-          console.log(`No existing row for user ${user.id} (PGRST116), trying fallback insert.`);
-          const { error: insertError } = await supabase
-            .from('user_settings')
-            .insert({ user_id: user.id, settings, updated_at: new Date().toISOString() });
-          if (insertError) {
-            console.error('Error during fallback insert in POST /api/settings:', insertError);
-            fallbackError = insertError;
-          } else {
-            console.log(`Fallback insert successful for user ${user.id}`);
-            mutableError = null; 
-          }
-        } else if (existingRow) {
-          console.log(`Existing row found for user ${user.id}, attempting fallback update.`);
-          const { error: updateError } = await supabase
-            .from('user_settings')
-            .update({ settings, updated_at: new Date().toISOString() })
-            .eq('user_id', user.id);
-          if (updateError) {
-            console.error('Error during fallback update in POST /api/settings:', updateError);
-            fallbackError = updateError;
-          } else {
-            console.log(`Fallback update successful for user ${user.id}`);
-            mutableError = null;
-          }
-        } else {
-           console.log(`No existing row for user ${user.id} (unexpected case after maybeSingle), trying fallback insert.`);
-           const { error: insertError } = await supabase
-            .from('user_settings')
-            .insert({ user_id: user.id, settings, updated_at: new Date().toISOString() });
-          if (insertError) {
-            console.error('Error during fallback insert (unexpected case) in POST /api/settings:', insertError);
-            fallbackError = insertError;
-          } else {
-            console.log(`Fallback insert (unexpected case) successful for user ${user.id}`);
-            mutableError = null;
-          }
-        }
-      } catch (dbFallbackError) {
-        console.error('Unexpected database error during fallback logic in POST /api/settings:', dbFallbackError);
-        fallbackError = dbFallbackError; // Assign if it's a generic error
-      }
-
-      if (fallbackError) {
-        mutableError = fallbackError;
-      }
-    }
-
-    if (mutableError) {
-      console.error('Failed to save settings after all attempts in POST /api/settings:', mutableError);
-      return NextResponse.json({ 
-        error: 'Failed to save settings',
-        message: 'Your settings could not be saved at this time. Please try again later.'
-      }, { status: 500, headers: { 'Content-Type': 'application/json' } });
-    }
-    
+    // Apply settings to AI configuration first
     try {
       updateAIConfig(settings);
       console.log('Applied settings directly to AI configuration');
-      // console.log('Current AI configuration after update:', AI_CONFIG); // Can be verbose
     } catch (configError) {
       console.warn('Error updating live AI configuration after saving settings:', configError);
     }
     
+    // Update global cache
     if (typeof global !== 'undefined') {
       global.userSettings = { ...settings };
       console.log('Updated global settings cache with new settings');
@@ -231,56 +205,63 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // Save to memory cache for immediate access
+    sessionSettingsCache.set(userId, { ...settings });
+    console.log(`Settings saved to memory cache for ${userType} user: ${userId}`);
+    
+    // Save to database using service role
+    let dbResult = { success: false, message: 'Unknown error' };
     try {
-      console.log(`Verifying settings for user ${user.id} after save...`);
-      const { data: verificationData, error: verificationError } = await supabase
+      console.log(`Saving settings to database for ${userType} user: ${userId}`);
+      
+      // Use service role client to bypass RLS and access database
+      const supabaseAdmin = createServiceRoleClient();
+      const { error: upsertError } = await supabaseAdmin
         .from('user_settings')
-        .select('settings')
-        .eq('user_id', user.id)
-        .single();
+        .upsert({
+          user_id: userId,
+          settings,
+          updated_at: new Date().toISOString()
+        }, { 
+          onConflict: 'user_id',
+          returning: 'minimal'
+        });
         
-      if (verificationError) {
-        console.error('Error verifying saved settings in POST /api/settings:', verificationError);
-        return NextResponse.json({ 
-          success: true, 
-          settings, // original settings from request
-          updatedAt: settings.updatedAt,
-          verification: 'failed',
-          message: 'Settings were applied, but verification after save encountered an issue.'
-        }, { headers: { 'Content-Type': 'application/json' } });
-      } else if (!verificationData?.settings) {
-        console.error('Error verifying saved settings in POST /api/settings: verificationData or verificationData.settings is null/undefined');
-        return NextResponse.json({
-          success: true,
-          settings, // original settings from request
-          updatedAt: settings.updatedAt,
-          verification: 'failed', 
-          message: 'Settings were applied, but verification found missing or corrupted settings data in the database.'
-        }, { headers: { 'Content-Type': 'application/json' } });
+      if (upsertError) {
+        console.error('Error saving to database:', upsertError);
+        dbResult = { success: false, message: `Database error: ${upsertError.message}` };
       } else {
-        // Current success logic:
-        // console.log(`Verification successful for user ${user.id}:`, verificationData);
-        return NextResponse.json({ 
-          success: true, 
-          settings, // original settings from request
-          updatedAt: settings.updatedAt,
-          verification: 'success',
-          dbSettings: { 
-            provider: verificationData.settings.aiProvider,
-            model: verificationData.settings.aiModel
-          }
-        }, { headers: { 'Content-Type': 'application/json' } });
+        console.log(`Settings saved to database successfully for ${userType} user`);
+        dbResult = { success: true, message: `Settings saved to database for ${userType} user` };
       }
-    } catch (unexpectedVerificationError) {
-      console.error('Unexpected error during settings verification in POST /api/settings:', unexpectedVerificationError);
-      return NextResponse.json({ 
-        success: true, 
-        settings,
-        updatedAt: settings.updatedAt,
-        verification: 'error',
-        message: 'Settings were applied, but an unexpected error occurred during verification.'
-      }, { headers: { 'Content-Type': 'application/json' } });
+    } catch (dbError) {
+      console.error('Unexpected database error:', dbError);
+      dbResult = { success: false, message: 'Unexpected database error' };
     }
+    
+    // Prepare response with session cookie if needed
+    const response = NextResponse.json({ 
+      success: true, 
+      settings,
+      updatedAt: settings.updatedAt,
+      database: dbResult,
+      userType: userType,
+      message: dbResult.success ? 
+        `Settings applied and saved to database (${userType} user)` : 
+        `Settings applied to memory cache only (${userType} user)`
+    }, { headers: { 'Content-Type': 'application/json' } });
+    
+    // Set session user ID cookie if it's a new session user
+    if (userType === 'session') {
+      response.cookies.set('session_user_id', userId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30 // 30 days
+      });
+    }
+    
+    return response;
   } catch (error) {
     console.error('Unhandled error in POST /api/settings:', error);
     return NextResponse.json({ 

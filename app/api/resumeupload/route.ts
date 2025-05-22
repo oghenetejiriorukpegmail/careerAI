@@ -1,261 +1,555 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/client';
-import mammoth from 'mammoth';
-import { extractDocumentText } from '@/lib/documents/pdf-parser';
-import { extractStructuredResumeData } from '@/lib/documents/document-parser';
 
-/**
- * API route that handles both resume upload and parsing in a single call
- * Combines functionality to avoid multiple API calls and auth issues
- */
-export async function POST(request: NextRequest) {
+// Google Document AI processing function
+async function processDocumentWithGoogleAI(fileBuffer: ArrayBuffer, mimeType: string) {
   try {
-    // Get the form data
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const userId = formData.get('userId') as string;
-
-    // Validate inputs
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: 'No user ID provided' }, { status: 400 });
-    }
-
-    // Get the file type
-    const fileType = file.type;
+    // Use dynamic import to avoid webpack issues
+    const { DocumentProcessorServiceClient } = await import('@google-cloud/documentai').then(m => m.v1);
     
-    // Validate file type
-    const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    if (!validTypes.includes(fileType)) {
-      return NextResponse.json({ error: 'Invalid file type. Please upload a PDF or DOCX file' }, { status: 400 });
+    // Initialize the client with credentials
+    const client = new DocumentProcessorServiceClient({
+      keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    });
+
+    const projectId = process.env.GOOGLE_PROJECT_ID;
+    const location = 'us'; // or your preferred location
+    const processorId = process.env.GOOGLE_PROCESSOR_ID;
+
+    // The full resource name of the processor
+    const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+
+    // Configure the request for processing the document
+    const request = {
+      name,
+      rawDocument: {
+        content: Buffer.from(fileBuffer).toString('base64'),
+        mimeType,
+      },
+    };
+
+    // Process the document
+    const [result] = await client.processDocument(request);
+    const { document } = result;
+
+    if (!document || !document.text) {
+      throw new Error('No text extracted from document');
     }
 
-    // Create unique filename to avoid collisions
-    const timestamp = Date.now();
-    const fileName = `${timestamp}_${file.name.replace(/\s+/g, '_')}`;
-    const filePath = `${userId}/${fileName}`;
+    return document.text;
+  } catch (error) {
+    console.error('Google Document AI error:', error);
+    throw new Error(`Document AI processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
 
-    console.log(`Processing file for upload to user_files/${filePath}`);
-
-    // Convert file to buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    // 1. Upload file using admin client (bypasses RLS)
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from('user_files')
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('Error uploading file:', uploadError);
-      return NextResponse.json({ 
-        success: false, 
-        error: uploadError.message 
-      }, { status: 500 });
-    }
-
-    // 2. Parse the document using our unified document parser
-    let documentText = '';
+// Skills normalization function to ensure proper itemization
+function normalizeSkills(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  
+  // Create a copy to avoid mutating the original
+  const normalized = { ...data };
+  
+  if (normalized.skills) {
+    let skills: string[] = [];
     
-    try {
-      console.log(`Parsing document with type: ${fileType}`);
-      
-      try {
-        // Use our unified document text extractor
-        documentText = await extractDocumentText(buffer, fileType, mammoth);
-        
-        console.log(`Document parsing successful, extracted ${documentText.length} characters`);
-        
-        if (!documentText || documentText.trim().length < 50) {
-          console.warn('Document parsing returned very little text, content may be incomplete');
-          // If we got very little text, fall back to simple file metadata as supplemental info
-          documentText += `\n\nFile information: ${fileName}, uploaded by user ${userId}, file type: ${fileType}.`;
-        }
-      } catch (pdfError) {
-        console.error('Error extracting text from PDF, falling back to simplified parser');
-        
-        if (fileType === 'application/pdf') {
-          // For PDFs, try fallback to basic text extraction if possible
-          try {
-            if (typeof buffer.toString === 'function') {
-              // Extract any visible text strings from the buffer - will be imperfect but better than nothing
-              documentText = buffer.toString('utf8', 0, Math.min(buffer.length, 32000))
-                .replace(/[\x00-\x09\x0B-\x1F\x7F-\xFF]/g, '') // Remove non-printable ASCII chars
-                .replace(/\s+/g, ' '); // Normalize whitespace
-              
-              console.log('Used fallback string extraction, got', documentText.length, 'characters');
+    // Handle different skills formats
+    if (Array.isArray(normalized.skills)) {
+      // Process each skill item
+      normalized.skills.forEach((skill: any) => {
+        if (typeof skill === 'string') {
+          // Split comma-separated skills
+          const splitSkills = skill.split(/[,;]/)
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+          skills.push(...splitSkills);
+        } else if (skill && typeof skill === 'object') {
+          // Handle nested skill objects (flatten them)
+          if (skill.name) skills.push(skill.name);
+          if (skill.category && skill.items && Array.isArray(skill.items)) {
+            skills.push(...skill.items);
+          }
+          // Handle other object formats by extracting string values
+          Object.values(skill).forEach((value: any) => {
+            if (typeof value === 'string') {
+              const splitSkills = value.split(/[,;]/)
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+              skills.push(...splitSkills);
             }
-          } catch (fallbackError) {
-            console.error('Fallback extraction also failed:', fallbackError);
+          });
+        }
+      });
+    } else if (typeof normalized.skills === 'string') {
+      // Handle skills as a single string
+      skills = normalized.skills.split(/[,;]/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+    }
+    
+    // Remove duplicates and clean up
+    const uniqueSkills = [...new Set(skills)]
+      .map(skill => skill.trim())
+      .filter(skill => skill.length > 0 && skill.length < 100) // Reasonable length filter
+      .slice(0, 100); // Limit to prevent excessive skills
+    
+    normalized.skills = uniqueSkills;
+    
+    console.log(`[SKILLS NORMALIZATION] Processed ${skills.length} raw skills into ${uniqueSkills.length} normalized skills`);
+  }
+  
+  return normalized;
+}
+
+// AI-powered resume parsing function
+async function parseResumeText(text: string) {
+  try {
+    // Import AI configuration functions
+    const { queryAI } = await import('@/lib/ai/config');
+    const { loadServerSettings } = await import('@/lib/ai/settings-loader');
+    
+    // Load current AI settings
+    const settings = loadServerSettings();
+    
+    console.log(`[AI PROCESSING] Starting resume parsing with provider: ${settings.aiProvider}, model: ${settings.aiModel}`);
+    console.log(`[AI PROCESSING] Text length: ${text.length} characters`);
+    console.log(`[AI PROCESSING] Enable logging: ${settings.enableLogging}`);
+    
+    // Define the system prompt for resume parsing
+    const systemPrompt = `You are a resume parsing expert. Extract ALL structured information from the resume text and return it as JSON with these fields:
+    {
+      "name": "Full name",
+      "email": "Email address", 
+      "phone": "Phone number",
+      "address": "Complete address if available",
+      "linkedin": "LinkedIn profile URL if available",
+      "website": "Personal website/portfolio URL if available",
+      "summary": "Professional summary/objective",
+      "experience": [{"title": "Job title", "company": "Company name", "location": "Job location", "duration": "Employment duration", "description": "Job description"}],
+      "education": [{"degree": "Degree", "school": "Institution", "location": "School location", "year": "Graduation year", "gpa": "GPA if mentioned"}],
+      "skills": ["skill1", "skill2"],
+      "certifications": [{"name": "Certification name", "issuer": "Issuing organization", "date": "Date obtained", "expiry": "Expiry date if applicable", "credential_id": "Credential ID if available"}],
+      "licenses": [{"name": "License name", "issuer": "Issuing authority", "date": "Date obtained", "expiry": "Expiry date", "license_number": "License number if available"}],
+      "training": [{"name": "Training/Course name", "provider": "Training provider", "date": "Date completed", "duration": "Duration if mentioned"}],
+      "projects": [{"name": "Project name", "description": "Project description", "technologies": ["tech1", "tech2"], "date": "Project date/duration", "url": "Project URL if available"}],
+      "awards": [{"name": "Award name", "issuer": "Issuing organization", "date": "Date received", "description": "Award description"}],
+      "publications": [{"title": "Publication title", "journal": "Journal/Conference name", "date": "Publication date", "url": "Publication URL if available"}],
+      "languages": [{"language": "Language name", "proficiency": "Proficiency level"}],
+      "references": [{"name": "Reference name", "title": "Reference title", "company": "Reference company", "phone": "Reference phone", "email": "Reference email"}],
+      "volunteer": [{"organization": "Organization name", "role": "Volunteer role", "duration": "Duration", "description": "Volunteer description"}],
+      "hobbies": ["hobby1", "hobby2"],
+      "additional_sections": [{"section_title": "Section name", "content": "Section content"}]
+    }
+    
+    Instructions:
+    - Extract ALL information present in the resume, don't skip any sections
+    - If a field is not present, omit it from the JSON (don't include empty arrays or null values)
+    - For dates, preserve the original format from the resume
+    - For arrays, only include them if there are actual items to add
+    - Be thorough and capture every piece of information
+    - If there are custom sections not covered above, put them in "additional_sections"
+    
+    SKILLS EXTRACTION REQUIREMENTS:
+    - The "skills" field MUST be an array of individual skill strings: ["skill1", "skill2", "skill3"]
+    - Extract ALL technical skills, soft skills, and competencies mentioned
+    - Break down comma-separated skill lists into individual array items
+    - Break down skill categories into individual skills (e.g., "Programming: Python, Java, C++" becomes ["Python", "Java", "C++"])
+    - Include tools, technologies, frameworks, languages, methodologies, certifications as skills
+    - Do NOT group skills into categories or objects - use flat string array only
+    - Examples of proper skills formatting:
+      * "Python, Java, JavaScript" → ["Python", "Java", "JavaScript"]
+      * "Network Administration, Cisco, BGP, OSPF" → ["Network Administration", "Cisco", "BGP", "OSPF"]
+      * "Project Management, Agile, Scrum, Leadership" → ["Project Management", "Agile", "Scrum", "Leadership"]
+    
+    CRITICAL JSON FORMATTING REQUIREMENTS:
+    - Return ONLY valid JSON. No markdown code blocks, no explanatory text before or after.
+    - Start directly with { and end with }
+    - Ensure ALL strings are properly escaped and terminated with closing quotes
+    - Ensure ALL objects and arrays are properly closed with } and ]
+    - Double-check that the final character is } to complete the JSON object
+    - NO trailing commas, NO incomplete strings, NO unterminated objects`;
+
+    const userPrompt = `Parse this resume text:\n\n${text}`;
+    
+    // Use the configured AI provider and model from settings
+    console.log(`[AI PROCESSING] Sending request to ${settings.aiProvider} with model ${settings.aiModel}`);
+    const startTime = Date.now();
+    
+    const response = await queryAI(userPrompt, systemPrompt);
+    
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    console.log(`[AI PROCESSING] Response received in ${processingTime}ms`);
+    console.log(`[AI PROCESSING] Provider: ${settings.aiProvider}, Model: ${settings.aiModel}`);
+    
+    const parsedContent = response.choices[0]?.message?.content;
+    
+    if (!parsedContent) {
+      console.error('[AI PROCESSING] No content received from AI');
+      throw new Error('No parsed content received from AI');
+    }
+
+    console.log(`[AI PROCESSING] Response length: ${parsedContent.length} characters`);
+    if (settings.enableLogging) {
+      console.log(`[AI PROCESSING] Raw response preview: ${parsedContent.substring(0, 500)}...`);
+    }
+
+    // Parse the JSON response with enhanced error handling
+    let structuredData;
+    try {
+      // First, try parsing as-is
+      structuredData = JSON.parse(parsedContent);
+      console.log(`[AI PROCESSING] Successfully parsed JSON response`);
+      
+      if (settings.enableLogging) {
+        console.log(`[AI PROCESSING] Extracted data preview:`, {
+          name: structuredData.name || 'N/A',
+          email: structuredData.email || 'N/A',
+          phone: structuredData.phone || 'N/A',
+          experienceCount: structuredData.experience?.length || 0,
+          educationCount: structuredData.education?.length || 0,
+          skillsCount: structuredData.skills?.length || 0
+        });
+      }
+      
+      // Post-process skills to ensure proper itemization
+      structuredData = normalizeSkills(structuredData);
+    } catch (parseError) {
+      console.error('[AI PROCESSING] Initial JSON parsing failed:', parseError);
+      console.log('[AI PROCESSING] Attempting to fix malformed JSON...');
+      
+      // Advanced JSON repair function
+      function repairJSON(jsonString: string): string {
+        let fixed = jsonString.trim();
+        
+        // Step 1: Handle truncated strings by finding incomplete string patterns
+        // Look for unterminated string literals (quotes without proper closing)
+        const lastQuoteIndex = fixed.lastIndexOf('"');
+        if (lastQuoteIndex > 0) {
+          // Check if this quote is properly closed
+          const afterQuote = fixed.substring(lastQuoteIndex + 1);
+          const nextQuote = afterQuote.indexOf('"');
+          const nextDelimiter = afterQuote.search(/[,\]\}]/);
+          
+          // If no closing quote or delimiter is malformed, truncate at previous complete structure
+          if (nextQuote === -1 || (nextDelimiter !== -1 && nextDelimiter < nextQuote)) {
+            // Find the previous complete structure
+            let truncateAt = lastQuoteIndex;
+            
+            // Look backwards for the previous complete field
+            for (let i = lastQuoteIndex - 1; i >= 0; i--) {
+              if (fixed[i] === ',' || fixed[i] === '[' || fixed[i] === '{') {
+                truncateAt = i;
+                break;
+              }
+            }
+            
+            fixed = fixed.substring(0, truncateAt);
+            console.log(`[AI PROCESSING] Truncated at unterminated string position ${truncateAt}`);
           }
         }
         
-        // If we still have no usable text, use basic metadata
-        if (!documentText || documentText.trim().length < 10) {
-          documentText = `Resume: ${fileName}. Content could not be extracted. File type: ${fileType}.`;
+        // Step 2: Find the last complete object/array structure
+        let lastCompletePos = -1;
+        let braceDepth = 0;
+        let bracketDepth = 0;
+        let inString = false;
+        let escaped = false;
+        
+        for (let i = 0; i < fixed.length; i++) {
+          const char = fixed[i];
+          
+          if (escaped) {
+            escaped = false;
+            continue;
+          }
+          
+          if (char === '\\' && inString) {
+            escaped = true;
+            continue;
+          }
+          
+          if (char === '"' && !escaped) {
+            inString = !inString;
+            continue;
+          }
+          
+          if (!inString) {
+            if (char === '{') braceDepth++;
+            if (char === '}') braceDepth--;
+            if (char === '[') bracketDepth++;
+            if (char === ']') bracketDepth--;
+            
+            // If we're at a balanced state, this could be a good truncation point
+            if (braceDepth === 0 && bracketDepth === 0 && (char === '}' || char === ']')) {
+              lastCompletePos = i;
+            }
+          }
         }
+        
+        if (lastCompletePos > 0) {
+          fixed = fixed.substring(0, lastCompletePos + 1);
+          console.log(`[AI PROCESSING] Truncated to last balanced structure at position ${lastCompletePos}`);
+        }
+        
+        // Step 3: Balance any remaining unmatched brackets/braces
+        const openBraces = (fixed.match(/{/g) || []).length;
+        const closeBraces = (fixed.match(/}/g) || []).length;
+        const openBrackets = (fixed.match(/\[/g) || []).length;
+        const closeBrackets = (fixed.match(/\]/g) || []).length;
+        
+        const missingBraces = openBraces - closeBraces;
+        const missingBrackets = openBrackets - closeBrackets;
+        
+        if (missingBraces > 0) {
+          fixed += '}'.repeat(missingBraces);
+          console.log(`[AI PROCESSING] Added ${missingBraces} missing closing braces`);
+        }
+        
+        if (missingBrackets > 0) {
+          fixed += ']'.repeat(missingBrackets);
+          console.log(`[AI PROCESSING] Added ${missingBrackets} missing closing brackets`);
+        }
+        
+        return fixed;
       }
-    } catch (parseError: any) {
-      console.error('Error in document parsing flow:', parseError);
       
-      // Create a minimal placeholder text to allow the process to continue
-      documentText = `Resume: ${fileName}. Content could not be extracted. File type: ${fileType}.`;
+      const fixedContent = repairJSON(parsedContent);
       
-      // Return partial success
-      return NextResponse.json({
-        success: true,
-        uploadSuccess: true,
-        parseSuccess: false,
-        data: uploadData,
-        error: `File uploaded but parsing failed: ${parseError.message || 'Unknown parsing error'}`
-      });
+      try {
+        structuredData = JSON.parse(fixedContent);
+        console.log(`[AI PROCESSING] Successfully parsed fixed JSON response`);
+        
+        if (settings.enableLogging) {
+          console.log(`[AI PROCESSING] Extracted data preview:`, {
+            name: structuredData.name || 'N/A',
+            email: structuredData.email || 'N/A',
+            phone: structuredData.phone || 'N/A',
+            experienceCount: structuredData.experience?.length || 0,
+            educationCount: structuredData.education?.length || 0,
+            skillsCount: structuredData.skills?.length || 0
+          });
+        }
+        
+        // Post-process skills to ensure proper itemization
+        structuredData = normalizeSkills(structuredData);
+      } catch (secondParseError) {
+        console.error('[AI PROCESSING] JSON fixing failed:', secondParseError);
+        console.error('[AI PROCESSING] Original content length:', parsedContent.length);
+        console.error('[AI PROCESSING] Fixed content length:', fixedContent.length);
+        console.error('[AI PROCESSING] Raw content causing parse error (first 1000 chars):', parsedContent.substring(0, 1000));
+        console.error('[AI PROCESSING] Raw content causing parse error (last 1000 chars):', parsedContent.substring(Math.max(0, parsedContent.length - 1000)));
+        
+        // Return a basic structure with extracted text as fallback
+        structuredData = {
+          name: "Parse Error - Check Logs",
+          summary: "AI response was malformed. Raw text extraction successful but structured parsing failed.",
+          parse_error: true,
+          error_details: parseError instanceof Error ? parseError.message : 'Unknown parsing error',
+          raw_content_length: parsedContent.length
+        };
+        
+        console.log(`[AI PROCESSING] Using fallback structure due to parsing failure`);
+      }
     }
 
-    // 3. Extract structured data using AI
-    let structuredData;
-    let aiSuccess = false;
+    return structuredData;
+  } catch (error) {
+    console.error('[AI PROCESSING] Error parsing resume with AI:', error);
+    throw error;
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    const userId = formData.get('userId') as string;
     
+    if (!file) {
+      return NextResponse.json({
+        error: 'No file provided'
+      }, { status: 400 });
+    }
+
+    if (!userId) {
+      return NextResponse.json({
+        error: 'User ID is required'
+      }, { status: 400 });
+    }
+
+    // Basic file validation
+    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json({
+        error: 'Invalid file type. Please upload a PDF or DOCX file.'
+      }, { status: 400 });
+    }
+
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({
+        error: 'File size must be less than 10MB'
+      }, { status: 400 });
+    }
+
+    console.log(`[DOCUMENT PROCESSING] Processing resume: ${file.name} (${file.size} bytes)`);
+
+    // Load AI settings for later use
+    const { loadServerSettings } = await import('@/lib/ai/settings-loader');
+    const settings = loadServerSettings();
+
+    // Convert file to buffer
+    const fileBuffer = await file.arrayBuffer();
+
+    // Step 1: Extract text using Google Document AI
+    console.log('[GOOGLE DOCUMENT AI] Starting text extraction...');
+    const documentAiStartTime = Date.now();
+    
+    const extractedText = await processDocumentWithGoogleAI(fileBuffer, file.type);
+    
+    const documentAiEndTime = Date.now();
+    const documentAiProcessingTime = documentAiEndTime - documentAiStartTime;
+    
+    if (!extractedText || extractedText.trim().length === 0) {
+      console.error('[GOOGLE DOCUMENT AI] No text extracted from document');
+      return NextResponse.json({
+        error: 'No text could be extracted from the document'
+      }, { status: 400 });
+    }
+
+    console.log(`[GOOGLE DOCUMENT AI] Text extraction completed in ${documentAiProcessingTime}ms`);
+    console.log(`[GOOGLE DOCUMENT AI] Extracted ${extractedText.length} characters of text`);
+    console.log(`[GOOGLE DOCUMENT AI] Text preview: ${extractedText.substring(0, 200)}...`);
+
+    // Step 2: Parse the extracted text using AI
+    console.log('[AI PARSING] Starting resume structure parsing...');
+    const aiParsingStartTime = Date.now();
+    
+    const structuredData = await parseResumeText(extractedText);
+    
+    const aiParsingEndTime = Date.now();
+    const aiParsingTime = aiParsingEndTime - aiParsingStartTime;
+    const totalProcessingTime = aiParsingEndTime - documentAiStartTime;
+
+    console.log(`[AI PARSING] Resume parsing completed in ${aiParsingTime}ms`);
+    console.log(`[DOCUMENT PROCESSING] Total processing time: ${totalProcessingTime}ms (Document AI: ${documentAiProcessingTime}ms + AI Parsing: ${aiParsingTime}ms)`);
+    console.log('[DOCUMENT PROCESSING] Resume processed successfully');
+
+    // Step 3: Save to database
+    console.log('[DATABASE] Saving resume to database...');
     try {
-      // Check if we have enough meaningful text to analyze
-      if (documentText.length < 50) {
-        console.warn('Document text too short for AI analysis, creating fallback structure');
-        // Create minimal structured data with filename as the only known data
-        structuredData = {
-          contactInfo: {},
-          skills: [],
-          education: [],
-          experience: [],
-          summary: `This resume (${fileName}) could not be fully parsed. Please re-upload in a different format.`
+      const { getSupabaseAdminClient } = await import('@/lib/supabase/client');
+      const supabaseAdmin = getSupabaseAdminClient();
+      
+      if (!supabaseAdmin) {
+        console.error('[DATABASE] Admin client not available');
+        throw new Error('Database connection not available');
+      }
+
+      // Create a placeholder file path since we're not storing the actual file
+      const filePath = `processed_resumes/${userId}/${Date.now()}_${file.name}`;
+
+      // Try to insert with all columns first (assuming updated schema)
+      let resumeData, dbError;
+      
+      try {
+        const fullInsertData = {
+          user_id: userId,
+          file_path: filePath,
+          file_name: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          extracted_text: extractedText,
+          processing_status: 'completed',
+          ai_provider: settings.aiProvider,
+          ai_model: settings.aiModel,
+          parsed_data: structuredData
         };
-      } else {
-        console.log('Sending document to AI for analysis, text length:', documentText.length);
+
+        const result = await supabaseAdmin
+          .from('resumes')
+          .insert(fullInsertData)
+          .select()
+          .single();
+          
+        resumeData = result.data;
+        dbError = result.error;
+      } catch (fullSchemaError) {
+        console.log('[DATABASE] Full schema insert failed, trying basic schema');
         
+        // Fallback to basic schema (original table structure)
         try {
-          structuredData = await extractStructuredResumeData(documentText);
-          aiSuccess = true;
-          console.log('AI analysis completed successfully');
-        } catch (extractionError) {
-          console.error('AI extraction failed, using basic extraction approach:', extractionError);
-          
-          // Create a more basic structure from the text
-          // This attempts to extract essential info without AI
-          
-          // Extract potential name (usually at the top of a resume)
-          const nameMatch = documentText.match(/^([A-Z][a-z]+\s+[A-Z][a-z]+)/);
-          const name = nameMatch ? nameMatch[1] : '';
-          
-          // Extract potential email using regex
-          const emailMatch = documentText.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i);
-          const email = emailMatch ? emailMatch[1] : '';
-          
-          // Extract potential phone number
-          const phoneMatch = documentText.match(/(\+?1?\s*\(?[0-9]{3}\)?[-. ][0-9]{3}[-. ][0-9]{4})/);
-          const phone = phoneMatch ? phoneMatch[1] : '';
-          
-          // Extract potential skills (common technical terms and skill keywords)
-          const skillKeywords = [
-            'JavaScript', 'Python', 'Java', 'C++', 'Ruby', 'PHP', 'HTML', 'CSS', 'SQL',
-            'React', 'Angular', 'Vue', 'Node.js', 'Express', 'Django', 'Flask',
-            'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'CI/CD', 'Git',
-            'Leadership', 'Project Management', 'Agile', 'Scrum', 'Communication',
-            'Microsoft Office', 'Excel', 'Word', 'PowerPoint', 'Outlook',
-            'Analytics', 'Data Analysis', 'Marketing', 'Sales', 'Customer Service',
-            'Network', 'Cisco', 'CCNA', 'CCNP', 'Routing', 'Switching', 'Firewall',
-            'Security', 'VPN', 'LAN', 'WAN', 'Wireless', 'TCP/IP'
-          ];
-          
-          const skills = skillKeywords
-            .filter(skill => documentText.includes(skill))
-            .slice(0, 15); // Limit to 15 skills
-          
-          structuredData = {
-            contactInfo: {
-              fullName: name,
-              email: email,
-              phone: phone,
-            },
-            skills: skills,
-            education: [],
-            experience: [],
-            summary: `Basic information extracted from resume. Filename: ${fileName}`
+          const basicInsertData = {
+            user_id: userId,
+            file_path: filePath,
+            file_name: file.name,
+            file_type: file.type,
+            parsed_data: structuredData
           };
+
+          const result = await supabaseAdmin
+            .from('resumes')
+            .insert(basicInsertData)
+            .select()
+            .single();
+            
+          resumeData = result.data;
+          dbError = result.error;
           
-          console.log('Created basic structured data with simple parsing');
+          console.log('[DATABASE] Basic schema insert successful - run schema updates from DATABASE_SCHEMA_UPDATE.md for full features');
+        } catch (basicSchemaError) {
+          console.error('[DATABASE] Both full and basic schema inserts failed:', basicSchemaError);
+          throw basicSchemaError;
         }
       }
-    } catch (aiError: any) {
-      console.error('Error in AI extraction process:', aiError);
-      
-      // Create basic structure even when AI fails completely
-      structuredData = {
-        contactInfo: {},
-        skills: [],
-        education: [],
-        experience: [],
-        summary: `Resume processed with limited parsing. Original filename: ${fileName}`
-      };
-      
-      // Continue with the basic structure
+
+      if (dbError) {
+        console.error('[DATABASE] Error saving resume:', dbError);
+        throw new Error(`Database save failed: ${dbError.message}`);
+      }
+
+      console.log(`[DATABASE] Resume saved successfully with ID: ${resumeData.id}`);
+
       return NextResponse.json({
         success: true,
+        message: 'Resume processed and saved successfully',
         uploadSuccess: true,
         parseSuccess: true,
-        aiSuccess: false,
-        data: uploadData,
-        text: documentText,
-        structuredData,
-        error: `File uploaded and parsed, but AI extraction failed: ${aiError.message || 'Unknown AI processing error'}`
-      });
-    }
-
-    // 4. Create record in resumes table
-    const { error: dbError } = await supabaseAdmin
-      .from('resumes')
-      .insert({
-        user_id: userId,
-        file_name: file.name,
-        file_type: fileType,
-        file_path: filePath,
-        parsed_data: structuredData
+        aiSuccess: true,
+        dbSuccess: true,
+        resumeId: resumeData.id,
+        filename: file.name,
+        size: file.size,
+        type: file.type,
+        extractedText: extractedText.substring(0, 1000) + (extractedText.length > 1000 ? '...' : ''), // Return first 1000 chars
+        structuredData
       });
 
-    if (dbError) {
-      console.error('Error saving to database:', dbError);
+    } catch (dbError) {
+      console.error('[DATABASE] Failed to save resume to database:', dbError);
+      
+      // Return success for processing but indicate database issue
       return NextResponse.json({
         success: true,
+        message: 'Resume processed successfully but not saved to database',
+        warning: 'Database save failed - resume data was processed but not stored',
         uploadSuccess: true,
         parseSuccess: true,
         aiSuccess: true,
         dbSuccess: false,
-        data: uploadData,
-        text: documentText,
-        structuredData,
-        error: `File processed but database save failed: ${dbError.message}`
-      });
+        filename: file.name,
+        size: file.size,
+        type: file.type,
+        extractedText: extractedText.substring(0, 1000) + (extractedText.length > 1000 ? '...' : ''),
+        structuredData
+      }, { status: 200 });
     }
 
-    // Everything succeeded
+  } catch (error) {
+    console.error('Error processing resume:', error);
     return NextResponse.json({
-      success: true,
-      uploadSuccess: true,
-      parseSuccess: true,
-      aiSuccess: true,
-      dbSuccess: true,
-      data: uploadData,
-      text: documentText,
-      structuredData
-    });
-  } catch (error: any) {
-    console.error('Error in resume upload and parse:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message || 'Unknown server error' 
+      error: `Failed to process resume: ${error instanceof Error ? error.message : 'Unknown error'}`
     }, { status: 500 });
   }
 }
