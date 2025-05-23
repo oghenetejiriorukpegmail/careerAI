@@ -2,17 +2,19 @@
 
 [build]
   command = "npm run build"
-  publish = ".next"
-  environment = { NODE_ENV = "production" }
 
 [build.environment]
   # Next.js optimization
   NEXT_TELEMETRY_DISABLED = "1"
   
-  # Enable Puppeteer/Chromium
+  # Disable Puppeteer download for Netlify
   PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
 
-# Headers for security and performance
+# Enable Next.js Runtime
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Headers for security
 [[headers]]
   for = "/*"
   [headers.values]
@@ -20,40 +22,3 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
-
-# API routes configuration
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
-# Function configuration
-[functions]
-  directory = ".netlify/functions"
-  node_bundler = "esbuild"
-  
-  # Increase timeout for AI and scraping operations
-  timeout = 30
-  
-  # External modules that shouldn't be bundled
-  external_node_modules = ["@sparticuz/chromium", "puppeteer-core"]
-
-# Function-specific configuration
-[[functions.settings]]
-  path = "/api/job-descriptions/parse"
-  memory = 1024  # 1GB for Puppeteer operations
-
-[[functions.settings]]
-  path = "/api/generate-*"
-  memory = 512   # 512MB for AI operations
-
-# Environment variable templates
-[template.environment]
-  SUPABASE_URL = "Your Supabase project URL"
-  SUPABASE_ANON_KEY = "Your Supabase anonymous key"
-  SUPABASE_SERVICE_ROLE_KEY = "Your Supabase service role key"
-  OPENAI_API_KEY = "Your OpenAI API key (optional)"
-  GEMINI_API_KEY = "Your Google Gemini API key (optional)"
-  OPENROUTER_API_KEY = "Your OpenRouter API key (optional)"
-  BRIGHT_DATA_USERNAME = "Your Bright Data username (optional)"
-  BRIGHT_DATA_PASSWORD = "Your Bright Data password (optional)"
