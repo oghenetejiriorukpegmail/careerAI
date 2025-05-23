@@ -4,11 +4,9 @@
   command = "npm run build"
 
 [build.environment]
-  # Next.js optimization
+  # Essential build settings only
+  NODE_VERSION = "18"
   NEXT_TELEMETRY_DISABLED = "1"
-  
-  # Disable Puppeteer download for Netlify
-  PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
 
 # Enable Next.js Runtime
 [[plugins]]

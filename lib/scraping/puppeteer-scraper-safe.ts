@@ -16,12 +16,7 @@ interface PuppeteerScrapingResult {
  * Check if Puppeteer is available in the current environment
  */
 export function isPuppeteerAvailable(): boolean {
-  try {
-    require.resolve('puppeteer-core');
-    return true;
-  } catch {
-    return false;
-  }
+  return false; // Disabled for Netlify deployment
 }
 
 /**
