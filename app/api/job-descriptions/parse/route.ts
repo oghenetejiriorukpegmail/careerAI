@@ -1,14 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Job description parsing function using AI
-async function parseJobDescription(jobText: string, url?: string) {
+async function parseJobDescription(jobText: string, url?: string, userId?: string) {
   try {
     // Import AI configuration functions
     const { queryAI } = await import('@/lib/ai/config');
     const { loadServerSettings } = await import('@/lib/ai/settings-loader');
     
-    // Load current AI settings
-    const settings = loadServerSettings();
+    // Load current AI settings - if userId provided, load from database
+    let settings;
+    if (userId) {
+      const { createServerClient } = await import('@/lib/supabase/server-client');
+      const supabase = createServerClient();
+      
+      const { data: userSettingsRow } = await supabase
+        .from('user_settings')
+        .select('settings')
+        .eq('user_id', userId)
+        .single();
+        
+      if (userSettingsRow?.settings) {
+        settings = userSettingsRow.settings;
+        console.log('[JOB PARSING] Loaded user-specific settings from database:', settings);
+      } else {
+        settings = loadServerSettings();
+        console.log('[JOB PARSING] No user settings found, using defaults');
+      }
+    } else {
+      settings = loadServerSettings();
+    }
     
     console.log(`[JOB PARSING] Starting job description parsing with provider: ${settings.aiProvider}, model: ${settings.aiModel}`);
     console.log(`[JOB PARSING] Text length: ${jobText.length} characters`);
@@ -78,7 +98,7 @@ async function parseJobDescription(jobText: string, url?: string) {
     console.log(`[JOB PARSING] Sending request to ${settings.aiProvider} with model ${settings.aiModel}`);
     const startTime = Date.now();
     
-    const response = await queryAI(userPrompt, systemPrompt);
+    const response = await queryAI(userPrompt, systemPrompt, settings);
     
     const endTime = Date.now();
     const processingTime = endTime - startTime;
@@ -211,7 +231,7 @@ function extractInfoFromEplusURL(url: string): any {
 }
 
 // Alternative scraping approach for sites that block basic fetch
-async function tryAlternativeScraping(url: string, headers: any): Promise<string> {
+async function tryAlternativeScraping(url: string, headers: any, userId?: string): Promise<string> {
   try {
     // Try with simplified headers
     const response = await fetch(url, {
@@ -237,7 +257,7 @@ async function tryAlternativeScraping(url: string, headers: any): Promise<string
 }
 
 // Enhanced URL scraping function with job board specific handling
-async function scrapeJobFromURL(url: string): Promise<string> {
+async function scrapeJobFromURL(url: string, userId?: string): Promise<string> {
   try {
     console.log(`[URL SCRAPING] Attempting to scrape job from URL: ${url}`);
     
@@ -310,13 +330,231 @@ async function scrapeJobFromURL(url: string): Promise<string> {
       html = await response.text();
       console.log(`[URL SCRAPING] Successfully fetched ${html.length} characters from URL`);
       
+      // For ePlus, immediately try AI extraction since their content is dynamically loaded
+      if (isEplus && html.length > 10000) {
+        console.log('[URL SCRAPING] ePlus page detected with substantial HTML, debugging...');
+        
+        // Debug the page structure
+        try {
+          const { debugWebpage } = await import('@/lib/scraping/debug-scraper');
+          await debugWebpage(html, url);
+        } catch (debugError) {
+          console.error('[URL SCRAPING] Debug failed:', debugError);
+        }
+        
+        // Try deep extraction when we have large HTML
+        try {
+          const { deepExtractContent } = await import('@/lib/scraping/deep-extractor');
+          const deepResult = await deepExtractContent(html, url);
+          
+          if (deepResult && deepResult.content) {
+            console.log(`[URL SCRAPING] Deep extraction succeeded using ${deepResult.method}`);
+            
+            // Format the extracted content
+            let formattedContent = '';
+            const content = deepResult.content;
+            
+            if (typeof content === 'object') {
+              // If we found endpoints, try to fetch them
+              if (content.endpoints) {
+                console.log('[URL SCRAPING] Found API endpoints:', content.endpoints);
+                // Could implement API fetching here
+              } else {
+                // Format job data
+                if (content.jobTitle || content.title) {
+                  formattedContent = `Job Title: ${content.jobTitle || content.title}\n`;
+                }
+                if (content.company || content.company_name) {
+                  formattedContent += `Company: ${content.company || content.company_name}\n`;
+                }
+                if (content.location) {
+                  formattedContent += `Location: ${content.location}\n`;
+                }
+                if (content.salary || content.salary_range) {
+                  formattedContent += `Salary: ${content.salary || content.salary_range}\n`;
+                }
+                formattedContent += '\n';
+                
+                if (content.description || content.job_summary) {
+                  formattedContent += `Description:\n${content.description || content.job_summary}\n\n`;
+                }
+                
+                if (content.responsibilities && Array.isArray(content.responsibilities)) {
+                  formattedContent += `Responsibilities:\n`;
+                  content.responsibilities.forEach((r: string) => {
+                    formattedContent += `- ${r}\n`;
+                  });
+                  formattedContent += '\n';
+                }
+                
+                if (content.qualifications && Array.isArray(content.qualifications)) {
+                  formattedContent += `Qualifications:\n`;
+                  content.qualifications.forEach((q: string) => {
+                    formattedContent += `- ${q}\n`;
+                  });
+                  formattedContent += '\n';
+                }
+                
+                if (content.requirements && Array.isArray(content.requirements)) {
+                  formattedContent += `Requirements:\n`;
+                  content.requirements.forEach((r: string) => {
+                    formattedContent += `- ${r}\n`;
+                  });
+                }
+              }
+            }
+            
+            if (formattedContent && formattedContent.length > 200) {
+              console.log('[URL SCRAPING] Deep extraction provided rich content');
+              scrapingCache.set(url, formattedContent);
+              return formattedContent;
+            }
+            
+            // If deep extraction found API endpoints, try to fetch them
+            if (deepResult.content.endpoints && Array.isArray(deepResult.content.endpoints)) {
+              console.log('[URL SCRAPING] Attempting to fetch discovered API endpoints...');
+              try {
+                const { discoverAndFetchAPI } = await import('@/lib/scraping/api-discovery');
+                const apiResult = await discoverAndFetchAPI(url, html);
+                
+                if (apiResult && apiResult.success && apiResult.data) {
+                  console.log('[URL SCRAPING] Successfully fetched job data from API');
+                  
+                  // Format the API data
+                  const apiData = apiResult.data;
+                  let apiContent = '';
+                  
+                  if (apiData.title || apiData.jobTitle) {
+                    apiContent += `Job Title: ${apiData.title || apiData.jobTitle}\n`;
+                  }
+                  if (apiData.company) apiContent += `Company: ${apiData.company}\n`;
+                  if (apiData.location) apiContent += `Location: ${apiData.location}\n`;
+                  if (apiData.salary) apiContent += `Salary: ${apiData.salary}\n`;
+                  apiContent += '\n';
+                  
+                  if (apiData.description) {
+                    apiContent += `Description:\n${apiData.description}\n\n`;
+                  }
+                  
+                  if (apiData.responsibilities) {
+                    apiContent += `Responsibilities:\n`;
+                    if (Array.isArray(apiData.responsibilities)) {
+                      apiData.responsibilities.forEach((r: string) => apiContent += `- ${r}\n`);
+                    } else {
+                      apiContent += `${apiData.responsibilities}\n`;
+                    }
+                    apiContent += '\n';
+                  }
+                  
+                  if (apiData.qualifications || apiData.requirements) {
+                    const quals = apiData.qualifications || apiData.requirements;
+                    apiContent += `Requirements:\n`;
+                    if (Array.isArray(quals)) {
+                      quals.forEach((q: string) => apiContent += `- ${q}\n`);
+                    } else {
+                      apiContent += `${quals}\n`;
+                    }
+                  }
+                  
+                  if (apiContent.length > 200) {
+                    scrapingCache.set(url, apiContent);
+                    return apiContent;
+                  }
+                }
+              } catch (apiError) {
+                console.error('[URL SCRAPING] API discovery failed:', apiError);
+              }
+            }
+          }
+        } catch (deepError) {
+          console.error('[URL SCRAPING] Deep extraction failed:', deepError);
+        }
+        
+        // Try to extract from SPA
+        try {
+          const { extractFromSPA } = await import('@/lib/scraping/spa-handler');
+          const spaData = extractFromSPA(html, url);
+          if (spaData) {
+            console.log('[URL SCRAPING] SPA data extracted:', JSON.stringify(spaData).substring(0, 200));
+          }
+        } catch (spaError) {
+          console.error('[URL SCRAPING] SPA extraction failed:', spaError);
+        }
+        
+        // Try AI extraction
+        try {
+          const { extractJobWithAI, formatExtractedJob } = await import('@/lib/scraping/ai-powered-scraper');
+          const extractedData = await extractJobWithAI(html, url, userId);
+          
+          if (extractedData && extractedData.description && extractedData.description.length > 100) {
+            const formattedContent = formatExtractedJob(extractedData);
+            console.log('[URL SCRAPING] AI extraction successful for ePlus');
+            scrapingCache.set(url, formattedContent);
+            return formattedContent;
+          }
+        } catch (aiError) {
+          console.error('[URL SCRAPING] AI extraction failed for ePlus:', aiError);
+        }
+        
+        // Try Puppeteer as last resort for JavaScript-heavy sites
+        console.log('[URL SCRAPING] All extraction methods failed for ePlus, trying Puppeteer...');
+        try {
+          const { scrapeWithPuppeteer } = await import('@/lib/scraping/puppeteer-scraper-safe');
+          const puppeteerResult = await scrapeWithPuppeteer(url);
+          
+          if (puppeteerResult.success && puppeteerResult.extractedContent && puppeteerResult.extractedContent.length > 100) {
+            console.log('[URL SCRAPING] Puppeteer extraction successful');
+            scrapingCache.set(url, puppeteerResult.extractedContent);
+            return puppeteerResult.extractedContent;
+          } else if (puppeteerResult.error) {
+            console.error('[URL SCRAPING] Puppeteer failed:', puppeteerResult.error);
+          }
+        } catch (puppeteerError) {
+          console.error('[URL SCRAPING] Puppeteer scraping failed:', puppeteerError);
+        }
+      }
+      
     } catch (fetchError) {
       console.error('[URL SCRAPING] Direct fetch failed:', fetchError);
       
-      // Try enhanced scraper as fallback
-      console.log('[URL SCRAPING] Attempting enhanced scraping...');
+      // Try AI-powered scraper first
+      console.log('[URL SCRAPING] Attempting AI-powered extraction...');
       try {
-        const { enhancedJobScrape } = await import('@/lib/scraping/enhanced-scraper');
+        const response = await fetch(url, {
+          headers,
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15000)
+        });
+        
+        if (response.ok) {
+          const html = await response.text();
+          const { extractJobWithAI, formatExtractedJob } = await import('@/lib/scraping/ai-powered-scraper');
+          
+          console.log('[URL SCRAPING] Sending to AI for extraction...');
+          const extractedData = await extractJobWithAI(html, url, userId);
+          
+          if (extractedData && extractedData.description) {
+            const formattedContent = formatExtractedJob(extractedData);
+            console.log('[URL SCRAPING] AI extraction successful');
+            
+            // Cache the result
+            scrapingCache.set(url, formattedContent);
+            return formattedContent;
+          }
+        }
+      } catch (aiError) {
+        console.error('[URL SCRAPING] AI-powered extraction failed:', aiError);
+      }
+      
+      // Fallback to enhanced scraper
+      console.log('[URL SCRAPING] Falling back to enhanced scraping...');
+      try {
+        const { enhancedJobScrape, detectJobBoard } = await import('@/lib/scraping/enhanced-scraper');
+        
+        // Detect job board type
+        const jobBoard = detectJobBoard(url);
+        console.log(`[URL SCRAPING] Detected job board: ${jobBoard || 'unknown'}`);
+        
         const scrapedData = await enhancedJobScrape(url);
         
         if (scrapedData && scrapedData.description) {
@@ -381,10 +619,24 @@ async function scrapeJobFromURL(url: string): Promise<string> {
         }
       }
       
-      // For ePlus and similar sites, try alternative approaches
+      // For ePlus, use specialized scraper
       if (isEplus) {
+        console.log('[URL SCRAPING] Using specialized ePlus scraper...');
+        try {
+          const { scrapeEplusJob } = await import('@/lib/scraping/eplus-scraper');
+          const eplusContent = await scrapeEplusJob(url);
+          if (eplusContent && eplusContent.length > 100) {
+            // Cache the content
+            scrapingCache.set(url, eplusContent);
+            return eplusContent;
+          }
+        } catch (eplusError) {
+          console.error('[URL SCRAPING] ePlus scraper failed:', eplusError);
+        }
+        
+        // Fallback to alternative scraping
         console.log('[URL SCRAPING] Trying alternative approach for ePlus...');
-        html = await tryAlternativeScraping(url, headers);
+        html = await tryAlternativeScraping(url, headers, userId);
       } else {
         throw fetchError;
       }
@@ -396,12 +648,13 @@ async function scrapeJobFromURL(url: string): Promise<string> {
     // Try using enhanced scraper with job board specific extractors
     try {
       const { detectJobBoard, jobBoardExtractors } = await import('@/lib/scraping/enhanced-scraper');
-      const $ = cheerio.load(html);
+      const cheerio = await import('cheerio');
+      const $ = cheerio.default.load(html);
       const jobBoard = detectJobBoard(url);
       
-      if (jobBoard && jobBoardExtractors[jobBoard]) {
+      if (jobBoard && jobBoardExtractors[jobBoard as keyof typeof jobBoardExtractors]) {
         console.log(`[URL SCRAPING] Using enhanced ${jobBoard} extractor`);
-        const extracted = jobBoardExtractors[jobBoard]($);
+        const extracted = jobBoardExtractors[jobBoard as keyof typeof jobBoardExtractors]($ as any);
         
         // Format extracted data
         if (extracted.title) extractedText += `Job Title: ${extracted.title}\n`;
@@ -435,6 +688,30 @@ async function scrapeJobFromURL(url: string): Promise<string> {
       console.warn('[URL SCRAPING] Extracted content seems too short, falling back to generic extraction');
       extractedText = extractGenericJobContent(html);
       
+      // Check if we only got a minimal summary
+      const looksLikeMinimalSummary = extractedText && (
+        extractedText.includes('This is a') && 
+        extractedText.includes('position at') &&
+        extractedText.length < 200
+      );
+      
+      if (looksLikeMinimalSummary) {
+        console.warn('[URL SCRAPING] Detected minimal summary only, trying AI extraction...');
+        
+        // Try AI extraction on the HTML we already have
+        try {
+          const { extractJobWithAI, formatExtractedJob } = await import('@/lib/scraping/ai-powered-scraper');
+          const extractedData = await extractJobWithAI(html, url, userId);
+          
+          if (extractedData && extractedData.description && extractedData.description.length > 100) {
+            extractedText = formatExtractedJob(extractedData);
+            console.log('[URL SCRAPING] AI extraction provided better content');
+          }
+        } catch (aiError) {
+          console.error('[URL SCRAPING] AI extraction failed for minimal content:', aiError);
+        }
+      }
+      
       // If still too short after generic extraction, try URL-based fallback
       if (!extractedText || extractedText.trim().length < 50) {
         console.warn('[URL SCRAPING] Content still too short after generic extraction. Trying URL-based fallback...');
@@ -463,9 +740,74 @@ async function scrapeJobFromURL(url: string): Promise<string> {
           }
         }
         
-        // If we still don't have enough content, throw error
+        // If we still don't have enough content, analyze why and provide specific guidance
         if (!extractedText || extractedText.trim().length < 50) {
-          throw new Error('Unable to extract sufficient content from URL. The page may be dynamically loaded or access may be restricted. Please try copying and pasting the job description directly.');
+          // Analyze the HTML to understand why extraction failed
+          try {
+            const { analyzeExtractionFailure, generateErrorMessage } = await import('@/lib/scraping/extraction-analyzer');
+            const analysis = analyzeExtractionFailure(html, url);
+            const errorMessage = generateErrorMessage(analysis, url);
+            
+            console.log('[URL SCRAPING] Extraction analysis:', analysis);
+            
+            throw new Error(errorMessage);
+          } catch (analysisError) {
+            // Fallback error message if analysis fails
+            const errorMessage = `Unable to extract sufficient content from URL. ${
+              isEplus ? 'This ePlus careers page uses dynamic loading. ' : 
+              isLinkedIn ? 'LinkedIn requires authentication to view full job descriptions. ' :
+              isIndeed ? 'Indeed may be blocking automated access. ' :
+              'The page may be dynamically loaded or require authentication. '
+            }Please try copying and pasting the job description directly.`;
+            
+            // Try Puppeteer as final fallback for JavaScript-heavy sites
+            console.log('[URL SCRAPING] Attempting Puppeteer for JavaScript-heavy site...');
+            try {
+              const { scrapeWithPuppeteer } = await import('@/lib/scraping/puppeteer-scraper-safe');
+              const puppeteerResult = await scrapeWithPuppeteer(url);
+              
+              if (puppeteerResult.success && puppeteerResult.extractedContent && puppeteerResult.extractedContent.length > 100) {
+                console.log('[URL SCRAPING] Puppeteer extraction successful as final fallback');
+                scrapingCache.set(url, puppeteerResult.extractedContent);
+                return puppeteerResult.extractedContent;
+              } else if (puppeteerResult.error) {
+                console.error('[URL SCRAPING] Puppeteer final fallback failed:', puppeteerResult.error);
+                
+                // Only throw specific guidance after Puppeteer also fails
+                if (isEplus) {
+                  throw new Error(
+                    'ePlus careers site requires JavaScript to load job descriptions.\n\n' +
+                    'Automated extraction failed. To extract the job description:\n' +
+                    '1. Open the link in your browser\n' +
+                    '2. Wait for the page to fully load\n' +
+                    '3. You should see sections like "YOUR IMPACT" and "QUALIFICATIONS"\n' +
+                    '4. Select all text (Ctrl+A on Windows, Cmd+A on Mac)\n' +
+                    '5. Copy the text\n' +
+                    '6. Use the "Paste Text" option in CareerAI to paste the job description\n\n' +
+                    'This will ensure all job details are captured correctly.'
+                  );
+                }
+              }
+            } catch (puppeteerError) {
+              console.error('[URL SCRAPING] Puppeteer scraping error:', puppeteerError);
+            }
+            
+            // For ePlus and similar SPAs, provide specific guidance
+            if (isEplus) {
+              throw new Error(
+                'ePlus careers site requires JavaScript to load job descriptions.\n\n' +
+                'To extract the job description:\n' +
+                '1. Open the link in your browser\n' +
+                '2. Wait for the page to fully load\n' +
+                '3. You should see sections like "YOUR IMPACT" and "QUALIFICATIONS"\n' +
+                '4. Select all text (Ctrl+A on Windows, Cmd+A on Mac)\n' +
+                '5. Copy the text\n' +
+                '6. Use the "Paste Text" option in CareerAI to paste the job description\n\n' +
+                'This will ensure all job details are captured correctly.'
+              );
+            }
+            throw new Error(analysisError instanceof Error ? analysisError.message : errorMessage);
+          }
         }
       }
     }
@@ -700,7 +1042,7 @@ export async function POST(request: NextRequest) {
     if (inputMethod === 'url' && url) {
       console.log('[JOB PROCESSING] Processing job description from URL');
       try {
-        contentToProcess = await scrapeJobFromURL(url);
+        contentToProcess = await scrapeJobFromURL(url, userId);
         processingMethod = 'url';
       } catch (scrapeError) {
         console.error('[JOB PROCESSING] URL scraping failed:', scrapeError);
@@ -746,7 +1088,7 @@ export async function POST(request: NextRequest) {
     const settings = loadServerSettings();
 
     // Parse the job description using AI
-    const parsedData = await parseJobDescription(contentToProcess, url);
+    const parsedData = await parseJobDescription(contentToProcess, url, userId);
     
     console.log('[JOB PROCESSING] Job description parsed successfully');
 

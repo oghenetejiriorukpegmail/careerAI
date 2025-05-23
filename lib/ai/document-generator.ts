@@ -2,6 +2,33 @@ import { queryAI } from './config';
 import { ParsedResume, ParsedJobDescription } from '../documents/document-parser';
 import { ResumeData, CoverLetterData, generateResumePDF, generateCoverLetterPDF, generateFileName } from '../documents/pdf-generator';
 
+// Helper function to clean AI JSON responses
+function cleanAIJsonResponse(content: string): string {
+  let cleanedContent = content;
+  
+  // Remove markdown code blocks
+  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+  const codeBlockMatch = codeBlockRegex.exec(cleanedContent);
+  if (codeBlockMatch) {
+    cleanedContent = codeBlockMatch[1].trim();
+  }
+  
+  // If the response starts with explanatory text, try to extract JSON from it
+  const jsonStart = cleanedContent.indexOf('{');
+  const jsonEnd = cleanedContent.lastIndexOf('}');
+  if (jsonStart > 0 && jsonEnd > jsonStart) {
+    cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
+  }
+  
+  // Remove JavaScript-style comments from JSON (common issue with some AI models)
+  // This regex removes both single-line (//) and multi-line (/* */) comments
+  cleanedContent = cleanedContent
+    .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
+    .replace(/\/\/.*$/gm, '');        // Remove // comments from end of lines
+    
+  return cleanedContent;
+}
+
 /**
  * Generate an ATS-optimized resume based on user profile and job description
  * @param resume User's parsed resume data
@@ -14,7 +41,8 @@ export async function generateAtsResume(
   resume: ParsedResume,
   jobDescription: ParsedJobDescription,
   userName: string,
-  companyName: string
+  companyName: string,
+  userId?: string
 ): Promise<{ pdf: Uint8Array; fileName: string }> {
   try {
     // Create a prompt for the AI to tailor the resume
@@ -114,8 +142,30 @@ export async function generateAtsResume(
       Focus on highlighting relevant experience, using appropriate keywords, and creating achievement-oriented bullet points.
     `;
 
-    // Call the AI service
-    const response = await queryAI(prompt, systemPrompt);
+    // Load user settings if userId provided
+    let userSettings;
+    if (userId) {
+      try {
+        const { createServerClient } = await import('../supabase/server-client');
+        const supabase = createServerClient();
+        
+        const { data: settingsRow } = await supabase
+          .from('user_settings')
+          .select('settings')
+          .eq('user_id', userId)
+          .single();
+          
+        if (settingsRow?.settings) {
+          userSettings = settingsRow.settings;
+          console.log('[RESUME] Loaded user-specific settings from database:', userSettings);
+        }
+      } catch (error) {
+        console.error('[RESUME] Error loading user settings:', error);
+      }
+    }
+
+    // Call the AI service with user settings
+    const response = await queryAI(prompt, systemPrompt, userSettings);
     
     // Extract content from the AI response object
     let parsedContent: string;
@@ -127,22 +177,8 @@ export async function generateAtsResume(
       throw new Error('Invalid AI response format');
     }
 
-    // Clean up the response if it contains markdown code blocks or explanatory text
-    let cleanedContent = parsedContent;
-    
-    // Remove markdown code blocks
-    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
-    const codeBlockMatch = codeBlockRegex.exec(cleanedContent);
-    if (codeBlockMatch) {
-      cleanedContent = codeBlockMatch[1].trim();
-    }
-    
-    // If the response starts with explanatory text, try to extract JSON from it
-    const jsonStart = cleanedContent.indexOf('{');
-    const jsonEnd = cleanedContent.lastIndexOf('}');
-    if (jsonStart > 0 && jsonEnd > jsonStart) {
-      cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
-    }
+    // Clean up the response using our helper function
+    const cleanedContent = cleanAIJsonResponse(parsedContent);
     
     // Parse the response to get the tailored resume data
     const tailoredResumeData: ResumeData = JSON.parse(cleanedContent);
@@ -172,7 +208,8 @@ export async function generateCoverLetter(
   resume: ParsedResume,
   jobDescription: ParsedJobDescription,
   userName: string,
-  companyName: string
+  companyName: string,
+  userId?: string
 ): Promise<{ pdf: Uint8Array; fileName: string }> {
   try {
     // Create a prompt for the AI to generate a cover letter
@@ -226,8 +263,30 @@ export async function generateCoverLetter(
       and demonstrates their fit for the specific role and company.
     `;
 
-    // Call the AI service
-    const response = await queryAI(prompt, systemPrompt);
+    // Load user settings if userId provided
+    let userSettings;
+    if (userId) {
+      try {
+        const { createServerClient } = await import('../supabase/server-client');
+        const supabase = createServerClient();
+        
+        const { data: settingsRow } = await supabase
+          .from('user_settings')
+          .select('settings')
+          .eq('user_id', userId)
+          .single();
+          
+        if (settingsRow?.settings) {
+          userSettings = settingsRow.settings;
+          console.log('[COVER LETTER] Loaded user-specific settings from database:', userSettings);
+        }
+      } catch (error) {
+        console.error('[COVER LETTER] Error loading user settings:', error);
+      }
+    }
+
+    // Call the AI service with user settings
+    const response = await queryAI(prompt, systemPrompt, userSettings);
     
     // Extract content from the AI response object
     let parsedContent: string;
@@ -239,22 +298,8 @@ export async function generateCoverLetter(
       throw new Error('Invalid AI response format');
     }
 
-    // Clean up the response if it contains markdown code blocks or explanatory text
-    let cleanedContent = parsedContent;
-    
-    // Remove markdown code blocks
-    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
-    const codeBlockMatch = codeBlockRegex.exec(cleanedContent);
-    if (codeBlockMatch) {
-      cleanedContent = codeBlockMatch[1].trim();
-    }
-    
-    // If the response starts with explanatory text, try to extract JSON from it
-    const jsonStart = cleanedContent.indexOf('{');
-    const jsonEnd = cleanedContent.lastIndexOf('}');
-    if (jsonStart > 0 && jsonEnd > jsonStart) {
-      cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
-    }
+    // Clean up the response using our helper function
+    const cleanedContent = cleanAIJsonResponse(parsedContent);
     
     // Parse the response to get the cover letter data
     const coverLetterData: CoverLetterData = JSON.parse(cleanedContent);
