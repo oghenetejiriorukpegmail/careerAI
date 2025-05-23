@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '@/lib/supabase/client';
+import { createServerClient } from '@/lib/supabase/server-client';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const sessionId = searchParams.get('sessionId');
-
-    if (!userId && !sessionId) {
-      return NextResponse.json({ error: 'User ID or Session ID is required' }, { status: 400 });
+    // Check authentication
+    const supabaseClient = createServerClient();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (!session?.user) {
+      return NextResponse.json({ 
+        error: 'Authentication required',
+        message: 'You must be logged in to view applications.'
+      }, { status: 401 });
     }
+    
+    const userId = session.user.id;
 
     const supabase = getSupabaseAdminClient();
     if (!supabase) {
@@ -17,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Use userId if available, otherwise use sessionId
-    const userIdentifier = userId || sessionId;
+    const userIdentifier = userId;
 
     // Fetch job applications with related data
     const { data: applications, error } = await supabase
@@ -68,20 +74,27 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const supabaseClient = createServerClient();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (!session?.user) {
+      return NextResponse.json({ 
+        error: 'Authentication required',
+        message: 'You must be logged in to create applications.'
+      }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    
     const body = await request.json();
     const { 
-      userId, 
-      sessionId, 
       jobDescriptionId, 
       resumeId, 
       coverLetterId, 
       status = 'to_apply',
       notes 
     } = body;
-
-    if (!userId && !sessionId) {
-      return NextResponse.json({ error: 'User ID or Session ID is required' }, { status: 400 });
-    }
 
     if (!jobDescriptionId) {
       return NextResponse.json({ error: 'Job Description ID is required' }, { status: 400 });
@@ -93,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use userId if available, otherwise use sessionId
-    const userIdentifier = userId || sessionId;
+    const userIdentifier = userId;
 
     // Check if application already exists for this job
     const { data: existingApp, error: checkError } = await supabase
@@ -180,11 +193,22 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Check authentication
+    const supabaseClient = createServerClient();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (!session?.user) {
+      return NextResponse.json({ 
+        error: 'Authentication required',
+        message: 'You must be logged in to update applications.'
+      }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    
     const body = await request.json();
     const { 
       applicationId, 
-      userId, 
-      sessionId, 
       status, 
       notes,
       applied_date 
@@ -194,16 +218,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Application ID is required' }, { status: 400 });
     }
 
-    if (!userId && !sessionId) {
-      return NextResponse.json({ error: 'User ID or Session ID is required' }, { status: 400 });
-    }
-
     const supabase = getSupabaseAdminClient();
     if (!supabase) {
       return NextResponse.json({ error: 'Database connection not available' }, { status: 500 });
     }
 
-    const userIdentifier = userId || sessionId;
+    const userIdentifier = userId;
 
     // Prepare update data
     const updateData: any = {
@@ -250,17 +270,24 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // Check authentication
+    const supabaseClient = createServerClient();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (!session?.user) {
+      return NextResponse.json({ 
+        error: 'Authentication required',
+        message: 'You must be logged in to delete applications.'
+      }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    
     const { searchParams } = new URL(request.url);
     const applicationId = searchParams.get('applicationId');
-    const userId = searchParams.get('userId');
-    const sessionId = searchParams.get('sessionId');
 
     if (!applicationId) {
       return NextResponse.json({ error: 'Application ID is required' }, { status: 400 });
-    }
-
-    if (!userId && !sessionId) {
-      return NextResponse.json({ error: 'User ID or Session ID is required' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdminClient();
@@ -268,7 +295,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Database connection not available' }, { status: 500 });
     }
 
-    const userIdentifier = userId || sessionId;
+    const userIdentifier = userId;
 
     const { error } = await supabase
       .from('job_applications')

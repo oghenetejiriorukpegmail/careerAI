@@ -127,7 +127,8 @@ export async function POST(request: NextRequest) {
           AI_CONFIG.openrouter.model = settings.aiModel;
           break;
         case 'anthropic':
-          AI_CONFIG.anthropic.model = settings.aiModel;
+          // Anthropic provider not configured yet
+          console.warn('Anthropic provider selected but not configured');
           break;
         case 'requesty':
           AI_CONFIG.requesty.model = settings.aiModel;
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
       const fixedModel = (() => {
         switch (settings.aiProvider) {
           case 'openrouter': return AI_CONFIG.openrouter.model;
-          case 'anthropic': return AI_CONFIG.anthropic.model;
+          case 'anthropic': return 'claude-2';
           case 'requesty': return AI_CONFIG.requesty.model;
           case 'openai': return AI_CONFIG.openai.model;
           case 'google': return AI_CONFIG.gemini.model;

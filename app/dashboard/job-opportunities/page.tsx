@@ -108,23 +108,29 @@ export default function JobOpportunitiesPage() {
 
   const handleDeleteOpportunity = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from("job_descriptions")
-        .delete()
-        .eq("id", id);
+      // Use the API endpoint to handle cascading deletes
+      const response = await fetch(`/api/job-descriptions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || error.error || 'Failed to delete');
+      }
 
       setOpportunities(opportunities.filter(opp => opp.id !== id));
       toast({
         title: "Success",
-        description: "Job opportunity deleted successfully"
+        description: "Job opportunity and all associated documents deleted successfully"
       });
     } catch (error) {
       console.error("Failed to delete job opportunity:", error);
       toast({
         title: "Error",
-        description: "Failed to delete job opportunity",
+        description: error instanceof Error ? error.message : "Failed to delete job opportunity",
         variant: "destructive"
       });
     }

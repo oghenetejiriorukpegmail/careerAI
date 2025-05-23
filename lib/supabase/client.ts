@@ -29,7 +29,7 @@ let supabaseAdminInstance: any = null;
 // Create a single supabase client for the entire app
 export function getSupabaseClient() {
   if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    supabaseInstance = createClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
@@ -47,7 +47,7 @@ export const supabase = getSupabaseClient();
 // Create a service role client for admin operations (server-side only)
 export function getSupabaseAdminClient() {
   if (!supabaseAdminInstance && supabaseServiceRoleKey) {
-    supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    supabaseAdminInstance = createClient(supabaseUrl!, supabaseServiceRoleKey!, {
       auth: {
         autoRefreshToken: false,
         persistSession: false

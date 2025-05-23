@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,7 @@ export default function JobMatchingPage() {
   const [keywords, setKeywords] = useState("");
   const [location, setLocation] = useState("");
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     const fetchJobMatches = async () => {

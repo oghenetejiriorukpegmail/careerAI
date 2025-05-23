@@ -275,7 +275,7 @@ export async function getApplicationStats(userId: string, sessionId?: string) {
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    applications?.forEach(app => {
+    applications?.forEach((app: any) => {
       // Count by status
       if (app.status in stats) {
         (stats as any)[app.status]++;

@@ -58,8 +58,8 @@ async function migrateJobDescriptionsTable() {
     const migrationResults = {
       existingColumns: existingColumns.length,
       missingColumns: missingColumns.length,
-      addedColumns: [],
-      errors: []
+      addedColumns: [] as string[],
+      errors: [] as string[]
     };
 
     for (const column of missingColumns) {

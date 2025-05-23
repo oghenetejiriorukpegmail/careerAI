@@ -24,8 +24,8 @@ export function updateAIConfig(settings: UserSettings): void {
         console.log(`Set OpenRouter model to ${settings.aiModel}`);
         break;
       case 'anthropic':
-        AI_CONFIG.anthropic.model = settings.aiModel;
-        console.log(`Set Anthropic model to ${settings.aiModel}`);
+        // AI_CONFIG.anthropic.model = settings.aiModel;
+        console.warn('Anthropic provider not configured yet');
         break;
       case 'requesty':
         AI_CONFIG.requesty.model = settings.aiModel;

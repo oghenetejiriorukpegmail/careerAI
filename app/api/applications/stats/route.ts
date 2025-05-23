@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     const userIdentifier = userId || sessionId;
     
-    const stats = await getApplicationStats(userIdentifier!, sessionId);
+    const stats = await getApplicationStats(userIdentifier!, sessionId || undefined);
 
     return NextResponse.json({ stats });
 

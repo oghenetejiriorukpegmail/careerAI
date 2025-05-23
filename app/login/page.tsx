@@ -14,41 +14,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pageLoading, setPageLoading] = useState(true);
   const router = useRouter();
 
-  // Check if user is already logged in
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        console.log('Session check on login page:', data.session ? 'Authenticated' : 'Not authenticated');
-        
-        // If user is already logged in, redirect to dashboard
-        if (data.session) {
-          // Get the redirectTo parameter from the URL if present
-          const params = new URLSearchParams(window.location.search);
-          const redirectTo = params.get('redirectTo');
-          
-          // Use a direct manual redirect to dashboard or the requested page
-          const destination = redirectTo && !redirectTo.includes('/login') 
-            ? redirectTo 
-            : '/dashboard';
-            
-          console.log('Already authenticated, redirecting to:', destination);
-          // Use window.location for immediate redirect
-          window.location.href = destination;
-          return; // Exit early to prevent further processing
-        }
-      } catch (err) {
-        console.error('Error checking session:', err);
-      } finally {
-        setPageLoading(false);
-      }
-    };
-    
-    checkSession();
-  }, []);
+  // Removed client-side session check - middleware handles authentication
+  // The middleware will redirect authenticated users away from login page
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,21 +39,33 @@ export default function LoginPage() {
 
       console.log("Login successful:", data);
       
+      // Sync the session with the server
+      const sessionResponse = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        }),
+      });
+      
+      if (!sessionResponse.ok) {
+        const error = await sessionResponse.json();
+        throw new Error(error.error || 'Failed to establish session');
+      }
+      
+      console.log('Session synchronized with server');
+      
       // Get the redirectTo parameter from the URL if present
       const params = new URLSearchParams(window.location.search);
-      const redirectTo = params.get('redirectTo');
+      const redirectTo = params.get('redirectTo') || '/dashboard';
       
-      // Safety check to prevent redirect loops
-      const safeRedirectTo = redirectTo && 
-                            !redirectTo.includes('/login') && 
-                            !redirectTo.includes('/signup') 
-                            ? redirectTo 
-                            : '/dashboard';
+      console.log('Redirecting to:', redirectTo);
       
-      console.log('Login successful, redirecting to:', safeRedirectTo);
-      
-      // Use window.location for immediate redirect after login
-      window.location.href = safeRedirectTo;
+      // Use window.location.href for a full page navigation
+      window.location.href = redirectTo;
     } catch (error: any) {
       console.error("Error during login:", error);
       setError(error.message || "An error occurred during login");
@@ -95,15 +76,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
-      {pageLoading ? (
-        // Show loading indicator while checking session
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-muted-foreground">Checking authentication status...</p>
-          <p className="text-xs text-muted-foreground mt-2">If you're already logged in, you'll be redirected to the dashboard automatically.</p>
-        </div>
-      ) : (
-        <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold">Login</CardTitle>
             <CardDescription>
@@ -167,7 +140,6 @@ export default function LoginPage() {
           </CardFooter>
         </form>
       </Card>
-      )}
     </div>
   );
 }

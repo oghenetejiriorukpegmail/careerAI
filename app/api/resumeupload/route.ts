@@ -82,12 +82,12 @@ function normalizeSkills(data: any): any {
     } else if (typeof normalized.skills === 'string') {
       // Handle skills as a single string
       skills = normalized.skills.split(/[,;]/)
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 0);
     }
     
     // Remove duplicates and clean up
-    const uniqueSkills = [...new Set(skills)]
+    const uniqueSkills = Array.from(new Set(skills))
       .map(skill => skill.trim())
       .filter(skill => skill.length > 0 && skill.length < 100) // Reasonable length filter
       .slice(0, 100); // Limit to prevent excessive skills
@@ -219,7 +219,7 @@ async function parseResumeText(text: string) {
       console.log('[AI PROCESSING] Attempting to fix malformed JSON...');
       
       // Advanced JSON repair function
-      function repairJSON(jsonString: string): string {
+      const repairJSON = (jsonString: string): string => {
         let fixed = jsonString.trim();
         
         // Step 1: Handle truncated strings by finding incomplete string patterns

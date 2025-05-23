@@ -126,7 +126,8 @@ export function updateConfigDirectly(settings: UserSettings): void {
       AI_CONFIG.openrouter.model = settings.aiModel;
       break;
     case 'anthropic':
-      AI_CONFIG.anthropic.model = settings.aiModel;
+      // AI_CONFIG.anthropic.model = settings.aiModel;
+      console.warn('Anthropic provider not configured yet');
       break;
     case 'requesty':
       AI_CONFIG.requesty.model = settings.aiModel;

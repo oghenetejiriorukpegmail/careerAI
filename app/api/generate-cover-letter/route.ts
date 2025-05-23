@@ -1,20 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '@/lib/supabase/client';
+import { createServerClient } from '@/lib/supabase/server-client';
 import { generateCoverLetter } from '@/lib/ai/document-generator';
 import { ParsedJobDescription } from '@/lib/documents/document-parser';
 import { createOrUpdateApplication, saveGeneratedDocument } from '@/lib/utils/application-manager';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication first
+    const supabaseClient = createServerClient();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (!session?.user) {
+      return NextResponse.json({ 
+        error: 'Authentication required',
+        message: 'You must be logged in to generate cover letters.'
+      }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    
     const body = await request.json();
-    const { jobId, sessionId, userId } = body;
+    const { jobId } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
-    }
-
-    if (!sessionId && !userId) {
-      return NextResponse.json({ error: 'Session ID or User ID is required' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdminClient();
@@ -23,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // First, get the job to see what user_id it has
-    console.log('Fetching job data for:', { jobId, userId, sessionId });
+    console.log('Fetching job data for:', { jobId, userId });
     
     const { data: jobData, error: jobError } = await supabase
       .from('job_descriptions')
@@ -39,9 +49,8 @@ export async function POST(request: NextRequest) {
     console.log('Job found with user_id:', jobData.user_id);
     
     // Check if the current user has access to this job
-    const currentUserIds = [userId, sessionId].filter(Boolean);
-    if (!currentUserIds.includes(jobData.user_id)) {
-      console.error('User does not have access to this job:', { jobUserId: jobData.user_id, currentUserIds });
+    if (jobData.user_id !== userId) {
+      console.error('User does not have access to this job:', { jobUserId: jobData.user_id, userId });
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
@@ -80,21 +89,14 @@ export async function POST(request: NextRequest) {
 
     // Parse the job description data
     const parsedJobDescription: ParsedJobDescription = {
-      title: jobData.job_title || '',
+      jobTitle: jobData.job_title || '',
       company: jobData.company_name || '',
       location: jobData.location || '',
-      description: jobData.description || '',
       requirements: jobData.requirements || [],
-      nice_to_have: jobData.nice_to_have || [],
-      skills: jobData.skills || [],
-      salary_range: jobData.salary_range || '',
-      employment_type: jobData.employment_type || '',
-      experience_level: jobData.experience_level || '',
-      benefits: jobData.benefits || [],
-      application_deadline: jobData.application_deadline || '',
-      company_size: jobData.company_size || '',
-      industry: jobData.industry || '',
-      remote_work: jobData.remote_work || false,
+      responsibilities: jobData.responsibilities || [],
+      qualifications: jobData.qualifications || [],
+      keywords: jobData.keywords || [],
+      company_culture: jobData.company_culture || [],
     };
 
     // Extract user's name - prioritize profile data, then resume data
@@ -140,7 +142,7 @@ export async function POST(request: NextRequest) {
       // Automatically create or update job application
       applicationResult = await createOrUpdateApplication({
         userId: jobUserId,
-        sessionId: sessionId,
+        sessionId: undefined,
         jobDescriptionId: jobId,
         coverLetterId: coverLetterDocumentId,
         status: 'to_apply',

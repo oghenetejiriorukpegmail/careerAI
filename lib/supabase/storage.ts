@@ -163,8 +163,8 @@ export async function checkStorageBuckets() {
     if (error) throw error;
     
     const requiredBuckets = ['resumes', 'user_files', 'generated'];
-    const existingBuckets = buckets.map(b => b.name);
-    const missingBuckets = requiredBuckets.filter(b => !existingBuckets.includes(b));
+    const existingBuckets = buckets.map((b: any) => b.name);
+    const missingBuckets = requiredBuckets.filter((b: string) => !existingBuckets.includes(b));
     
     return {
       initialized: missingBuckets.length === 0,

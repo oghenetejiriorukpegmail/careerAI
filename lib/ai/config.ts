@@ -295,7 +295,7 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
       data = await response.json();
     } catch (parseError) {
       console.error('Failed to parse Gemini response:', parseError);
-      throw new Error(`Failed to parse Gemini response: ${parseError.message}`);
+      throw new Error(`Failed to parse Gemini response: ${parseError instanceof Error ? parseError instanceof Error ? parseError.message : "Unknown error" : 'Unknown error'}`);
     }
     
     // Make sure the response has the expected format
@@ -372,7 +372,7 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
         JSON.parse(rawContent);
         console.log('[GEMINI] JSON appears valid');
       } catch (jsonError) {
-        console.warn('[GEMINI] JSON parsing failed, applying fixes:', jsonError.message);
+        console.warn('[GEMINI] JSON parsing failed, applying fixes:', jsonError instanceof Error ? jsonError instanceof Error ? jsonError.message : "Unknown error" : 'Unknown error');
         
         // For extreme cases like very large documents, try extracting just the most crucial info
         if (rawContent.length > 10000) {
@@ -433,7 +433,7 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
               rawContent = fixedJson;
               console.log('[GEMINI] Successfully extracted and built simplified JSON');
             } catch (simplifyError) {
-              console.warn('[GEMINI] Simplified JSON parsing failed:', simplifyError.message);
+              console.warn('[GEMINI] Simplified JSON parsing failed:', simplifyError instanceof Error ? simplifyError instanceof Error ? simplifyError.message : "Unknown error" : 'Unknown error');
               
               // If that fails, use super aggressive approach for just contact info
               try {
@@ -494,7 +494,7 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
             JSON.parse(rawContent);
             console.log('[GEMINI] Successfully fixed malformed JSON');
           } catch (fixError) {
-            console.warn('[GEMINI] JSON fixing failed, reverting to original content:', fixError.message);
+            console.warn('[GEMINI] JSON fixing failed, reverting to original content:', fixError instanceof Error ? fixError instanceof Error ? fixError.message : "Unknown error" : 'Unknown error');
             rawContent = originalContent;
           }
         }
@@ -519,9 +519,9 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
   } catch (error) {
     console.error('Error calling Gemini:', error);
     // Add more context to help diagnose the issue
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new Error(`Network error connecting to Gemini: ${error.message}`);
-    } else if (error.name === 'AbortError') {
+    if (error instanceof TypeError && error instanceof Error ? error.message : "Unknown error".includes('fetch')) {
+      throw new Error(`Network error connecting to Gemini: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } else if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Gemini request timed out after 30 seconds');
     } else {
       throw error;
@@ -630,7 +630,7 @@ export async function queryOpenAI(prompt: string, systemPrompt?: string) {
       // Special case to fix JSONP style responses (common with OpenAI)
       if (rawContent.includes('callback(') || rawContent.includes('onResponse(')) {
         console.log('[OPENAI] JSONP-style response detected, extracting JSON');
-        const match = rawContent.match(/(?:callback|onResponse)\((.*)\)(?:;?)/s);
+        const match = rawContent.match(/(?:callback|onResponse)\(([\s\S]*)\)(?:;?)/);
         if (match && match[1]) {
           rawContent = match[1];
           console.log('[OPENAI] Extracted JSON from callback wrapper');
@@ -646,7 +646,7 @@ export async function queryOpenAI(prompt: string, systemPrompt?: string) {
           JSON.parse(rawContent);
           console.log('[OPENAI] JSON appears valid');
         } catch (jsonError) {
-          console.warn('[OPENAI] JSON parsing failed, applying fixes:', jsonError.message);
+          console.warn('[OPENAI] JSON parsing failed, applying fixes:', jsonError instanceof Error ? jsonError.message : "Unknown error");
           
           // Fix common JSON issues
           const originalContent = rawContent;
@@ -670,7 +670,7 @@ export async function queryOpenAI(prompt: string, systemPrompt?: string) {
             JSON.parse(rawContent);
             console.log('[OPENAI] Successfully fixed malformed JSON');
           } catch (fixError) {
-            console.warn('[OPENAI] JSON fixing failed, reverting to original content:', fixError.message);
+            console.warn('[OPENAI] JSON fixing failed, reverting to original content:', fixError instanceof Error ? fixError.message : "Unknown error");
             rawContent = originalContent;
           }
         }
@@ -853,7 +853,7 @@ export async function queryRequesty(prompt: string, systemPrompt?: string) {
           JSON.parse(rawContent);
           console.log('[REQUESTY] JSON appears valid');
         } catch (jsonError) {
-          console.warn('[REQUESTY] JSON parsing failed, applying fixes:', jsonError.message);
+          console.warn('[REQUESTY] JSON parsing failed, applying fixes:', jsonError instanceof Error ? jsonError.message : "Unknown error");
           
           // For extreme cases like very large documents, try extracting just the most crucial info
           if (rawContent.length > 10000) {
@@ -909,7 +909,7 @@ export async function queryRequesty(prompt: string, systemPrompt?: string) {
                 rawContent = fixedJson;
                 console.log('[REQUESTY] Successfully extracted and built simplified JSON');
               } catch (simplifyError) {
-                console.warn('[REQUESTY] Simplified JSON parsing failed:', simplifyError.message);
+                console.warn('[REQUESTY] Simplified JSON parsing failed:', simplifyError instanceof Error ? simplifyError.message : "Unknown error");
                 
                 // If that fails, use super aggressive approach for just contact info
                 try {
@@ -972,7 +972,7 @@ export async function queryRequesty(prompt: string, systemPrompt?: string) {
               JSON.parse(rawContent);
               console.log('[REQUESTY] Successfully fixed malformed JSON');
             } catch (fixError) {
-              console.warn('[REQUESTY] JSON fixing failed, reverting to original content:', fixError.message);
+              console.warn('[REQUESTY] JSON fixing failed, reverting to original content:', fixError instanceof Error ? fixError.message : "Unknown error");
               rawContent = originalContent;
             }
           }
@@ -992,10 +992,10 @@ export async function queryRequesty(prompt: string, systemPrompt?: string) {
 }
 
 // Helper function to normalize JSON with whitespace issues
-function normalizeJson(jsonString) {
+function normalizeJson(jsonString: string): string {
   try {
     // Extract all string values first to protect them
-    const strings = [];
+    const strings: string[] = [];
     const stringPattern = /"([^"]*)"/g;
     let extractedContent = jsonString.replace(stringPattern, (match, content) => {
       strings.push(match);
@@ -1212,7 +1212,7 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string) {
           JSON.parse(rawContent);
           console.log('[OPENROUTER] JSON appears valid');
         } catch (jsonError) {
-          console.warn('[OPENROUTER] JSON parsing failed, applying fixes:', jsonError.message);
+          console.warn('[OPENROUTER] JSON parsing failed, applying fixes:', jsonError instanceof Error ? jsonError.message : "Unknown error");
           
           // For extreme cases like very large documents, try extracting just the most crucial info
           if (rawContent.length > 10000) {
@@ -1268,7 +1268,7 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string) {
                 rawContent = fixedJson;
                 console.log('[OPENROUTER] Successfully extracted and built simplified JSON');
               } catch (simplifyError) {
-                console.warn('[OPENROUTER] Simplified JSON parsing failed:', simplifyError.message);
+                console.warn('[OPENROUTER] Simplified JSON parsing failed:', simplifyError instanceof Error ? simplifyError.message : "Unknown error");
                 
                 // If that fails, use super aggressive approach for just contact info
                 try {
@@ -1330,7 +1330,7 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string) {
               JSON.parse(rawContent);
               console.log('[OPENROUTER] Successfully fixed malformed JSON');
             } catch (fixError) {
-              console.warn('[OPENROUTER] JSON fixing failed, reverting to original content:', fixError.message);
+              console.warn('[OPENROUTER] JSON fixing failed, reverting to original content:', fixError instanceof Error ? fixError.message : "Unknown error");
               rawContent = originalContent;
             }
           }

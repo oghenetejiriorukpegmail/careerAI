@@ -241,6 +241,14 @@ async function scrapeJobFromURL(url: string): Promise<string> {
   try {
     console.log(`[URL SCRAPING] Attempting to scrape job from URL: ${url}`);
     
+    // Check cache first
+    const { scrapingCache } = await import('@/lib/scraping/scraping-cache');
+    const cachedContent = scrapingCache.get(url);
+    if (cachedContent) {
+      console.log('[URL SCRAPING] Using cached content');
+      return cachedContent;
+    }
+    
     // Detect job board type for specialized handling
     const urlLower = url.toLowerCase();
     let isLinkedIn = urlLower.includes('linkedin.com');
@@ -258,10 +266,17 @@ async function scrapeJobFromURL(url: string): Promise<string> {
     }
     
     // Enhanced headers to avoid bot detection
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+    ];
+    
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
+      'User-Agent': userAgents[Math.floor(Math.random() * userAgents.length)],
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/avif,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
       'Accept-Encoding': 'gzip, deflate, br',
       'DNT': '1',
       'Connection': 'keep-alive',
@@ -269,8 +284,9 @@ async function scrapeJobFromURL(url: string): Promise<string> {
       'Sec-Fetch-Dest': 'document',
       'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-Site': 'none',
-      'Cache-Control': 'max-age=0',
-      'Referer': 'https://www.google.com/'
+      'Sec-Fetch-User': '?1',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
     };
 
     // Add delay to avoid rate limiting
@@ -297,6 +313,74 @@ async function scrapeJobFromURL(url: string): Promise<string> {
     } catch (fetchError) {
       console.error('[URL SCRAPING] Direct fetch failed:', fetchError);
       
+      // Try enhanced scraper as fallback
+      console.log('[URL SCRAPING] Attempting enhanced scraping...');
+      try {
+        const { enhancedJobScrape } = await import('@/lib/scraping/enhanced-scraper');
+        const scrapedData = await enhancedJobScrape(url);
+        
+        if (scrapedData && scrapedData.description) {
+          console.log('[URL SCRAPING] Successfully scraped using enhanced scraper');
+          
+          // Format the scraped data into a job description
+          let formattedContent = '';
+          
+          if (scrapedData.title) {
+            formattedContent += `Job Title: ${scrapedData.title}\n`;
+          }
+          if (scrapedData.company) {
+            formattedContent += `Company: ${scrapedData.company}\n`;
+          }
+          if (scrapedData.location) {
+            formattedContent += `Location: ${scrapedData.location}\n`;
+          }
+          if (scrapedData.jobType) {
+            formattedContent += `Job Type: ${scrapedData.jobType}\n`;
+          }
+          if (scrapedData.salary) {
+            formattedContent += `Salary: ${scrapedData.salary}\n`;
+          }
+          
+          formattedContent += `\nDescription:\n${scrapedData.description}\n`;
+          
+          if (scrapedData.requirements && scrapedData.requirements.length > 0) {
+            formattedContent += `\nRequirements:\n${scrapedData.requirements.map(r => `- ${r}`).join('\n')}\n`;
+          }
+          
+          if (scrapedData.qualifications && scrapedData.qualifications.length > 0) {
+            formattedContent += `\nQualifications:\n${scrapedData.qualifications.map(q => `- ${q}`).join('\n')}\n`;
+          }
+          
+          if (scrapedData.benefits && scrapedData.benefits.length > 0) {
+            formattedContent += `\nBenefits:\n${scrapedData.benefits.map(b => `- ${b}`).join('\n')}\n`;
+          }
+          
+          // Cache the formatted content
+          if (formattedContent && formattedContent.length > 100) {
+            scrapingCache.set(url, formattedContent);
+          }
+          
+          return formattedContent;
+        }
+      } catch (enhancedError) {
+        console.error('[URL SCRAPING] Enhanced scraping failed:', enhancedError);
+      }
+      
+      // Try Bright Data as last resort if credentials are available
+      if (process.env.BRIGHT_DATA_USERNAME && process.env.BRIGHT_DATA_PASSWORD) {
+        console.log('[URL SCRAPING] Attempting to use Bright Data scraper...');
+        try {
+          const { scrapeJobDescription } = await import('@/lib/scraping/bright-data');
+          const brightDataContent = await scrapeJobDescription(url);
+          if (brightDataContent) {
+            console.log('[URL SCRAPING] Successfully scraped content using Bright Data');
+            return brightDataContent;
+          }
+        } catch (brightDataError) {
+          console.error('[URL SCRAPING] Bright Data scraping failed:', brightDataError);
+        }
+      }
+      
       // For ePlus and similar sites, try alternative approaches
       if (isEplus) {
         console.log('[URL SCRAPING] Trying alternative approach for ePlus...');
@@ -309,22 +393,42 @@ async function scrapeJobFromURL(url: string): Promise<string> {
     // Job board specific content extraction
     let extractedText = '';
     
-    if (isLinkedIn) {
-      console.log('[URL SCRAPING] Detected LinkedIn job posting');
-      // LinkedIn-specific extraction logic
-      extractedText = extractLinkedInJobContent(html);
-    } else if (isIndeed) {
-      console.log('[URL SCRAPING] Detected Indeed job posting');
-      // Indeed-specific extraction logic
-      extractedText = extractIndeedJobContent(html);
-    } else if (isDice) {
-      console.log('[URL SCRAPING] Detected Dice job posting');
-      // Dice-specific extraction logic
-      extractedText = extractDiceJobContent(html);
-    } else {
-      console.log('[URL SCRAPING] Generic job posting extraction');
-      // Generic extraction for other job sites
-      extractedText = extractGenericJobContent(html);
+    // Try using enhanced scraper with job board specific extractors
+    try {
+      const { detectJobBoard, jobBoardExtractors } = await import('@/lib/scraping/enhanced-scraper');
+      const $ = cheerio.load(html);
+      const jobBoard = detectJobBoard(url);
+      
+      if (jobBoard && jobBoardExtractors[jobBoard]) {
+        console.log(`[URL SCRAPING] Using enhanced ${jobBoard} extractor`);
+        const extracted = jobBoardExtractors[jobBoard]($);
+        
+        // Format extracted data
+        if (extracted.title) extractedText += `Job Title: ${extracted.title}\n`;
+        if (extracted.company) extractedText += `Company: ${extracted.company}\n`;
+        if (extracted.location) extractedText += `Location: ${extracted.location}\n`;
+        if (extracted.salary) extractedText += `Salary: ${extracted.salary}\n`;
+        if (extracted.description) extractedText += `\nDescription:\n${extracted.description}\n`;
+      }
+    } catch (error) {
+      console.log('[URL SCRAPING] Enhanced extractor failed, falling back to legacy');
+    }
+    
+    // Fallback to legacy extractors if enhanced didn't work
+    if (!extractedText || extractedText.length < 100) {
+      if (isLinkedIn) {
+        console.log('[URL SCRAPING] Using legacy LinkedIn extraction');
+        extractedText = extractLinkedInJobContent(html);
+      } else if (isIndeed) {
+        console.log('[URL SCRAPING] Using legacy Indeed extraction');
+        extractedText = extractIndeedJobContent(html);
+      } else if (isDice) {
+        console.log('[URL SCRAPING] Using legacy Dice extraction');
+        extractedText = extractDiceJobContent(html);
+      } else {
+        console.log('[URL SCRAPING] Using legacy generic extraction');
+        extractedText = extractGenericJobContent(html);
+      }
     }
     
     if (!extractedText || extractedText.trim().length < 100) {
@@ -334,6 +438,21 @@ async function scrapeJobFromURL(url: string): Promise<string> {
       // If still too short after generic extraction, try URL-based fallback
       if (!extractedText || extractedText.trim().length < 50) {
         console.warn('[URL SCRAPING] Content still too short after generic extraction. Trying URL-based fallback...');
+        
+        // Try Bright Data as last resort if credentials are available
+        if (process.env.BRIGHT_DATA_USERNAME && process.env.BRIGHT_DATA_PASSWORD) {
+          console.log('[URL SCRAPING] Attempting Bright Data as last resort...');
+          try {
+            const { scrapeJobDescription } = await import('@/lib/scraping/bright-data');
+            const brightDataContent = await scrapeJobDescription(url);
+            if (brightDataContent && brightDataContent.trim().length > 100) {
+              console.log('[URL SCRAPING] Successfully scraped content using Bright Data');
+              return brightDataContent;
+            }
+          } catch (brightDataError) {
+            console.error('[URL SCRAPING] Bright Data last resort failed:', brightDataError);
+          }
+        }
         
         // Try to create minimal job description from URL for known sites
         if (isEplus) {
@@ -357,6 +476,11 @@ async function scrapeJobFromURL(url: string): Promise<string> {
     if (extractedText.length < 500) {
       console.warn(`[URL SCRAPING] Warning: Extracted content is quite short (${extractedText.length} chars). Full content:`);
       console.log(extractedText);
+    }
+    
+    // Cache successful scrape
+    if (extractedText && extractedText.length > 100) {
+      scrapingCache.set(url, extractedText);
     }
     
     return extractedText;

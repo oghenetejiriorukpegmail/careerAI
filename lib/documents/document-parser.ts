@@ -772,7 +772,8 @@ export async function parseJobDescription(jobDescriptionText: string): Promise<P
  */
 async function parseJobDescriptionSection(
   sectionText: string, 
-  sectionType: "full" | "basic" | "detailed"
+  sectionType: "full" | "basic" | "detailed",
+  debug: boolean = false
 ): Promise<ParsedJobDescription> {
   try {
     // Create a focused prompt based on the section we're analyzing
@@ -1221,7 +1222,7 @@ function extractCertifications(text: string): Array<{
     const certifications = [];
     
     // Look for a certifications section with case-insensitive match
-    const certSectionMatch = text.match(/##?\s*certification[s]?.*?(?=##|$)/si);
+    const certSectionMatch = text.match(/##?\s*certification[s]?[\s\S]*?(?=##|$)/i);
     
     if (certSectionMatch) {
       // Extract the certifications section
@@ -1248,7 +1249,7 @@ function extractCertifications(text: string): Array<{
         }
         
         // Initialize with default empty values
-        const cert = {
+        const cert: any = {
           name: certName,
           issuer: '',
           date: '',
@@ -1345,7 +1346,7 @@ function extractTraining(text: string): Array<{
     const training = [];
     
     // Look for a training/courses section with case-insensitive match
-    const sectionMatch = text.match(/##?\s*(training|courses|workshops|professional development).*?(?=##|$)/si);
+    const sectionMatch = text.match(/##?\s*(training|courses|workshops|professional development)[\s\S]*?(?=##|$)/i);
     
     if (sectionMatch) {
       // Extract the training section
@@ -1373,7 +1374,7 @@ function extractTraining(text: string): Array<{
         }
         
         // Initialize with default empty values
-        const train = {
+        const train: any = {
           name: name,
           provider: '',
           date: '',
@@ -1440,7 +1441,7 @@ function extractReferences(text: string): Array<{
     const references = [];
     
     // Look for a references section with case-insensitive match
-    const sectionMatch = text.match(/##?\s*(references|professional references).*?(?=##|$)/si);
+    const sectionMatch = text.match(/##?\s*(references|professional references).*?(?=##|$)/i);
     
     if (sectionMatch) {
       // Extract the references section
@@ -1737,13 +1738,13 @@ export async function getPotentialJobTitles(resumeData: ParsedResume, debug: boo
         // Method 2: Extract lines that look like job titles
         console.log('Trying line-by-line extraction method');
         const lines = content.split(/\n/)
-          .map(line => line.trim())
-          .filter(line => line.length > 0 && !line.startsWith('[') && !line.startsWith(']'))
-          .map(line => {
+          .map((line: string) => line.trim())
+          .filter((line: string) => line.length > 0 && !line.startsWith('[') && !line.startsWith(']'))
+          .map((line: string) => {
             // Remove list markers, quotes and other non-title characters
             return line.replace(/^["'\d\.\-\*]+\s*/, '').replace(/["',]+$/, '');
           })
-          .filter(line => line.length > 0 && !line.includes('```'));
+          .filter((line: string) => line.length > 0 && !line.includes('```'));
         
         if (lines.length > 0) {
           console.log(`Extracted ${lines.length} job titles from lines`);
@@ -1757,7 +1758,7 @@ export async function getPotentialJobTitles(resumeData: ParsedResume, debug: boo
             .replace(/^\[|\]$/g, '') // Remove surrounding brackets if present
             .replace(/```/g, '')     // Remove code block markers
             .split(',')
-            .map(item => item.trim().replace(/^["']+|["']+$/g, '')); // Remove quotes
+            .map((item: string) => item.trim().replace(/^["']+|["']+$/g, '')); // Remove quotes
           
           if (commaSeparated.length > 0 && commaSeparated[0].length > 0) {
             console.log(`Extracted ${commaSeparated.length} job titles from comma separation`);
@@ -1795,7 +1796,7 @@ export async function getPotentialJobTitles(resumeData: ParsedResume, debug: boo
         // Extract job titles from experience
         const titleFromExperience = resumeData.experience
           .map(exp => exp.title)
-          .filter(Boolean);
+          .filter(Boolean) as string[];
         
         // If we have experience titles, generate variations
         if (titleFromExperience.length > 0) {

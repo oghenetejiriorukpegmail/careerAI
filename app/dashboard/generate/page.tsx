@@ -74,7 +74,7 @@ export default function GenerateDocumentsPage() {
           setJobDescriptions(jobData || []);
           
           // If job_desc_id parameter is provided, select it
-          if (jobDescId && jobData?.find(job => job.id === jobDescId)) {
+          if (jobDescId && jobData?.find((job: any) => job.id === jobDescId)) {
             setSelectedJobDescription(jobDescId);
           }
           // Otherwise select the most recent one if available
