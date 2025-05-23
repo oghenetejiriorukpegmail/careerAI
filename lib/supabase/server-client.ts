@@ -3,18 +3,18 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 // Get these from environment variables - required for production
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !serviceKey) {
-  throw new Error('Missing required Supabase environment variables');
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 /**
  * Creates a Supabase Admin client with the Service Role key - can bypass RLS
  * IMPORTANT: Only use server-side
  */
 export function createServiceRoleClient() {
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error('Missing required Supabase environment variables');
+  }
+  
   return createClient(supabaseUrl, serviceKey, {
     auth: {
       autoRefreshToken: false,
