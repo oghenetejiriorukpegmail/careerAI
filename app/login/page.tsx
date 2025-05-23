@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { RateLimitAlert } from "@/components/ui/rate-limit-alert";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
 
   // Removed client-side session check - middleware handles authentication
@@ -34,6 +36,19 @@ export default function LoginPage() {
 
       if (error) {
         console.error("Login error:", error);
+        
+        // Handle rate limit specifically
+        if (error.status === 429 || error.code === 'over_request_rate_limit') {
+          throw new Error('Too many login attempts. Please wait a few minutes before trying again.');
+        }
+        
+        // Handle invalid refresh token
+        if (error.code === 'refresh_token_already_used') {
+          // Clear any stored session data
+          await supabase.auth.signOut();
+          throw new Error('Session expired. Please try logging in again.');
+        }
+        
         throw error;
       }
 
@@ -68,7 +83,8 @@ export default function LoginPage() {
       window.location.href = redirectTo;
     } catch (error: any) {
       console.error("Error during login:", error);
-      setError(error.message || "An error occurred during login");
+      setError(error);
+      setErrorMessage(error.message || "An error occurred during login");
     } finally {
       setLoading(false);
     }
@@ -85,9 +101,16 @@ export default function LoginPage() {
           </CardHeader>
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
-              {error && (
+              <RateLimitAlert 
+                error={error} 
+                onRetry={() => {
+                  setError(null);
+                  setErrorMessage(null);
+                }}
+              />
+              {errorMessage && !error?.status && (
                 <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">
-                  {error}
+                  {errorMessage}
                 </div>
               )}
             <div className="space-y-2">

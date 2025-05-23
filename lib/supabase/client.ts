@@ -13,14 +13,7 @@ if (!supabaseAnonKey) {
   throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
 }
 
-// Log environment variable status (for development debugging only)
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  console.log('Supabase config:', {
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey ? '✓ present' : '✗ missing',
-    serviceKey: supabaseServiceRoleKey ? '✓ present' : '✗ missing'
-  });
-}
+// Development logging disabled for production
 
 // Singleton pattern to prevent multiple instances
 let supabaseInstance: any = null;

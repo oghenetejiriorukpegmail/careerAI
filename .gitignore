@@ -58,3 +58,45 @@ logs/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test files
+test-*.js
+test-*.ts
+*.test.js
+*.test.ts
+debug-*.js
+check-*.js
+fix-*.js
+clear-*.js
+simple-*.js
+
+# temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+debug-*/
+
+# documentation files (development only)
+*-fix.md
+*_FIX.md
+*_SUMMARY.md
+AUTH_*.md
+PUSH_*.md
+DATABASE_*.md
+
+# screenshots and images
+*.png
+*.jpg
+*.jpeg
+Screenshot*.png
+
+# shell scripts (development only)
+*.sh
+
+# miscellaneous
+"…"
+*.bak
+*.swp
+*.swo
+*~

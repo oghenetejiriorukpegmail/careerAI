@@ -121,12 +121,13 @@ export async function POST(request: NextRequest) {
     console.log('Extracted user name:', { profileName: profileData?.full_name, resumeName: resumeData.full_name, finalName: userName });
     const companyName = jobData.company_name || 'Company';
 
-    // Generate the ATS-optimized resume
+    // Generate the ATS-optimized resume with user's AI settings
     const { pdf, fileName } = await generateAtsResume(
       resumeData,
       parsedJobDescription,
       userName,
-      companyName
+      companyName,
+      session.user.id
     );
 
     let resumeDocumentId: string | undefined;

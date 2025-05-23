@@ -1,8 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  swcMinify: true,
+  compress: true,
+  poweredByHeader: false,
   images: {
     domains: ['edfcwbtzcnfosiiymbqg.supabase.co'],
+    formats: ['image/avif', 'image/webp'],
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {

@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "CareerAI - AI-Assisted Job Application Platform",
   description: "Optimize your job search with AI-generated resumes, cover letters, and job matching",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=5",
+  themeColor: "#000000",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

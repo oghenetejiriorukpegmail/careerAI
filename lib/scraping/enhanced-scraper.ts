@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { CheerioAPI } from 'cheerio';
+type CheerioAPI = cheerio.CheerioAPI;
 import { fetchWithRetry } from './proxy-manager';
 
 interface ScrapingResult {
@@ -50,8 +50,10 @@ export async function enhancedJobScrape(url: string): Promise<ScrapingResult> {
   const $ = cheerio.load(html);
   
   // Remove noise elements
-  $('script, style, noscript, iframe, svg, img, video, audio').remove();
-  $('nav, header, footer, aside, .sidebar, .navigation, .menu, .ads, .advertisement').remove();
+  $('script, style, noscript, iframe, svg, img, video, audio, link, meta').remove();
+  $('nav, header, footer, aside, .sidebar, .navigation, .menu, .ads, .advertisement, .cookie-banner, .popup').remove();
+  $('[class*="header"], [class*="footer"], [class*="navbar"], [class*="cookie"], [class*="banner"]').remove();
+  $('[id*="header"], [id*="footer"], [id*="navbar"], [id*="cookie"], [id*="banner"]').remove();
   
   // Try to extract structured data
   const result: ScrapingResult = {
@@ -82,45 +84,99 @@ export async function enhancedJobScrape(url: string): Promise<ScrapingResult> {
   const extractors = {
     title: [
       'h1', 
+      'h1.job-title',
       '[class*="job-title"]', 
       '[class*="jobTitle"]',
       '[class*="position-title"]',
+      '[class*="job_title"]',
+      '[class*="job-header"]',
+      '[class*="posting-title"]',
       '[data-testid*="title"]',
-      'meta[property="og:title"]'
+      '[data-qa*="title"]',
+      '[data-test*="title"]',
+      '[itemprop="title"]',
+      'meta[property="og:title"]',
+      'meta[name="twitter:title"]',
+      '.job-title',
+      '#job-title',
+      '.title'
     ],
     company: [
       '[class*="company-name"]',
       '[class*="companyName"]',
+      '[class*="company_name"]',
       '[class*="employer"]',
+      '[class*="organization"]',
       '[data-testid*="company"]',
-      'meta[property="og:site_name"]'
+      '[data-qa*="company"]',
+      '[data-test*="company"]',
+      '[itemprop="hiringOrganization"]',
+      'meta[property="og:site_name"]',
+      '.company-name',
+      '.company',
+      '#company'
     ],
     location: [
       '[class*="location"]',
       '[class*="job-location"]',
+      '[class*="job_location"]',
       '[data-testid*="location"]',
-      '[class*="address"]'
+      '[data-qa*="location"]',
+      '[data-test*="location"]',
+      '[class*="address"]',
+      '[itemprop="jobLocation"]',
+      '[itemprop="address"]',
+      '.location',
+      '.job-location',
+      '#location'
     ],
     description: [
       '[class*="description"]',
       '[class*="job-description"]',
       '[class*="jobDescription"]',
+      '[class*="job_description"]',
+      '[class*="job-details"]',
+      '[class*="job_details"]',
+      '[class*="posting-description"]',
       '[id*="description"]',
       '[data-testid*="description"]',
+      '[data-qa*="description"]',
+      '[data-test*="description"]',
+      '[itemprop="description"]',
+      '.description',
+      '.job-description',
+      '#job-description',
+      '#jobDescription',
+      '.content',
       'article',
       'main',
-      '[role="main"]'
+      '[role="main"]',
+      '.job-content',
+      '.posting-content'
     ],
     salary: [
       '[class*="salary"]',
       '[class*="compensation"]',
       '[class*="pay"]',
-      '[data-testid*="salary"]'
+      '[class*="wage"]',
+      '[data-testid*="salary"]',
+      '[data-qa*="salary"]',
+      '[data-test*="salary"]',
+      '[itemprop="baseSalary"]',
+      '.salary',
+      '.compensation',
+      '#salary'
     ],
     requirements: [
       '[class*="requirements"]',
       '[class*="qualifications"]',
-      '[data-testid*="requirements"]'
+      '[class*="requirement"]',
+      '[class*="qualification"]',
+      '[data-testid*="requirements"]',
+      '[data-qa*="requirements"]',
+      '.requirements',
+      '.qualifications',
+      '#requirements'
     ]
   };
 
@@ -128,17 +184,49 @@ export async function enhancedJobScrape(url: string): Promise<ScrapingResult> {
   for (const [field, selectors] of Object.entries(extractors)) {
     if (!result[field as keyof ScrapingResult]) {
       for (const selector of selectors) {
-        const element = $(selector).first();
-        if (element.length) {
-          const text = element.text().trim();
-          if (text && text.length > 0) {
-            if (field === 'title' && selector.startsWith('meta')) {
-              result[field] = element.attr('content') || '';
-            } else {
-              result[field as keyof ScrapingResult] = text as any;
+        try {
+          let elements = $(selector);
+          
+          // For description, try to get all matching elements
+          if (field === 'description' && elements.length > 1) {
+            const allText = elements.map((_, el) => $(el).text().trim()).get()
+              .filter(t => t.length > 100)
+              .join('\n\n');
+            if (allText.length > 200) {
+              result[field] = allText;
+              break;
             }
-            break;
           }
+          
+          const element = elements.first();
+          if (element.length) {
+            let text = '';
+            
+            // Handle meta tags differently
+            if (selector.startsWith('meta')) {
+              text = element.attr('content') || '';
+            } else {
+              // Get text including nested elements
+              text = element.clone()
+                .find('script, style').remove().end()
+                .text().trim();
+            }
+            
+            // Validate extracted text
+            if (text && text.length > 0) {
+              // For title/company/location, ensure it's not too long
+              if (['title', 'company', 'location'].includes(field) && text.length > 200) {
+                continue;
+              }
+              
+              result[field as keyof ScrapingResult] = text as any;
+              console.log(`[SCRAPER] Extracted ${field} using selector: ${selector}`);
+              break;
+            }
+          }
+        } catch (e) {
+          // Continue to next selector on error
+          continue;
         }
       }
     }
@@ -169,27 +257,79 @@ export async function enhancedJobScrape(url: string): Promise<ScrapingResult> {
 
   // Get clean description text
   if (!result.description) {
-    // Try to find the main content area
-    const contentSelectors = [
-      'main',
-      'article', 
-      '[role="main"]',
-      '#content',
-      '.content',
-      'body'
-    ];
+    console.log('[SCRAPER] No description found with selectors, trying fallback methods...');
+    
+    // Method 1: Try to find the largest text block
+    const allTextBlocks: { text: string; element: any }[] = [];
+    $('div, section, article, main').each((_, el) => {
+      const $el = $(el);
+      const text = $el.clone()
+        .find('script, style, nav, header, footer').remove().end()
+        .text().trim();
+      
+      if (text.length > 200) {
+        allTextBlocks.push({ text, element: el });
+      }
+    });
+    
+    if (allTextBlocks.length > 0) {
+      // Sort by text length and take the longest
+      allTextBlocks.sort((a, b) => b.text.length - a.text.length);
+      result.description = allTextBlocks[0].text;
+      console.log('[SCRAPER] Found description using largest text block method');
+    }
+    
+    // Method 2: Try common parent containers
+    if (!result.description || result.description.length < 200) {
+      const parentSelectors = [
+        'main',
+        '[role="main"]',
+        '.main-content',
+        '#main-content',
+        '.job-details',
+        '.posting-details',
+        'article',
+        '.article',
+        '#content',
+        '.content',
+        '.container'
+      ];
 
-    for (const selector of contentSelectors) {
-      const content = $(selector).first().text().trim();
-      if (content && content.length > 200) {
-        result.description = content;
-        break;
+      for (const selector of parentSelectors) {
+        const $container = $(selector).first();
+        if ($container.length) {
+          // Remove unwanted nested elements
+          const cleanedHtml = $container.clone()
+            .find('script, style, nav, header, footer, aside, form, button').remove().end();
+          
+          const text = cleanedHtml.text().trim();
+          if (text && text.length > 200) {
+            result.description = text;
+            console.log(`[SCRAPER] Found description using parent selector: ${selector}`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Method 3: Get all paragraphs and lists
+    if (!result.description || result.description.length < 200) {
+      const paragraphs = $('p').map((_, el) => $(el).text().trim()).get()
+        .filter(text => text.length > 50);
+      const lists = $('ul li, ol li').map((_, el) => $(el).text().trim()).get()
+        .filter(text => text.length > 10);
+      
+      const combinedText = [...paragraphs, ...lists].join('\n');
+      if (combinedText.length > 200) {
+        result.description = combinedText;
+        console.log('[SCRAPER] Found description using paragraphs and lists method');
       }
     }
   }
 
-  // Fallback to full body text
+  // Final fallback to full body text
   if (!result.description || result.description.length < 100) {
+    console.log('[SCRAPER] Using full body text as last resort');
     result.description = $('body').text().trim();
   }
 
@@ -229,9 +369,18 @@ function cleanText(text: string): string {
     .replace(/â€"/g, "—")
     .replace(/â€œ/g, '"')
     .replace(/â€/g, '"')
+    .replace(/â€¢/g, '•')
+    .replace(/â€¦/g, '...')
+    // Fix line breaks
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     // Remove duplicate spaces
     .replace(/  +/g, ' ')
-    // Trim
+    // Trim each line
+    .split('\n')
+    .map(line => line.trim())
+    .join('\n')
+    // Final trim
     .trim();
 }
 
@@ -291,6 +440,51 @@ export const jobBoardExtractors = {
       location: $('[data-automation-id="location"]').first().text().trim(),
       description: $('[data-automation-id="jobPostingDescription"]').first().text().trim()
     };
+  },
+
+  taleo: ($: CheerioAPI): Partial<ScrapingResult> => {
+    return {
+      title: $('.titlepage, .job-title, h1').first().text().trim(),
+      company: $('.company-name, .org-name').first().text().trim(),
+      location: $('.location, .job-location').first().text().trim(),
+      description: $('.job-description, .jobdescription, .content').first().text().trim()
+    };
+  },
+
+  icims: ($: CheerioAPI): Partial<ScrapingResult> => {
+    return {
+      title: $('h1.iCIMS_JobTitle, .job-header h1, .positionTitle').first().text().trim(),
+      company: $('.iCIMS_CompanyName, .company-name').first().text().trim(),
+      location: $('.iCIMS_JobLocation, .job-location, .location').first().text().trim(),
+      description: $('.iCIMS_JobDescription, .job-description, .jobdescription').first().text().trim()
+    };
+  },
+
+  successfactors: ($: CheerioAPI): Partial<ScrapingResult> => {
+    return {
+      title: $('.jobTitle, .job-title, h1').first().text().trim(),
+      company: $('.companyName, .company-name').first().text().trim(),
+      location: $('.jobLocation, .job-location').first().text().trim(),
+      description: $('.jobDescription, .job-description').first().text().trim()
+    };
+  },
+
+  brassring: ($: CheerioAPI): Partial<ScrapingResult> => {
+    return {
+      title: $('#Job_Title, .job-title, h1').first().text().trim(),
+      company: $('#Company_Name, .company-name').first().text().trim(),
+      location: $('#Location, .location').first().text().trim(),
+      description: $('#Job_Description, .job-description').first().text().trim()
+    };
+  },
+
+  ultipro: ($: CheerioAPI): Partial<ScrapingResult> => {
+    return {
+      title: $('.opportunity-title, .job-title').first().text().trim(),
+      company: $('.company-name').first().text().trim(),
+      location: $('.opportunity-location, .job-location').first().text().trim(),
+      description: $('.opportunity-description, .job-description').first().text().trim()
+    };
   }
 };
 
@@ -300,12 +494,28 @@ export const jobBoardExtractors = {
 export function detectJobBoard(url: string): string | null {
   const urlLower = url.toLowerCase();
   
+  // Major job boards
   if (urlLower.includes('linkedin.com')) return 'linkedin';
   if (urlLower.includes('indeed.com')) return 'indeed';
   if (urlLower.includes('dice.com')) return 'dice';
+  
+  // ATS systems
   if (urlLower.includes('greenhouse.io')) return 'greenhouse';
   if (urlLower.includes('lever.co')) return 'lever';
-  if (urlLower.includes('myworkdayjobs.com')) return 'workday';
+  if (urlLower.includes('myworkdayjobs.com') || urlLower.includes('workday.com')) return 'workday';
+  if (urlLower.includes('taleo.net') || urlLower.includes('taleo.com')) return 'taleo';
+  if (urlLower.includes('icims.com')) return 'icims';
+  if (urlLower.includes('successfactors.com') || urlLower.includes('successfactors.eu')) return 'successfactors';
+  if (urlLower.includes('brassring.com')) return 'brassring';
+  if (urlLower.includes('ultipro.com') || urlLower.includes('ukg.com')) return 'ultipro';
+  
+  // Check for ATS identifiers in URL patterns
+  if (urlLower.includes('/careers/') || urlLower.includes('/jobs/')) {
+    // Check for common ATS indicators
+    if (urlLower.includes('workday')) return 'workday';
+    if (urlLower.includes('taleo')) return 'taleo';
+    if (urlLower.includes('icims')) return 'icims';
+  }
   
   return null;
 }

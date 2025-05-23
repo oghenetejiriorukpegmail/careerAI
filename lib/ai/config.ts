@@ -1417,9 +1417,9 @@ async function loadUserSettings() {
   };
 }
 
-export async function queryAI(prompt: string, systemPrompt?: string) {
-  // Load user settings
-  const settings = await loadUserSettings();
+export async function queryAI(prompt: string, systemPrompt?: string, providedSettings?: any) {
+  // Use provided settings or load user settings
+  const settings = providedSettings || await loadUserSettings();
   
   // Handle provider and model from settings - always default to Claude 3.7 Sonnet with OpenRouter
   const provider = settings.aiProvider || 'openrouter';

@@ -113,12 +113,13 @@ export async function POST(request: NextRequest) {
     console.log('Extracted user name:', { profileName: profileData?.full_name, resumeName: resumeData.full_name, finalName: userName });
     const companyName = jobData.company_name || 'Company';
 
-    // Generate the cover letter
+    // Generate the cover letter with user's AI settings
     const { pdf, fileName } = await generateCoverLetter(
       resumeData,
       parsedJobDescription,
       userName,
-      companyName
+      companyName,
+      session.user.id
     );
 
     let coverLetterDocumentId: string | undefined;

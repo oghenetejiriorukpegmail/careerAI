@@ -1,29 +1,34 @@
+"use client";
+
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 
 export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center">
-          <div className="mr-4 hidden md:flex">
-            <Link href="/" className="mr-6 flex items-center space-x-2">
+        <div className="container flex h-14 items-center px-4">
+          <div className="flex flex-1 items-center">
+            <Link href="/" className="flex items-center space-x-2">
               <span className="font-bold text-xl">CareerAI</span>
             </Link>
-            <nav className="flex items-center space-x-6 text-sm font-medium">
-              <Link href="/features" className="transition-colors hover:text-foreground/80">
+            <nav className="hidden md:flex items-center space-x-6 text-sm font-medium ml-6">
+              <Link href="#features" className="transition-colors hover:text-foreground/80">
                 Features
               </Link>
-              <Link href="/pricing" className="transition-colors hover:text-foreground/80">
+              <Link href="#pricing" className="transition-colors hover:text-foreground/80">
                 Pricing
               </Link>
-              <Link href="/about" className="transition-colors hover:text-foreground/80">
+              <Link href="#about" className="transition-colors hover:text-foreground/80">
                 About
               </Link>
             </nav>
           </div>
-          <div className="flex flex-1 items-center justify-end space-x-2">
-            <nav className="flex items-center">
+          <div className="flex items-center space-x-2">
+            <nav className="hidden md:flex items-center">
               <Link href="/login" passHref>
                 <Button variant="ghost" className="mr-2">
                   Log in
@@ -35,16 +40,63 @@ export default function Home() {
                 </Button>
               </Link>
             </nav>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
           </div>
         </div>
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t">
+            <nav className="flex flex-col space-y-4 p-4">
+              <Link 
+                href="#features" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Features
+              </Link>
+              <Link 
+                href="#pricing" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Pricing
+              </Link>
+              <Link 
+                href="#about" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                About
+              </Link>
+              <div className="pt-4 border-t space-y-2">
+                <Link href="/login" passHref>
+                  <Button variant="ghost" className="w-full justify-start">
+                    Log in
+                  </Button>
+                </Link>
+                <Link href="/signup" passHref>
+                  <Button className="w-full">
+                    Sign up
+                  </Button>
+                </Link>
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
       <main className="flex-1">
-        <section className="w-full py-24 md:py-36 lg:py-48 bg-secondary">
+        <section className="w-full py-12 md:py-24 lg:py-48 bg-secondary">
           <div className="container px-4 md:px-6">
             <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
               <div className="flex flex-col justify-center space-y-4">
                 <div className="space-y-2">
-                  <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl">
+                  <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl xl:text-6xl">
                     Land Your Dream Job with AI-Powered Applications
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
@@ -89,7 +141,7 @@ export default function Home() {
             </div>
           </div>
         </section>
-        <section className="w-full py-12 md:py-24 lg:py-32">
+        <section id="features" className="w-full py-12 md:py-24 lg:py-32">
           <div className="container px-4 md:px-6">
             <div className="mx-auto flex max-w-[58rem] flex-col items-center justify-center gap-4 text-center">
               <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">
@@ -99,7 +151,7 @@ export default function Home() {
                 Comprehensive tools to streamline your job search process and improve your chances of success.
               </p>
             </div>
-            <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 py-12 md:grid-cols-3">
+            <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 py-12 sm:grid-cols-2 md:grid-cols-3">
               <div className="rounded-lg border bg-card p-6">
                 <div className="flex flex-col items-center gap-2 text-center">
                   <h3 className="text-xl font-bold">Resume Analysis</h3>

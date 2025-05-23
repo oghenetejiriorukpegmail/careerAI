@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Menu, X } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -12,6 +13,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -44,12 +46,13 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center">
-          <div className="mr-4 flex">
-            <Link href="/dashboard" className="mr-6 flex items-center space-x-2">
+        <div className="container flex h-14 items-center px-4">
+          <div className="flex items-center flex-1">
+            <Link href="/dashboard" className="flex items-center space-x-2">
               <span className="font-bold text-xl">CareerAI</span>
             </Link>
-            <nav className="flex items-center space-x-6 text-sm font-medium">
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center space-x-6 text-sm font-medium ml-6">
               <Link href="/dashboard" className="transition-colors hover:text-foreground/80">
                 Dashboard
               </Link>
@@ -57,10 +60,10 @@ export default function DashboardLayout({
                 Resume
               </Link>
               <Link href="/dashboard/job-opportunities" className="transition-colors hover:text-foreground/80">
-                Job Opportunities
+                Jobs
               </Link>
               <Link href="/dashboard/job-matching" className="transition-colors hover:text-foreground/80">
-                Job Matching
+                Matching
               </Link>
               <Link href="/dashboard/applications" className="transition-colors hover:text-foreground/80">
                 Applications
@@ -73,14 +76,84 @@ export default function DashboardLayout({
               </Link>
             </nav>
           </div>
-          <div className="flex flex-1 items-center justify-end space-x-2">
-            <Button variant="ghost" onClick={handleSignOut}>
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" onClick={handleSignOut} className="hidden md:inline-flex">
               Sign out
+            </Button>
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
           </div>
         </div>
+        {/* Mobile Navigation */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t">
+            <nav className="flex flex-col space-y-4 p-4">
+              <Link 
+                href="/dashboard" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+              <Link 
+                href="/dashboard/resume" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Resume
+              </Link>
+              <Link 
+                href="/dashboard/job-opportunities" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Job Opportunities
+              </Link>
+              <Link 
+                href="/dashboard/job-matching" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Job Matching
+              </Link>
+              <Link 
+                href="/dashboard/applications" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Applications
+              </Link>
+              <Link 
+                href="/dashboard/profile" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Profile
+              </Link>
+              <Link 
+                href="/dashboard/settings" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Settings
+              </Link>
+              <div className="pt-4 border-t">
+                <Button variant="ghost" onClick={handleSignOut} className="w-full justify-start">
+                  Sign out
+                </Button>
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
-      <main className="flex-1 container py-8">
+      <main className="flex-1 container py-4 px-4 md:py-8">
         {children}
       </main>
       <footer className="border-t py-6">

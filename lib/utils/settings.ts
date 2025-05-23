@@ -19,10 +19,10 @@ declare global {
   } | undefined;
 }
 
-// Default settings - using the values the frontend is using
+// Default settings - using Qwen 3 235B via OpenRouter as specified in PRD
 export const defaultSettings: UserSettings = {
-  aiProvider: 'google',
-  aiModel: 'gemini-1.5-pro',
+  aiProvider: 'openrouter',
+  aiModel: 'qwen/qwen3-235b-a22b:free',  // Free tier Qwen model via OpenRouter
   documentAiOnly: true,
   enableLogging: true,
   updatedAt: Date.now() // Current timestamp

@@ -11,11 +11,29 @@ export async function middleware(request: NextRequest) {
   
   const supabase = createMiddlewareClient({ req: request, res: response });
   
-  // Refresh session from cookies
-  const { data: { session }, error } = await supabase.auth.getSession();
+  // Refresh session from cookies with rate limit handling
+  let session = null;
+  let error = null;
   
-  if (error) {
-    console.error('Middleware session error:', error);
+  try {
+    const result = await supabase.auth.getSession();
+    session = result.data?.session;
+    error = result.error;
+    
+    // Handle specific auth errors
+    if (error?.code === 'refresh_token_already_used') {
+      console.log('Refresh token already used, clearing session...');
+      await supabase.auth.signOut();
+      session = null;
+    } else if (error?.status === 429 || error?.code === 'over_request_rate_limit') {
+      console.log('Rate limit reached, proceeding without session refresh');
+      // Don't throw, just proceed without session
+      session = null;
+    }
+  } catch (e: any) {
+    console.error('Middleware session error:', e);
+    // Continue without session on error
+    session = null;
   }
   
   // Only log auth-related paths to reduce noise

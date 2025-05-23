@@ -73,4 +73,31 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Mobile-first optimizations */
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+  
+  /* Ensure minimum tap target sizes on mobile */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent horizontal scroll on mobile */
+  body {
+    overflow-x: hidden;
+  }
+  
+  /* Optimize form inputs for mobile */
+  input, textarea, select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  /* Better focus states for mobile */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
 }

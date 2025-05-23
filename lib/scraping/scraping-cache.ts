@@ -62,11 +62,11 @@ export class ScrapingCache {
     const now = Date.now();
     const expiredKeys: string[] = [];
     
-    for (const [key, entry] of this.cache.entries()) {
+    this.cache.forEach((entry, key) => {
       if (now - entry.timestamp > this.maxAge) {
         expiredKeys.push(key);
       }
-    }
+    });
     
     for (const key of expiredKeys) {
       this.cache.delete(key);
@@ -84,12 +84,12 @@ export class ScrapingCache {
     let oldestKey: string | null = null;
     let oldestTime = Infinity;
     
-    for (const [key, entry] of this.cache.entries()) {
+    this.cache.forEach((entry, key) => {
       if (entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp;
         oldestKey = key;
       }
-    }
+    });
     
     return oldestKey;
   }
@@ -108,11 +108,11 @@ export class ScrapingCache {
   getStats(): { size: number; oldestEntry: number | null } {
     let oldestTime: number | null = null;
     
-    for (const entry of this.cache.values()) {
+    this.cache.forEach((entry) => {
       if (oldestTime === null || entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp;
       }
-    }
+    });
     
     return {
       size: this.cache.size,
