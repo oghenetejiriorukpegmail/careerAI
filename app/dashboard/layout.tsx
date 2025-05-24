@@ -24,11 +24,43 @@ export default function DashboardLayout({
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
-      // Use window.location for a hard redirect
+      // Clear local storage to ensure complete logout
+      if (typeof window !== 'undefined') {
+        // Clear the custom storage key used by Supabase
+        localStorage.removeItem('careerai-auth-token');
+        // Clear any other session-related items
+        localStorage.removeItem('sb-localhost-auth-token');
+        localStorage.removeItem('sb-access-token');
+        localStorage.removeItem('sb-refresh-token');
+        
+        // Clear session storage as well
+        sessionStorage.clear();
+      }
+      
+      // Call the logout API endpoint to clear server-side session
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        console.error('Logout API failed');
+      }
+      
+      // Also sign out from client-side Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Supabase signOut error:", error);
+      }
+      
+      // Force a hard redirect to clear any cached state
       window.location.href = "/login";
     } catch (error) {
       console.error("Error signing out:", error);
+      // Even if there's an error, still redirect to login
+      window.location.href = "/login";
     }
   };
 
