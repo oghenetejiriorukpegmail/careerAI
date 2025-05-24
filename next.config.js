@@ -8,6 +8,8 @@ const nextConfig = {
     domains: ['edfcwbtzcnfosiiymbqg.supabase.co'],
     formats: ['image/avif', 'image/webp'],
   },
+  // Configure for Replit
+  output: 'standalone',
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Don't resolve server-side modules on the client
