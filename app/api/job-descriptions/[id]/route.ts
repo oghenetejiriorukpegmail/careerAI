@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server-client';
 import { getSupabaseAdminClient } from '@/lib/supabase/client';
 
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
