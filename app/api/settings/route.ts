@@ -7,6 +7,8 @@ import { AI_CONFIG } from '@/lib/ai/config';
 import { settingsSchema, safeValidateInput } from '@/lib/validation/schemas';
 import { z } from 'zod';
 
+export const dynamic = 'force-dynamic';
+
 // In-memory cache for authenticated user settings only
 const userSettingsCache = new Map<string, UserSettings>();
 

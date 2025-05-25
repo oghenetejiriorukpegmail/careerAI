@@ -1,12 +1,12 @@
 run = "npm run build && npm run start"
 language = "nodejs"
-entrypoint = "app/page.tsx"
+entrypoint = "server.js"
 
 [nix]
 channel = "stable-24_11"
 
 [deployment]
-run = ["sh", "-c", "npm run start"]
+run = ["sh", "-c", "NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000 node server.js"]
 build = ["sh", "-c", "npm run build"]
 
 [[ports]]
