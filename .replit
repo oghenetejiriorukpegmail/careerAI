@@ -1,4 +1,4 @@
-run = "npm run dev"
+run = "npm run build && npm run start"
 language = "nodejs"
 entrypoint = "app/page.tsx"
 

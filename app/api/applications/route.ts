@@ -283,8 +283,7 @@ export async function DELETE(request: NextRequest) {
     
     const userId = session.user.id;
     
-    const { searchParams } = new URL(request.url);
-    const applicationId = searchParams.get('applicationId');
+    const applicationId = request.nextUrl.searchParams.get('applicationId');
 
     if (!applicationId) {
       return NextResponse.json({ error: 'Application ID is required' }, { status: 400 });
