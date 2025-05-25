@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader, Upload, Check, X } from "lucide-react";
+import { Loader, Upload, Check, X, HardDrive } from "lucide-react";
 import { GoogleDrivePicker } from "@/components/google-drive-picker";
 
 export default function UploadResumePage() {
@@ -217,13 +217,37 @@ export default function UploadResumePage() {
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or</span>
+                  <span className="bg-background px-2 text-muted-foreground">Or choose from</span>
                 </div>
               </div>
-              <GoogleDrivePicker 
-                onFilePicked={handleFilePicked}
-                disabled={uploading || analyzing}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFilePicked(file);
+                    }}
+                    disabled={uploading || analyzing}
+                    className="sr-only"
+                    id="device-file-input"
+                  />
+                  <label
+                    htmlFor="device-file-input"
+                    className={`inline-flex items-center justify-center w-full rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 ${
+                      uploading || analyzing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                    }`}
+                  >
+                    <HardDrive className="mr-2 h-4 w-4" />
+                    Device Files
+                  </label>
+                </div>
+                <GoogleDrivePicker 
+                  onFilePicked={handleFilePicked}
+                  disabled={uploading || analyzing}
+                />
+              </div>
             </div>
           )}
           

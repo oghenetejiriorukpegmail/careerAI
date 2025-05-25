@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { FolderOpen } from 'lucide-react';
+import { Cloud } from 'lucide-react';
 
 interface GoogleDrivePickerProps {
   onFilePicked: (file: File) => void;
@@ -54,7 +54,7 @@ export function GoogleDrivePicker({ onFilePicked, disabled }: GoogleDrivePickerP
   const createPicker = () => {
     if (!CLIENT_ID || !API_KEY) {
       console.error('Google Drive API credentials not configured');
-      alert('Google Drive integration is not configured. Please use the file upload option.');
+      alert('Google Drive integration is not configured. Please contact your administrator to enable this feature.');
       return;
     }
 
@@ -137,30 +137,6 @@ export function GoogleDrivePicker({ onFilePicked, disabled }: GoogleDrivePickerP
     createPicker();
   };
 
-  // If Google Drive API is not configured, show a simple file input styled as a button
-  if (!CLIENT_ID || !API_KEY) {
-    return (
-      <div className="relative">
-        <input
-          type="file"
-          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={handleFileSelect}
-          disabled={disabled}
-          className="sr-only"
-          id="google-drive-file-input"
-        />
-        <label
-          htmlFor="google-drive-file-input"
-          className={`inline-flex items-center justify-center w-full rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 ${
-            disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-          }`}
-        >
-          <FolderOpen className="mr-2 h-4 w-4" />
-          Choose from Device
-        </label>
-      </div>
-    );
-  }
 
   return (
     <Button
@@ -169,8 +145,8 @@ export function GoogleDrivePicker({ onFilePicked, disabled }: GoogleDrivePickerP
       disabled={disabled || isPickerOpen}
       className="w-full"
     >
-      <FolderOpen className="mr-2 h-4 w-4" />
-      Choose from Google Drive
+      <Cloud className="mr-2 h-4 w-4" />
+      Google Drive
     </Button>
   );
 }
