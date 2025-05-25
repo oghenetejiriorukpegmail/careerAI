@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader, Upload, Check, X } from "lucide-react";
+import { GoogleDrivePicker } from "@/components/google-drive-picker";
 
 export default function UploadResumePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -34,27 +35,29 @@ export default function UploadResumePage() {
     checkBuckets();
   }, []);
 
+  const handleFilePicked = useCallback((selectedFile: File) => {
+    // Check file type
+    const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!validTypes.includes(selectedFile.type)) {
+      setError("Please upload a PDF or DOCX file");
+      return;
+    }
+    
+    // Check file size (max 5MB)
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setError("File size must be less than 5MB");
+      return;
+    }
+    
+    setFile(selectedFile);
+    setError(null);
+  }, []);
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
-      const selectedFile = acceptedFiles[0];
-      
-      // Check file type
-      const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      if (!validTypes.includes(selectedFile.type)) {
-        setError("Please upload a PDF or DOCX file");
-        return;
-      }
-      
-      // Check file size (max 5MB)
-      if (selectedFile.size > 5 * 1024 * 1024) {
-        setError("File size must be less than 5MB");
-        return;
-      }
-      
-      setFile(selectedFile);
-      setError(null);
+      handleFilePicked(acceptedFiles[0]);
     }
-  }, []);
+  }, [handleFilePicked]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -157,10 +160,10 @@ export default function UploadResumePage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Upload Resume</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Upload Resume</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">
           Upload your current resume to get started with CareerAI
         </p>
       </div>
@@ -196,17 +199,31 @@ export default function UploadResumePage() {
               </Button>
             </div>
           ) : (
-            <div {...getRootProps()} className="cursor-pointer">
-              <div className={`border-2 border-dashed rounded-md p-8 text-center ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}`}>
-                <input {...getInputProps()} />
-                <div className="flex flex-col items-center justify-center space-y-2">
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <h3 className="text-lg font-medium">Drag & drop your resume</h3>
-                  <p className="text-sm text-muted-foreground">
-                    or click to browse files (PDF or DOCX, max 5MB)
-                  </p>
+            <div className="space-y-4">
+              <div {...getRootProps()} className="cursor-pointer">
+                <div className={`border-2 border-dashed rounded-md p-6 sm:p-8 text-center ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}`}>
+                  <input {...getInputProps()} />
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <Upload className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
+                    <h3 className="text-base sm:text-lg font-medium">Drag & drop your resume</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      or click to browse files (PDF or DOCX, max 5MB)
+                    </p>
+                  </div>
                 </div>
               </div>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+              <GoogleDrivePicker 
+                onFilePicked={handleFilePicked}
+                disabled={uploading || analyzing}
+              />
             </div>
           )}
           
