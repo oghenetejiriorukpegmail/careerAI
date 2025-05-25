@@ -237,7 +237,7 @@ export default function JobMatchingPage() {
         <div className="space-y-6">
           {filteredMatches.map((job) => (
             <Card key={job.id} className="overflow-hidden">
-              <div className="md:flex">
+              <div className="flex flex-col sm:flex-row">
                 <div className="flex-1">
                   <CardHeader>
                     <CardTitle>{job.job_title}</CardTitle>
@@ -266,7 +266,7 @@ export default function JobMatchingPage() {
                     </div>
                   </CardContent>
                 </div>
-                <div className="shrink-0 p-6 flex flex-col justify-center space-y-3 bg-muted/10 min-w-[200px]">
+                <div className="shrink-0 p-4 sm:p-6 flex flex-col justify-center space-y-3 bg-muted/10 sm:min-w-[200px]">
                   <a href={job.job_url} target="_blank" rel="noopener noreferrer">
                     <Button variant="outline" className="w-full">
                       <ExternalLink className="h-4 w-4 mr-2" />
