@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  // Handle health check endpoint
+  if (request.nextUrl.pathname === '/health' || request.nextUrl.pathname === '/api/health') {
+    return NextResponse.json({ status: 'ok', message: 'CareerAI is healthy' }, { status: 200 });
+  }
+  
   let response = NextResponse.next({
     request: {
       headers: request.headers,
