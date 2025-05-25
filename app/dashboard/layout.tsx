@@ -185,7 +185,7 @@ export default function DashboardLayout({
           </div>
         )}
       </header>
-      <main className="flex-1 container py-4 px-4 md:py-8">
+      <main className="flex-1 container py-4 px-4 md:py-8 max-w-full">
         {children}
       </main>
       <footer className="border-t py-6">
