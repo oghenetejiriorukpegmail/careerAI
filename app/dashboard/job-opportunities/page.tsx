@@ -145,14 +145,14 @@ export default function JobOpportunitiesPage() {
     };
 
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className="text-xs">{config.label}</Badge>;
   };
 
   const getInputMethodBadge = (method: string) => {
     const methodConfig = {
-      url: { label: "From URL", icon: ExternalLink },
-      text_paste: { label: "Pasted Text", icon: FileText },
-      manual: { label: "Manual Entry", icon: Briefcase }
+      url: { label: "URL", icon: ExternalLink },
+      text_paste: { label: "Pasted", icon: FileText },
+      manual: { label: "Manual", icon: Briefcase }
     };
 
     const config = methodConfig[method as keyof typeof methodConfig] || methodConfig.text_paste;
@@ -160,8 +160,8 @@ export default function JobOpportunitiesPage() {
     
     return (
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Icon className="h-3 w-3" />
-        <span>{config.label}</span>
+        <Icon className="h-3 w-3 flex-shrink-0" />
+        <span className="truncate">{config.label}</span>
       </div>
     );
   };
@@ -270,13 +270,13 @@ export default function JobOpportunitiesPage() {
           </div>
 
           {/* Job Opportunities Grid */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {sortedOpportunities.map((opportunity) => (
-              <Card key={opportunity.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1 flex-1 min-w-0">
-                      <CardTitle className="text-lg line-clamp-2">
+              <Card key={opportunity.id} className="hover:shadow-md transition-shadow overflow-hidden">
+                <CardHeader className="p-4 sm:p-6 pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1 flex-1 min-w-0 overflow-hidden">
+                      <CardTitle className="text-base sm:text-lg line-clamp-2">
                         {opportunity.job_title}
                       </CardTitle>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -284,37 +284,41 @@ export default function JobOpportunitiesPage() {
                         <span className="truncate">{opportunity.company_name}</span>
                       </div>
                     </div>
-                    {getStatusBadge(opportunity.processing_status)}
+                    <div className="flex-shrink-0">
+                      {getStatusBadge(opportunity.processing_status)}
+                    </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 space-y-4">
-                  <div className="space-y-2 text-sm">
+                <CardContent className="p-4 sm:p-6 pt-0 space-y-3">
+                  <div className="space-y-2 text-xs sm:text-sm">
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="h-4 w-4 flex-shrink-0" />
+                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                       <span className="truncate">{opportunity.location}</span>
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="h-4 w-4 flex-shrink-0" />
-                      <span>Added {formatDate(opportunity.created_at)}</span>
+                      <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="truncate">Added {formatDate(opportunity.created_at)}</span>
                     </div>
                     {opportunity.employment_type && (
                       <div className="flex items-center gap-2 text-muted-foreground">
-                        <Clock className="h-4 w-4 flex-shrink-0" />
-                        <span>{opportunity.employment_type}</span>
+                        <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <span className="truncate">{opportunity.employment_type}</span>
                       </div>
                     )}
                     {opportunity.salary_range && (
                       <div className="flex items-center gap-2 text-muted-foreground">
-                        <DollarSign className="h-4 w-4 flex-shrink-0" />
+                        <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                         <span className="truncate">{opportunity.salary_range}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    {getInputMethodBadge(opportunity.input_method)}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 overflow-hidden">
+                      {getInputMethodBadge(opportunity.input_method)}
+                    </div>
                     {opportunity.match_score && (
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground flex-shrink-0">
                         Match: {Math.round(opportunity.match_score)}%
                       </div>
                     )}
@@ -324,7 +328,7 @@ export default function JobOpportunitiesPage() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="flex-1"
+                      className="flex-1 text-xs sm:text-sm"
                       onClick={() => router.push(`/dashboard/job-opportunities/${opportunity.id}`)}
                     >
                       View Details
@@ -333,9 +337,10 @@ export default function JobOpportunitiesPage() {
                       <Button 
                         variant="outline" 
                         size="sm"
+                        className="px-2 sm:px-3"
                         onClick={() => window.open(opportunity.url, '_blank')}
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                     )}
                   </div>
