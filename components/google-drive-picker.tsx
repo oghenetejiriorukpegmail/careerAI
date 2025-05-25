@@ -36,17 +36,25 @@ export function GoogleDrivePicker({ onFilePicked, disabled }: GoogleDrivePickerP
   useEffect(() => {
     // Only load Google API if credentials are configured
     if (CLIENT_ID && API_KEY) {
+      // Check if script is already loaded
+      if (window.gapi) {
+        setIsLoaded(true);
+        return;
+      }
+
       const script = document.createElement('script');
       script.src = 'https://apis.google.com/js/api.js';
+      script.async = true;
+      script.defer = true;
       script.onload = () => {
-        window.gapi.load('client:picker', () => {
+        window.gapi.load('auth2:client:picker', () => {
           setIsLoaded(true);
         });
       };
       document.body.appendChild(script);
 
       return () => {
-        document.body.removeChild(script);
+        // Don't remove the script as it might be used by other components
       };
     }
   }, [CLIENT_ID, API_KEY]);
@@ -95,26 +103,44 @@ export function GoogleDrivePicker({ onFilePicked, disabled }: GoogleDrivePickerP
       }
     };
 
-    // Initialize the picker
-    window.gapi.client.init({
-      apiKey: API_KEY,
-      clientId: CLIENT_ID,
-      scope: SCOPES,
-    }).then(() => {
-      return window.gapi.client.load('drive', 'v3');
-    }).then(() => {
-      // Sign in the user if needed
+    // Initialize the Google API client
+    window.gapi.load('auth2:client:picker', () => {
+      window.gapi.client.init({
+        apiKey: API_KEY,
+        clientId: CLIENT_ID,
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+        scope: SCOPES,
+      }).then(() => {
+        // Get auth instance
+        const authInstance = window.gapi.auth2.getAuthInstance();
+        
+        // Sign in if needed
+        if (!authInstance.isSignedIn.get()) {
+          authInstance.signIn().then(() => {
+            showPicker();
+          }).catch((error: any) => {
+            console.error('Sign in error:', error);
+            alert('Failed to sign in to Google. Please try again.');
+          });
+        } else {
+          showPicker();
+        }
+      }).catch((error: any) => {
+        console.error('Error initializing Google API client:', error);
+        alert('Failed to initialize Google Drive. Please check your configuration.');
+      });
+    });
+
+    const showPicker = () => {
       const authInstance = window.gapi.auth2.getAuthInstance();
-      if (!authInstance.isSignedIn.get()) {
-        return authInstance.signIn();
-      }
-    }).then(() => {
-      // Create and show the picker
+      const user = authInstance.currentUser.get();
+      const oauthToken = user.getAuthResponse().access_token;
+
       const picker = new window.google.picker.PickerBuilder()
-        .setAppId(CLIENT_ID)
-        .setOAuthToken(window.gapi.auth.getToken().access_token)
+        .setOAuthToken(oauthToken)
         .addView(
           new window.google.picker.DocsView()
+            .setIncludeFolders(true)
             .setMimeTypes('application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document')
         )
         .setCallback(pickerCallback)
@@ -122,10 +148,7 @@ export function GoogleDrivePicker({ onFilePicked, disabled }: GoogleDrivePickerP
 
       picker.setVisible(true);
       setIsPickerOpen(true);
-    }).catch((error: any) => {
-      console.error('Error initializing Google Drive picker:', error);
-      alert('Failed to connect to Google Drive. Please try again.');
-    });
+    };
   };
 
   const openPicker = () => {
