@@ -203,17 +203,21 @@ export default function JobOpportunitiesPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Job Opportunities</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Job Opportunities</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Manage your job applications and generate tailored documents
           </p>
         </div>
-        <Button onClick={() => router.push("/dashboard/job-description/new")}>
+        <Button 
+          onClick={() => router.push("/dashboard/job-description/new")}
+          className="w-full sm:w-auto"
+        >
           <Plus className="h-4 w-4 mr-2" />
-          Add Job Opportunity
+          <span className="sm:hidden">Add Job</span>
+          <span className="hidden sm:inline">Add Job Opportunity</span>
         </Button>
       </div>
 
@@ -302,7 +306,7 @@ export default function JobOpportunitiesPage() {
                     {opportunity.salary_range && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <DollarSign className="h-4 w-4 flex-shrink-0" />
-                        <span>{opportunity.salary_range}</span>
+                        <span className="truncate">{opportunity.salary_range}</span>
                       </div>
                     )}
                   </div>
