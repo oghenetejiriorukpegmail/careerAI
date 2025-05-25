@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
+// Force dynamic rendering to ensure proper health checks
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (

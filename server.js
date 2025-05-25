@@ -14,6 +14,19 @@ app.prepare().then(() => {
   createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true);
+      const { pathname } = parsedUrl;
+      
+      // Handle health check explicitly
+      if (pathname === '/' || pathname === '/health') {
+        // For root path, let Next.js handle it but ensure it returns 200
+        if (pathname === '/health') {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ status: 'ok', message: 'CareerAI is healthy' }));
+          return;
+        }
+      }
+      
       await handle(req, res, parsedUrl);
     } catch (err) {
       console.error('Error occurred handling', req.url, err);
@@ -27,5 +40,6 @@ app.prepare().then(() => {
     })
     .listen(port, hostname, () => {
       console.log(`> Ready on http://${hostname}:${port}`);
+      console.log(`> Health check available at http://${hostname}:${port}/health`);
     });
 });
