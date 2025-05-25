@@ -227,7 +227,7 @@ export default function ApplicationsPage() {
         <div className="space-y-6">
           {applications.map((application) => (
             <Card key={application.id}>
-              <div className="md:flex">
+              <div className="flex flex-col sm:flex-row">
                 <div className="flex-1">
                   <CardHeader>
                     <div className="flex justify-between items-start">
@@ -285,7 +285,7 @@ export default function ApplicationsPage() {
                   </CardContent>
                 </div>
                 
-                <div className="shrink-0 p-6 bg-muted/10 flex flex-col justify-center space-y-3 min-w-[220px]">
+                <div className="shrink-0 p-4 sm:p-6 bg-muted/10 flex flex-col justify-center space-y-3 sm:min-w-[220px]">
                   <div className="space-y-2">
                     <h3 className="text-sm font-medium">Update Status</h3>
                     <Select
