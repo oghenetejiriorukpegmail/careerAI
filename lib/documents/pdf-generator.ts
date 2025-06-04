@@ -73,14 +73,15 @@ export interface CoverLetterData {
   closing: string;
 }
 
-// Modern color palette
+// Print-friendly color palette
 const colors = {
-  primary: rgb(0.2, 0.4, 0.7),      // Professional blue
-  secondary: rgb(0.4, 0.4, 0.4),    // Dark gray
-  light: rgb(0.95, 0.95, 0.95),    // Light gray for backgrounds
-  accent: rgb(0.8, 0.8, 0.8),      // Medium gray for lines
-  text: rgb(0.1, 0.1, 0.1),        // Near black for text
-  white: rgb(1, 1, 1)              // Pure white
+  primary: rgb(0, 0, 0),           // Pure black for best print quality
+  secondary: rgb(0.2, 0.2, 0.2),   // Dark gray for secondary text
+  light: rgb(0.98, 0.98, 0.98),    // Very light gray for backgrounds (will print well)
+  accent: rgb(0.6, 0.6, 0.6),      // Medium gray for lines (visible in print)
+  text: rgb(0, 0, 0),              // Pure black for maximum readability
+  white: rgb(1, 1, 1),             // Pure white
+  printBlue: rgb(0.1, 0.2, 0.4)    // Dark blue that prints well in B&W
 };
 
 // Helper function to wrap text and calculate height
@@ -143,7 +144,7 @@ function checkSectionStart(
   return { page: currentPage, y: currentY };
 }
 
-// Helper function to draw a section header with modern styling
+// Helper function to draw a section header with print-friendly styling
 function drawSectionHeader(
   page: PDFPage,
   text: string,
@@ -152,26 +153,48 @@ function drawSectionHeader(
   width: number,
   font: PDFFont
 ): number {
-  // Draw section title
+  // Draw section title with larger size for better print visibility
   page.drawText(text.toUpperCase(), {
     x,
     y,
-    size: 11,
+    size: 12,
     font,
     color: colors.primary,
   });
   
-  // Draw accent line under the title
-  const titleWidth = font.widthOfTextAtSize(text.toUpperCase(), 11);
+  // Draw a full-width line for better print visibility
   page.drawRectangle({
     x,
-    y: y - 8,
-    width: titleWidth + 20,
-    height: 1.5,
-    color: colors.primary,
+    y: y - 10,
+    width: width,
+    height: 0.75, // Thicker line for print
+    color: colors.accent,
   });
   
-  return y - 25;
+  return y - 28; // More spacing for readability
+}
+
+// Helper function to add page numbers to all pages
+function addPageNumbers(pdfDoc: PDFDocument, font: PDFFont): void {
+  const pages = pdfDoc.getPages();
+  const totalPages = pages.length;
+  
+  pages.forEach((page, index) => {
+    const pageNumber = index + 1;
+    const { width, height } = page.getSize();
+    
+    // Add page number at bottom center
+    const text = `Page ${pageNumber} of ${totalPages}`;
+    const textWidth = font.widthOfTextAtSize(text, 8);
+    
+    page.drawText(text, {
+      x: (width - textWidth) / 2,
+      y: 30, // 30 points from bottom
+      size: 8,
+      font,
+      color: colors.secondary,
+    });
+  });
 }
 
 // Helper function to draw contact icons (simplified)
@@ -208,6 +231,20 @@ function drawContactItem(
  * @returns PDF document as Uint8Array
  */
 export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
+  // Debug logging
+  console.log('[PDF Generator] Generating resume with data:', {
+    fullName: data.fullName,
+    hasContactInfo: !!data.contactInfo,
+    hasSummary: !!data.summary,
+    experienceCount: data.experience?.length || 0,
+    educationCount: data.education?.length || 0,
+    skillsCount: data.skills?.length || 0,
+    certificationsCount: data.certifications?.length || 0,
+    trainingsCount: data.trainings?.length || 0,
+    projectsCount: data.projects?.length || 0,
+    referencesCount: data.references?.length || 0
+  });
+  
   const pdfDoc = await PDFDocument.create();
   let currentPage = pdfDoc.addPage([612, 792]); // US Letter
   
@@ -216,7 +253,8 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   
   const { width, height } = currentPage.getSize();
-  const margins = { top: 40, bottom: 40, left: 50, right: 50 };
+  // Standard print margins: 0.75 inches (54 points) on all sides for better printer compatibility
+  const margins = { top: 54, bottom: 72, left: 54, right: 54 };
   const contentWidth = width - margins.left - margins.right;
   let currentY = height - margins.top;
   
@@ -252,16 +290,16 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     return currentY;
   };
   
-  // HEADER SECTION WITH MODERN LAYOUT
-  // Name with larger, modern typography
+  // HEADER SECTION WITH PRINT-FRIENDLY LAYOUT
+  // Name with larger, bold typography for impact
   currentPage.drawText(data.fullName, {
     x: margins.left,
     y: currentY,
-    size: 24,
+    size: 22, // Slightly smaller for better balance on print
     font: helveticaBold,
     color: colors.primary,
   });
-  currentY -= 35;
+  currentY -= 32;
   
   // Contact information in a clean, horizontal layout
   let contactX = margins.left;
@@ -304,79 +342,95 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   currentY -= 20;
   
   // EXPERIENCE SECTION
-  const pageInfo1 = checkSectionStart(pdfDoc, currentPage, currentY, 80, margins);
+  // Ensure at least 100 points available for first experience entry
+  const pageInfo1 = checkSectionStart(pdfDoc, currentPage, currentY, 100, margins);
   currentPage = pageInfo1.page;
   currentY = pageInfo1.y;
   
   currentY = drawSectionHeader(currentPage, 'Professional Experience', margins.left, currentY, contentWidth, helveticaBold);
   
-  for (const job of data.experience) {
-    const pageInfo2 = checkAndAddPage(pdfDoc, currentPage, currentY, 70, margins);
-    currentPage = pageInfo2.page;
-    currentY = pageInfo2.y;
-    
-    // Job title and company in modern layout
-    currentPage.drawText(job.title, {
+  console.log('[PDF Generator] Processing experience section, jobs:', data.experience?.length || 0);
+  
+  if (!data.experience || data.experience.length === 0) {
+    console.warn('[PDF Generator] No experience data found!');
+    currentPage.drawText('No experience data available', {
       x: margins.left,
       y: currentY,
-      size: 12,
-      font: helveticaBold,
-      color: colors.primary,
-    });
-    
-    // Company name on the same line, right-aligned
-    const companyText = job.company;
-    const companyWidth = helveticaBold.widthOfTextAtSize(companyText, 11);
-    currentPage.drawText(companyText, {
-      x: width - margins.right - companyWidth,
-      y: currentY,
-      size: 11,
-      font: helveticaBold,
-      color: colors.secondary,
-    });
-    currentY -= 16;
-    
-    // Date range and location
-    const dateText = `${job.startDate} - ${job.endDate || 'Present'}`;
-    currentPage.drawText(dateText, {
-      x: margins.left,
-      y: currentY,
-      size: 9,
+      size: 10,
       font: helvetica,
       color: colors.secondary,
     });
-    
-    if (job.location) {
-      const locationWidth = helvetica.widthOfTextAtSize(job.location, 9);
-      currentPage.drawText(job.location, {
-        x: width - margins.right - locationWidth,
+    currentY -= 30;
+  } else {
+    for (const job of data.experience) {
+      const pageInfo2 = checkAndAddPage(pdfDoc, currentPage, currentY, 70, margins);
+      currentPage = pageInfo2.page;
+      currentY = pageInfo2.y;
+      
+      // Job title and company in modern layout
+      currentPage.drawText(job.title, {
+        x: margins.left,
+        y: currentY,
+        size: 12,
+        font: helveticaBold,
+        color: colors.primary,
+      });
+      
+      // Company name on the same line, right-aligned
+      const companyText = job.company;
+      const companyWidth = helveticaBold.widthOfTextAtSize(companyText, 11);
+      currentPage.drawText(companyText, {
+        x: width - margins.right - companyWidth,
+        y: currentY,
+        size: 11,
+        font: helveticaBold,
+        color: colors.secondary,
+      });
+      currentY -= 16;
+      
+      // Date range and location
+      const dateText = `${job.startDate} - ${job.endDate || 'Present'}`;
+      currentPage.drawText(dateText, {
+        x: margins.left,
         y: currentY,
         size: 9,
         font: helvetica,
         color: colors.secondary,
       });
-    }
-    currentY -= 18;
-    
-    // Achievement bullets with modern styling
-    for (const bullet of job.description) {
-      const pageInfo3 = checkAndAddPage(pdfDoc, currentPage, currentY, 15, margins);
-      currentPage = pageInfo3.page;
-      currentY = pageInfo3.y;
       
-      // Modern bullet point
-      currentPage.drawCircle({
-        x: margins.left + 5,
-        y: currentY + 4,
-        size: 1.5,
-        color: colors.primary,
-      });
+      if (job.location) {
+        const locationWidth = helvetica.widthOfTextAtSize(job.location, 9);
+        currentPage.drawText(job.location, {
+          x: width - margins.right - locationWidth,
+          y: currentY,
+          size: 9,
+          font: helvetica,
+          color: colors.secondary,
+        });
+      }
+      currentY -= 18;
       
-      currentY = drawWrappedText(bullet, margins.left + 15, 9, helvetica, colors.text, contentWidth - 15, 1.3);
-      currentY -= 3;
+      // Achievement bullets with modern styling
+      for (const bullet of job.description) {
+        const pageInfo3 = checkAndAddPage(pdfDoc, currentPage, currentY, 15, margins);
+        currentPage = pageInfo3.page;
+        currentY = pageInfo3.y;
+        
+        // Simple bullet point for print
+        currentPage.drawText('•', {
+          x: margins.left,
+          y: currentY,
+          size: 10,
+          font: helvetica,
+          color: colors.primary,
+        });
+        
+        currentY = drawWrappedText(bullet, margins.left + 15, 9, helvetica, colors.text, contentWidth - 15, 1.3);
+        currentY -= 3;
+      }
+      
+      currentY -= 15;
     }
-    
-    currentY -= 15;
   }
   
   // EDUCATION SECTION
@@ -386,43 +440,57 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   currentY = drawSectionHeader(currentPage, 'Education', margins.left, currentY, contentWidth, helveticaBold);
   
-  for (const edu of data.education) {
-    const pageInfo5 = checkAndAddPage(pdfDoc, currentPage, currentY, 45, margins);
-    currentPage = pageInfo5.page;
-    currentY = pageInfo5.y;
-    
-    // Degree and field
-    const degree = `${edu.degree}${edu.field ? ' in ' + edu.field : ''}`;
-    currentPage.drawText(degree, {
-      x: margins.left,
-      y: currentY,
-      size: 11,
-      font: helveticaBold,
-      color: colors.primary,
-    });
-    
-    // Graduation date (right-aligned)
-    if (edu.graduationDate) {
-      const dateWidth = helvetica.widthOfTextAtSize(edu.graduationDate, 9);
-      currentPage.drawText(edu.graduationDate, {
-        x: width - margins.right - dateWidth,
-        y: currentY,
-        size: 9,
-        font: helvetica,
-        color: colors.secondary,
-      });
-    }
-    currentY -= 16;
-    
-    // Institution
-    currentPage.drawText(edu.institution, {
+  console.log('[PDF Generator] Processing education section, items:', data.education?.length || 0);
+  
+  if (!data.education || data.education.length === 0) {
+    console.warn('[PDF Generator] No education data found!');
+    currentPage.drawText('No education data available', {
       x: margins.left,
       y: currentY,
       size: 10,
       font: helvetica,
       color: colors.secondary,
     });
-    currentY -= 20;
+    currentY -= 30;
+  } else {
+    for (const edu of data.education) {
+      const pageInfo5 = checkAndAddPage(pdfDoc, currentPage, currentY, 45, margins);
+      currentPage = pageInfo5.page;
+      currentY = pageInfo5.y;
+      
+      // Degree and field
+      const degree = `${edu.degree}${edu.field ? ' in ' + edu.field : ''}`;
+      currentPage.drawText(degree, {
+        x: margins.left,
+        y: currentY,
+        size: 11,
+        font: helveticaBold,
+        color: colors.primary,
+      });
+      
+      // Graduation date (right-aligned)
+      if (edu.graduationDate) {
+        const dateWidth = helvetica.widthOfTextAtSize(edu.graduationDate, 9);
+        currentPage.drawText(edu.graduationDate, {
+          x: width - margins.right - dateWidth,
+          y: currentY,
+          size: 9,
+          font: helvetica,
+          color: colors.secondary,
+        });
+      }
+      currentY -= 16;
+      
+      // Institution
+      currentPage.drawText(edu.institution, {
+        x: margins.left,
+        y: currentY,
+        size: 10,
+        font: helvetica,
+        color: colors.secondary,
+      });
+      currentY -= 20;
+    }
   }
   
   // SKILLS SECTION with modern pill-style layout
@@ -432,50 +500,64 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   currentY = drawSectionHeader(currentPage, 'Core Competencies', margins.left, currentY, contentWidth, helveticaBold);
   
-  // Create skill pills layout
-  let skillX = margins.left;
-  let skillY = currentY;
-  const skillSpacing = 8;
-  const lineHeight = 20;
+  console.log('[PDF Generator] Processing skills section, skills:', data.skills?.length || 0);
   
-  for (const skill of data.skills) {
-    const skillWidth = helvetica.widthOfTextAtSize(skill, 9) + 16;
-    
-    // Check if skill fits on current line
-    if (skillX + skillWidth > width - margins.right) {
-      skillX = margins.left;
-      skillY -= lineHeight;
-      
-      // Check if we need a new page
-      const pageInfo = checkAndAddPage(pdfDoc, currentPage, skillY, lineHeight, margins);
-      currentPage = pageInfo.page;
-      if (pageInfo.y !== skillY) skillY = pageInfo.y;
-    }
-    
-    // Draw skill pill background
-    currentPage.drawRectangle({
-      x: skillX,
-      y: skillY - 2,
-      width: skillWidth,
-      height: 14,
-      color: colors.light,
-      borderColor: colors.accent,
-      borderWidth: 0.5,
-    });
-    
-    // Draw skill text
-    currentPage.drawText(skill, {
-      x: skillX + 8,
-      y: skillY + 3,
-      size: 9,
+  if (!data.skills || data.skills.length === 0) {
+    console.warn('[PDF Generator] No skills data found!');
+    currentPage.drawText('No skills data available', {
+      x: margins.left,
+      y: currentY,
+      size: 10,
       font: helvetica,
       color: colors.secondary,
     });
+    currentY -= 30;
+  } else {
+    // Create skill pills layout
+    let skillX = margins.left;
+    let skillY = currentY;
+    const skillSpacing = 8;
+    const lineHeight = 20;
     
-    skillX += skillWidth + skillSpacing;
+    for (const skill of data.skills) {
+      const skillWidth = helvetica.widthOfTextAtSize(skill, 9) + 16;
+      
+      // Check if skill fits on current line
+      if (skillX + skillWidth > width - margins.right) {
+        skillX = margins.left;
+        skillY -= lineHeight;
+        
+        // Check if we need a new page
+        const pageInfo = checkAndAddPage(pdfDoc, currentPage, skillY, lineHeight, margins);
+        currentPage = pageInfo.page;
+        if (pageInfo.y !== skillY) skillY = pageInfo.y;
+      }
+      
+      // Draw skill pill with print-friendly border
+      currentPage.drawRectangle({
+        x: skillX,
+        y: skillY - 2,
+        width: skillWidth,
+        height: 14,
+        color: colors.white, // White background for clean print
+        borderColor: colors.secondary,
+        borderWidth: 1, // Thicker border for print visibility
+      });
+      
+      // Draw skill text
+      currentPage.drawText(skill, {
+        x: skillX + 8,
+        y: skillY + 3,
+        size: 9,
+        font: helvetica,
+        color: colors.secondary,
+      });
+      
+      skillX += skillWidth + skillSpacing;
+    }
+    
+    currentY = skillY - 25;
   }
-  
-  currentY = skillY - 25;
   
   // ADDITIONAL SECTIONS (Certifications, Training, Projects, References)
   // Following the same modern design pattern...
@@ -675,6 +757,9 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     }
   }
   
+  // Add page numbers to all pages
+  addPageNumbers(pdfDoc, helvetica);
+  
   return await pdfDoc.save();
 }
 
@@ -693,7 +778,8 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
   
   const { width, height } = currentPage.getSize();
-  const margins = { top: 50, bottom: 50, left: 72, right: 72 };
+  // Standard business letter margins: 1 inch (72 points) on all sides
+  const margins = { top: 72, bottom: 72, left: 72, right: 72 };
   const contentWidth = width - margins.left - margins.right;
   let currentY = height - margins.top;
   
@@ -846,6 +932,11 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
     size: 10,
     font: timesBold,
   });
+  
+  // Add page numbers if multiple pages
+  if (pdfDoc.getPageCount() > 1) {
+    addPageNumbers(pdfDoc, timesRoman);
+  }
   
   return await pdfDoc.save();
 }

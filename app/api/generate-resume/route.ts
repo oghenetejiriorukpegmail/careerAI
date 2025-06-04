@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id;
     
     const body = await request.json();
-    const { jobId } = body;
+    const { jobId, resumeId, bypassTokenLimits = false } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
@@ -66,15 +66,23 @@ export async function POST(request: NextRequest) {
     const jobUserId = jobData.user_id;
     console.log('Fetching resume and profile data for user:', jobUserId);
     
+    // Build resume query based on whether resumeId is provided
+    let resumeQuery = supabase
+      .from('resumes')
+      .select('*')
+      .eq('user_id', jobUserId);
+    
+    if (resumeId) {
+      // Use the specific resume ID provided
+      resumeQuery = resumeQuery.eq('id', resumeId).single();
+    } else {
+      // Fall back to the most recent resume
+      resumeQuery = resumeQuery.order('created_at', { ascending: false }).limit(1).single();
+    }
+    
     // Fetch both resume and profile data
     const [resumeResult, profileResult] = await Promise.all([
-      supabase
-        .from('resumes')
-        .select('*')
-        .eq('user_id', jobUserId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single(),
+      resumeQuery,
       supabase
         .from('profiles')
         .select('full_name, email')
@@ -95,17 +103,26 @@ export async function POST(request: NextRequest) {
       console.warn('Could not fetch profile data:', { profileError, jobUserId });
     }
 
-    // Parse the job description data
+    // Parse the job description data - check if we have parsed_data
+    const jobParsedData = jobData.parsed_data || {};
     const parsedJobDescription: ParsedJobDescription = {
-      jobTitle: jobData.job_title || '',
-      company: jobData.company_name || '',
-      location: jobData.location || '',
-      requirements: jobData.requirements || [],
-      responsibilities: jobData.responsibilities || [],
-      qualifications: jobData.qualifications || [],
-      keywords: jobData.keywords || [],
-      company_culture: jobData.company_culture || [],
+      jobTitle: jobData.job_title || jobParsedData.jobTitle || '',
+      company: jobData.company_name || jobParsedData.company || '',
+      location: jobData.location || jobParsedData.location || '',
+      requirements: jobParsedData.requirements || jobData.requirements || [],
+      responsibilities: jobParsedData.responsibilities || jobData.responsibilities || [],
+      qualifications: jobParsedData.qualifications || jobData.qualifications || [],
+      keywords: jobParsedData.keywords || jobData.keywords || [],
+      company_culture: jobParsedData.company_culture || jobData.company_culture || [],
     };
+    
+    console.log('Job description data:', {
+      hasJobData: !!jobData,
+      hasParsedData: !!jobData.parsed_data,
+      parsedDataKeys: jobData.parsed_data ? Object.keys(jobData.parsed_data) : [],
+      directKeys: Object.keys(jobData),
+      finalJobTitle: parsedJobDescription.jobTitle
+    });
 
     // Extract user's name - prioritize profile data, then resume data
     const userName = profileData?.full_name ||
@@ -120,14 +137,24 @@ export async function POST(request: NextRequest) {
                     
     console.log('Extracted user name:', { profileName: profileData?.full_name, resumeName: resumeData.full_name, finalName: userName });
     const companyName = jobData.company_name || 'Company';
+    
+    // Extract the actual parsed resume data from the database
+    const parsedResumeData = resumeData.parsed_data || resumeData;
+    console.log('Resume data structure:', {
+      hasResumeData: !!resumeData,
+      hasParsedData: !!resumeData.parsed_data,
+      parsedDataKeys: resumeData.parsed_data ? Object.keys(resumeData.parsed_data) : [],
+      directKeys: Object.keys(resumeData)
+    });
 
     // Generate the ATS-optimized resume with user's AI settings
     const { pdf, fileName } = await generateAtsResume(
-      resumeData,
+      parsedResumeData,
       parsedJobDescription,
       userName,
       companyName,
-      session.user.id
+      session.user.id,
+      bypassTokenLimits
     );
 
     let resumeDocumentId: string | undefined;

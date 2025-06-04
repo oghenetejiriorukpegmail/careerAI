@@ -2,15 +2,51 @@ import { queryAI } from './config';
 import { ParsedResume, ParsedJobDescription } from '../documents/document-parser';
 import { ResumeData, CoverLetterData, generateResumePDF, generateCoverLetterPDF, generateFileName } from '../documents/pdf-generator';
 
+// Helper function to fix common JSON errors
+function fixCommonJsonErrors(content: string): string {
+  let fixed = content;
+  
+  // Fix incomplete URLs (like "https:   })
+  fixed = fixed.replace(/"(https?:)\s*\}/g, '"$1//example.com"}');
+  fixed = fixed.replace(/"(https?:)\s*,/g, '"$1//example.com",');
+  
+  // Fix incomplete strings before closing braces/brackets
+  fixed = fixed.replace(/"([^"]*?)\s*\}/g, (match, p1) => {
+    if (!p1.includes('"')) {
+      return `"${p1}"}`;  
+    }
+    return match;
+  });
+  
+  // Fix double quotes within string values
+  fixed = fixed.replace(/"([^":\{\}\[\],]+)"([^":\{\}\[\],]+)"/g, '"$1\'$2\'"');
+  
+  return fixed;
+}
+
 // Helper function to clean AI JSON responses
 function cleanAIJsonResponse(content: string): string {
   let cleanedContent = content;
   
-  // Remove markdown code blocks
-  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
-  const codeBlockMatch = codeBlockRegex.exec(cleanedContent);
+  // Remove markdown code blocks (handle various formats)
+  // First try standard code block format
+  let codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+  let codeBlockMatch = codeBlockRegex.exec(cleanedContent);
   if (codeBlockMatch) {
     cleanedContent = codeBlockMatch[1].trim();
+  } else {
+    // Try format with language on separate line
+    codeBlockRegex = /```\s*\n\s*(?:json)?\s*\n([\s\S]*?)\s*```/g;
+    codeBlockMatch = codeBlockRegex.exec(cleanedContent);
+    if (codeBlockMatch) {
+      cleanedContent = codeBlockMatch[1].trim();
+    } else {
+      // Try format where 'json' is on a separate line after backticks
+      const jsonBlockMatch = cleanedContent.match(/json\s*\n\s*(\{[\s\S]*\})/);
+      if (jsonBlockMatch) {
+        cleanedContent = jsonBlockMatch[1].trim();
+      }
+    }
   }
   
   // If the response starts with explanatory text, try to extract JSON from it
@@ -20,13 +56,132 @@ function cleanAIJsonResponse(content: string): string {
     cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
   }
   
+  // CRITICAL FIX: Replace literal \n characters that appear outside of string values
+  // The AI sometimes returns malformed JSON with \n between JSON elements
+  // We need to be careful to only replace \n that are not within quoted strings
+  
+  // First, let's handle the most common case: \n after commas and closing braces/brackets
+  cleanedContent = cleanedContent
+    .replace(/,\\n/g, ',\n')
+    .replace(/\}\\n/g, '}\n')
+    .replace(/\]\\n/g, ']\n')
+    .replace(/\{\\n/g, '{\n')
+    .replace(/\[\\n/g, '[\n')
+    .replace(/\\n\s*\}/g, '\n}')
+    .replace(/\\n\s*\]/g, '\n]')
+    .replace(/"\\n\s*"/g, '"\n"'); // Handle \n between string values
+  
   // Remove JavaScript-style comments from JSON (common issue with some AI models)
   // This regex removes both single-line (//) and multi-line (/* */) comments
   cleanedContent = cleanedContent
     .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
     .replace(/\/\/.*$/gm, '');        // Remove // comments from end of lines
+  
+  // Fix common JSON formatting issues
+  // Replace literal newlines within string values with escaped newlines
+  cleanedContent = cleanedContent.replace(
+    /"([^"]*)\n([^"]*?)"/g,
+    (match, before, after) => `"${before}\\n${after}"`
+  );
+  
+  // Handle URLs that might be split across lines
+  cleanedContent = cleanedContent.replace(
+    /"(https?:\/\/[^"\s]*)\s*\n\s*([^"\s]*?)"/g,
+    (match, urlPart1, urlPart2) => `"${urlPart1}${urlPart2}"`
+  );
+  
+  // Remove any remaining unescaped newlines within quoted strings
+  let inString = false;
+  let result = '';
+  let escapeNext = false;
+  
+  for (let i = 0; i < cleanedContent.length; i++) {
+    const char = cleanedContent[i];
+    const prevChar = i > 0 ? cleanedContent[i - 1] : '';
     
-  return cleanedContent;
+    if (char === '"' && !escapeNext) {
+      inString = !inString;
+      result += char;
+    } else if (char === '\\' && inString) {
+      escapeNext = true;
+      result += char;
+    } else if (char === '\n' && inString && !escapeNext) {
+      // Replace unescaped newline within string with space
+      result += ' ';
+    } else {
+      result += char;
+      escapeNext = false;
+    }
+  }
+  
+  return result;
+}
+
+// Helper function to attempt JSON repair
+function attemptJsonRepair(content: string): any {
+  let repaired = content;
+  
+  // First apply common fixes
+  repaired = fixCommonJsonErrors(repaired);
+  
+  // Try to parse
+  try {
+    return JSON.parse(repaired);
+  } catch (e) {
+    // If still failing, try more aggressive fixes
+    
+    // Remove trailing commas
+    repaired = repaired.replace(/,\s*([}\]])/g, '$1');
+    
+    // Add missing commas between properties
+    repaired = repaired.replace(/}\s*"/g, '},"');
+    repaired = repaired.replace(/"\s*"/g, '","');
+    
+    // Fix unclosed strings
+    let quoteCount = (repaired.match(/"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      repaired += '"';
+    }
+    
+    // Ensure JSON ends properly
+    repaired = repaired.trim();
+    if (!repaired.endsWith('}') && !repaired.endsWith(']')) {
+      if (repaired.includes('[') && !repaired.includes(']')) {
+        repaired += ']';
+      } else {
+        repaired += '}';
+      }
+    }
+    
+    try {
+      return JSON.parse(repaired);
+    } catch (finalError) {
+      // If all else fails, try to extract just the essential fields
+      const essentialFields: any = {
+        fullName: '',
+        contactInfo: { email: '', phone: '', location: '', linkedin: '' },
+        summary: '',
+        experience: [],
+        education: [],
+        skills: []
+      };
+      
+      // Try to extract individual fields
+      const nameMatch = repaired.match(/"fullName"\s*:\s*"([^"]*)"/);
+      if (nameMatch) essentialFields.fullName = nameMatch[1];
+      
+      const emailMatch = repaired.match(/"email"\s*:\s*"([^"]*)"/);
+      if (emailMatch) essentialFields.contactInfo.email = emailMatch[1];
+      
+      const phoneMatch = repaired.match(/"phone"\s*:\s*"([^"]*)"/);
+      if (phoneMatch) essentialFields.contactInfo.phone = phoneMatch[1];
+      
+      const summaryMatch = repaired.match(/"summary"\s*:\s*"([^"]*)"/);
+      if (summaryMatch) essentialFields.summary = summaryMatch[1];
+      
+      return essentialFields;
+    }
+  }
 }
 
 /**
@@ -42,9 +197,24 @@ export async function generateAtsResume(
   jobDescription: ParsedJobDescription,
   userName: string,
   companyName: string,
-  userId?: string
+  userId?: string,
+  bypassTokenLimits: boolean = false
 ): Promise<{ pdf: Uint8Array; fileName: string }> {
   try {
+    // Debug log the input resume data
+    console.log('[generateAtsResume] Input resume data:', {
+      hasContactInfo: !!resume.contactInfo,
+      hasSummary: !!resume.summary,
+      experienceCount: resume.experience?.length || 0,
+      educationCount: resume.education?.length || 0,
+      skillsCount: resume.skills?.length || 0,
+      resumeKeys: Object.keys(resume),
+      // Log first experience item if exists
+      firstExperience: resume.experience?.[0] ? {
+        title: resume.experience[0].title,
+        company: resume.experience[0].company
+      } : 'No experience'
+    });
     // Create a prompt for the AI to tailor the resume
     const prompt = `
       I need to create an ATS-optimized resume for a job application.
@@ -140,6 +310,13 @@ export async function generateAtsResume(
       You are an expert resume writer who specializes in creating ATS-optimized resumes.
       Your goal is to tailor the candidate's resume to match the job description without fabricating experience.
       Focus on highlighting relevant experience, using appropriate keywords, and creating achievement-oriented bullet points.
+      
+      CRITICAL: You must return a valid JSON object exactly matching the requested structure.
+      - Do not include any markdown formatting or code blocks
+      - Ensure all strings are properly quoted
+      - Make sure all URLs are complete (e.g., "https://linkedin.com/in/username" not just "https:")
+      - Close all braces and brackets properly
+      - Do not include comments or explanations outside the JSON
     `;
 
     // Load user settings if userId provided
@@ -165,7 +342,7 @@ export async function generateAtsResume(
     }
 
     // Call the AI service with user settings
-    const response = await queryAI(prompt, systemPrompt, userSettings);
+    const response = await queryAI(prompt, systemPrompt, userSettings, 'resume_parsing', bypassTokenLimits);
     
     // Extract content from the AI response object
     let parsedContent: string;
@@ -174,6 +351,8 @@ export async function generateAtsResume(
     } else if (typeof response === 'string') {
       parsedContent = response;
     } else {
+      console.error('Invalid AI response format. Response type:', typeof response);
+      console.error('Response structure:', JSON.stringify(response).substring(0, 200));
       throw new Error('Invalid AI response format');
     }
 
@@ -181,7 +360,86 @@ export async function generateAtsResume(
     const cleanedContent = cleanAIJsonResponse(parsedContent);
     
     // Parse the response to get the tailored resume data
-    const tailoredResumeData: ResumeData = JSON.parse(cleanedContent);
+    let tailoredResumeData: ResumeData;
+    try {
+      tailoredResumeData = JSON.parse(cleanedContent);
+      console.log('[generateAtsResume] Successfully parsed AI response:', {
+        fullName: tailoredResumeData.fullName,
+        hasContactInfo: !!tailoredResumeData.contactInfo,
+        hasSummary: !!tailoredResumeData.summary,
+        experienceCount: tailoredResumeData.experience?.length || 0,
+        educationCount: tailoredResumeData.education?.length || 0,
+        skillsCount: tailoredResumeData.skills?.length || 0
+      });
+    } catch (parseError: any) {
+      console.error('JSON parse error:', parseError.message);
+      console.error('Cleaned content length:', cleanedContent.length);
+      console.error('First 200 chars of cleaned content:', cleanedContent.substring(0, 200));
+      console.error('Last 200 chars of cleaned content:', cleanedContent.substring(cleanedContent.length - 200));
+      
+      // Try to find the specific character causing the issue
+      if (parseError.message.includes('position')) {
+        const match = parseError.message.match(/position (\d+)/);
+        if (match) {
+          const position = parseInt(match[1]);
+          console.error(`Character at position ${position}: ${JSON.stringify(cleanedContent[position])}`);
+          console.error(`Context around position ${position}:`, cleanedContent.substring(Math.max(0, position - 50), Math.min(cleanedContent.length, position + 50)));
+        }
+      }
+      
+      // Try JSON repair before giving up
+      console.log('Attempting to repair malformed JSON...');
+      try {
+        tailoredResumeData = attemptJsonRepair(cleanedContent);
+        console.log('Successfully repaired and parsed JSON');
+      } catch (repairError) {
+        console.error('JSON repair failed:', repairError);
+        
+        // Save the problematic response for debugging
+        if (typeof window === 'undefined') {
+          const fs = require('fs');
+          const path = require('path');
+          const logsDir = path.join(process.cwd(), 'logs');
+          try {
+            if (!fs.existsSync(logsDir)) {
+              fs.mkdirSync(logsDir, { recursive: true });
+            }
+            const debugFile = path.join(logsDir, `failed_json_${Date.now()}.txt`);
+            fs.writeFileSync(debugFile, cleanedContent);
+            console.error(`Saved problematic JSON to: ${debugFile}`);
+          } catch (saveError) {
+            console.error('Failed to save debug file:', saveError);
+          }
+        }
+        
+        // Use a fallback minimal resume structure if all else fails
+        console.warn('Using fallback resume structure due to parsing errors');
+        tailoredResumeData = {
+          fullName: userName || 'Applicant',
+          contactInfo: {
+            email: resume.contactInfo?.email || '',
+            phone: resume.contactInfo?.phone || '',
+            location: resume.contactInfo?.location || '',
+            linkedin: resume.contactInfo?.linkedin || ''
+          },
+          summary: resume.summary || 'Experienced professional seeking new opportunities.',
+          experience: Array.isArray(resume.experience) ? resume.experience : [],
+          education: Array.isArray(resume.education) ? resume.education : [],
+          skills: Array.isArray(resume.skills) ? resume.skills : [],
+          certifications: resume.certifications || [],
+          trainings: [],
+          projects: [],
+          references: [{
+            name: 'References available upon request',
+            title: '',
+            company: '',
+            phone: '',
+            email: '',
+            relationship: ''
+          }]
+        };
+      }
+    }
     
     // Generate the PDF
     const pdf = await generateResumePDF(tailoredResumeData);
@@ -209,7 +467,8 @@ export async function generateCoverLetter(
   jobDescription: ParsedJobDescription,
   userName: string,
   companyName: string,
-  userId?: string
+  userId?: string,
+  bypassTokenLimits: boolean = false
 ): Promise<{ pdf: Uint8Array; fileName: string }> {
   try {
     // Create a prompt for the AI to generate a cover letter
@@ -261,6 +520,12 @@ export async function generateCoverLetter(
       You are an expert cover letter writer who specializes in creating personalized, compelling cover letters.
       Your goal is to create a cover letter that highlights the candidate's most relevant qualifications
       and demonstrates their fit for the specific role and company.
+      
+      CRITICAL: You must return a valid JSON object exactly matching the requested structure.
+      - Do not include any markdown formatting or code blocks
+      - Ensure all strings are properly quoted
+      - Close all braces and brackets properly
+      - Do not include comments or explanations outside the JSON
     `;
 
     // Load user settings if userId provided
@@ -286,7 +551,7 @@ export async function generateCoverLetter(
     }
 
     // Call the AI service with user settings
-    const response = await queryAI(prompt, systemPrompt, userSettings);
+    const response = await queryAI(prompt, systemPrompt, userSettings, 'cover_letter', bypassTokenLimits);
     
     // Extract content from the AI response object
     let parsedContent: string;
@@ -295,6 +560,8 @@ export async function generateCoverLetter(
     } else if (typeof response === 'string') {
       parsedContent = response;
     } else {
+      console.error('Invalid AI response format. Response type:', typeof response);
+      console.error('Response structure:', JSON.stringify(response).substring(0, 200));
       throw new Error('Invalid AI response format');
     }
 
@@ -302,7 +569,60 @@ export async function generateCoverLetter(
     const cleanedContent = cleanAIJsonResponse(parsedContent);
     
     // Parse the response to get the cover letter data
-    const coverLetterData: CoverLetterData = JSON.parse(cleanedContent);
+    let coverLetterData: CoverLetterData;
+    try {
+      coverLetterData = JSON.parse(cleanedContent);
+    } catch (parseError: any) {
+      console.error('JSON parse error:', parseError.message);
+      console.error('Cleaned content length:', cleanedContent.length);
+      console.error('First 200 chars of cleaned content:', cleanedContent.substring(0, 200));
+      console.error('Last 200 chars of cleaned content:', cleanedContent.substring(cleanedContent.length - 200));
+      
+      // Try to find the specific character causing the issue
+      if (parseError.message.includes('position')) {
+        const match = parseError.message.match(/position (\d+)/);
+        if (match) {
+          const position = parseInt(match[1]);
+          console.error(`Character at position ${position}: ${JSON.stringify(cleanedContent[position])}`);
+          console.error(`Context around position ${position}:`, cleanedContent.substring(Math.max(0, position - 50), Math.min(cleanedContent.length, position + 50)));
+        }
+      }
+      
+      // Try JSON repair before giving up
+      console.log('Attempting to repair malformed JSON for cover letter...');
+      try {
+        coverLetterData = attemptJsonRepair(cleanedContent);
+        console.log('Successfully repaired and parsed cover letter JSON');
+      } catch (repairError) {
+        console.error('Cover letter JSON repair failed:', repairError);
+        
+        // Use a fallback minimal cover letter structure
+        console.warn('Using fallback cover letter structure due to parsing errors');
+        const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        coverLetterData = {
+          fullName: userName || 'Applicant',
+          contactInfo: {
+            email: resume.contactInfo?.email || '',
+            phone: resume.contactInfo?.phone || '',
+            location: resume.contactInfo?.location || ''
+          },
+          date: today,
+          recipient: {
+            name: 'Hiring Manager',
+            title: 'Hiring Manager',
+            company: companyName || 'Company',
+            address: ''
+          },
+          jobTitle: jobDescription.jobTitle || 'Position',
+          paragraphs: [
+            `I am writing to express my strong interest in the ${jobDescription.jobTitle || 'position'} role at ${companyName || 'your company'}.`,
+            `With my background and experience, I am confident I would be a valuable addition to your team.`,
+            `I look forward to the opportunity to discuss how my skills and experience align with your needs. Thank you for considering my application.`
+          ],
+          closing: 'Sincerely,'
+        };
+      }
+    }
     
     // Generate the PDF
     const pdf = await generateCoverLetterPDF(coverLetterData);
