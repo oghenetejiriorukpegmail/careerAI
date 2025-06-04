@@ -6,6 +6,8 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
+import { JobStatusIndicator } from "@/components/job-status-indicator";
 
 export default function DashboardLayout({
   children,
@@ -109,6 +111,8 @@ export default function DashboardLayout({
             </nav>
           </div>
           <div className="flex items-center space-x-2">
+            <JobStatusIndicator />
+            <NotificationBell />
             <Button variant="ghost" onClick={handleSignOut} className="hidden md:inline-flex">
               Sign out
             </Button>
