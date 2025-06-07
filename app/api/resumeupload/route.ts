@@ -101,14 +101,35 @@ function normalizeSkills(data: any): any {
 }
 
 // AI-powered resume parsing function
-async function parseResumeText(text: string) {
+async function parseResumeText(text: string, userId?: string) {
   try {
     // Import AI configuration functions
     const { queryAI } = await import('@/lib/ai/config');
     const { loadServerSettings } = await import('@/lib/ai/settings-loader');
+    const { createServerClient } = await import('@/lib/supabase/server-client');
     
-    // Load current AI settings
-    const settings = loadServerSettings();
+    // Try to load user-specific settings from database
+    let settings = loadServerSettings();
+    
+    if (userId) {
+      try {
+        const supabase = createServerClient();
+        const { data: settingsRow } = await supabase
+          .from('user_settings')
+          .select('settings')
+          .eq('user_id', userId)
+          .single();
+          
+        if (settingsRow?.settings) {
+          settings = settingsRow.settings;
+          console.log(`[AI PROCESSING] Loaded user-specific settings from database`);
+        } else {
+          console.log(`[AI PROCESSING] No user settings found, using defaults`);
+        }
+      } catch (error) {
+        console.error('[AI PROCESSING] Error loading user settings:', error);
+      }
+    }
     
     console.log(`[AI PROCESSING] Starting resume parsing with provider: ${settings.aiProvider}, model: ${settings.aiModel}`);
     console.log(`[AI PROCESSING] Text length: ${text.length} characters`);
@@ -124,7 +145,7 @@ async function parseResumeText(text: string) {
       "linkedin": "LinkedIn profile URL if available",
       "website": "Personal website/portfolio URL if available",
       "summary": "Professional summary/objective",
-      "experience": [{"title": "Job title", "company": "Company name", "location": "Job location", "duration": "Employment duration", "description": "Job description"}],
+      "experience": [{"title": "Job title", "company": "Company name", "location": "Job location", "duration": "Employment duration", "description": ["Bullet point 1", "Bullet point 2", "Bullet point 3"]}],
       "education": [{"degree": "Degree", "school": "Institution", "location": "School location", "year": "Graduation year", "gpa": "GPA if mentioned"}],
       "skills": ["skill1", "skill2"],
       "certifications": [{"name": "Certification name", "issuer": "Issuing organization", "date": "Date obtained", "expiry": "Expiry date if applicable", "credential_id": "Credential ID if available"}],
@@ -147,6 +168,24 @@ async function parseResumeText(text: string) {
     - For arrays, only include them if there are actual items to add
     - Be thorough and capture every piece of information
     - If there are custom sections not covered above, put them in "additional_sections"
+    
+    EXPERIENCE DESCRIPTION FORMATTING - CRITICAL:
+    - The "description" field in experience MUST be an array of strings, NOT a single string
+    - Convert paragraph descriptions into comprehensive bullet points
+    - Each array element should be one complete responsibility, achievement, or task
+    - Split compound sentences into separate bullets (e.g., "did X and Y" → ["Did X", "Did Y"])
+    - Start each bullet with an action verb (Developed, Managed, Led, Implemented, etc.)
+    - Extract ALL tasks and responsibilities - do not limit or summarize
+    - Each bullet should be a complete, self-contained statement
+    - DO NOT join multiple responsibilities with semicolons or "and" - use separate array elements
+    - Example input: "Managed team and developed software and handled communications"
+    - Example output: [
+        "Managed cross-functional team of engineers",
+        "Developed software solutions using modern frameworks", 
+        "Handled client communications and requirements gathering"
+      ]
+    - NEVER return description as a single string like "Managed team; Developed software; Handled communications"
+    - ALWAYS return as an array like ["Managed team", "Developed software", "Handled communications"]
     
     SKILLS EXTRACTION REQUIREMENTS:
     - The "skills" field MUST be an array of individual skill strings: ["skill1", "skill2", "skill3"]
@@ -174,7 +213,7 @@ async function parseResumeText(text: string) {
     console.log(`[AI PROCESSING] Sending request to ${settings.aiProvider} with model ${settings.aiModel}`);
     const startTime = Date.now();
     
-    const response = await queryAI(userPrompt, systemPrompt);
+    const response = await queryAI(userPrompt, systemPrompt, settings, 'resume_parsing');
     
     const endTime = Date.now();
     const processingTime = endTime - startTime;
@@ -200,6 +239,52 @@ async function parseResumeText(text: string) {
       // First, try parsing as-is
       structuredData = JSON.parse(parsedContent);
       console.log(`[AI PROCESSING] Successfully parsed JSON response`);
+      
+      // Post-process experience descriptions to ensure they are arrays
+      if (structuredData.experience && Array.isArray(structuredData.experience)) {
+        // Import bullet processor utility
+        const { convertTextToBullets } = await import('@/lib/utils/bullet-processor');
+        
+        structuredData.experience = structuredData.experience.map((exp: any) => {
+          if (exp.description && typeof exp.description === 'string') {
+            console.log(`[AI PROCESSING] Converting experience description to bullet points for: ${exp.title}`);
+            
+            // Use the bullet processor utility for consistent formatting
+            exp.description = convertTextToBullets(exp.description);
+            console.log(`[AI PROCESSING] Converted to ${exp.description.length} bullet points`);
+          }
+          return exp;
+        });
+      }
+      
+      // Also process project descriptions
+      if (structuredData.projects && Array.isArray(structuredData.projects)) {
+        structuredData.projects = structuredData.projects.map((proj: any) => {
+          if (proj.description && typeof proj.description === 'string' && proj.description.length > 100) {
+            console.log(`[AI PROCESSING] Converting project description to bullet points for: ${proj.name}`);
+            const bullets = convertTextToBullets(proj.description);
+            // For projects, only convert to array if we got multiple bullets
+            if (bullets.length > 1) {
+              proj.description = bullets;
+            }
+          }
+          return proj;
+        });
+      }
+      
+      // Process volunteer descriptions
+      if (structuredData.volunteer && Array.isArray(structuredData.volunteer)) {
+        structuredData.volunteer = structuredData.volunteer.map((vol: any) => {
+          if (vol.description && typeof vol.description === 'string' && vol.description.length > 100) {
+            console.log(`[AI PROCESSING] Converting volunteer description to bullet points`);
+            const bullets = convertTextToBullets(vol.description);
+            if (bullets.length > 1) {
+              vol.description = bullets;
+            }
+          }
+          return vol;
+        });
+      }
       
       if (settings.enableLogging) {
         console.log(`[AI PROCESSING] Extracted data preview:`, {
@@ -350,6 +435,7 @@ async function parseResumeText(text: string) {
         };
         
         console.log(`[AI PROCESSING] Using fallback structure due to parsing failure`);
+        console.log(`[AI PROCESSING] Note: Response may have been truncated. Consider using a model with higher token limits.`);
       }
     }
 
@@ -397,7 +483,29 @@ export async function POST(request: NextRequest) {
 
     // Load AI settings for later use
     const { loadServerSettings } = await import('@/lib/ai/settings-loader');
-    const settings = loadServerSettings();
+    const { createServerClient } = await import('@/lib/supabase/server-client');
+    
+    // Try to load user-specific settings from database
+    let settings = loadServerSettings();
+    
+    try {
+      const supabase = createServerClient();
+      const { data: settingsRow } = await supabase
+        .from('user_settings')
+        .select('settings')
+        .eq('user_id', userId)
+        .single();
+        
+      if (settingsRow?.settings) {
+        settings = settingsRow.settings;
+        console.log(`[DOCUMENT PROCESSING] Loaded user-specific settings from database`);
+        console.log(`[DOCUMENT PROCESSING] Document AI Only: ${settings.documentAiOnly}`);
+      } else {
+        console.log(`[DOCUMENT PROCESSING] No user settings found, using defaults`);
+      }
+    } catch (error) {
+      console.error('[DOCUMENT PROCESSING] Error loading user settings:', error);
+    }
 
     // Convert file to buffer
     const fileBuffer = await file.arrayBuffer();
@@ -426,7 +534,7 @@ export async function POST(request: NextRequest) {
     console.log('[AI PARSING] Starting resume structure parsing...');
     const aiParsingStartTime = Date.now();
     
-    const structuredData = await parseResumeText(extractedText);
+    const structuredData = await parseResumeText(extractedText, userId);
     
     const aiParsingEndTime = Date.now();
     const aiParsingTime = aiParsingEndTime - aiParsingStartTime;

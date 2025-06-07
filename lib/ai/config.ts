@@ -1,3 +1,5 @@
+import { calculateOptimalTokens } from './token-manager';
+
 // AI model configuration
 export const AI_CONFIG = {
   // OpenRouter configuration
@@ -66,7 +68,14 @@ function logTokenUsage(source: string, text: string, additionalTokens: number = 
 }
 
 // Function to truncate text to fit within token limits
-function truncateToTokenLimit(text: string, maxTokens: number = 30000): string {
+function truncateToTokenLimit(text: string, maxTokens: number = 30000, bypassLimits: boolean = false): string {
+  // If bypassing limits, return the text as-is
+  if (bypassLimits) {
+    console.log('[TOKEN TRUNCATION] Bypassing token limits - returning full text');
+    logTokenUsage("Input text (no truncation)", text, 0);
+    return text;
+  }
+  
   // Reserve tokens for the system prompt, user prompt template, and AI response
   const SYSTEM_PROMPT_TOKENS = 150;  // Approximate tokens for system prompt
   const PROMPT_TEMPLATE_TOKENS = 850; // Approximate tokens for the prompt template (JSON schema, instructions)
@@ -117,7 +126,7 @@ function truncateToTokenLimit(text: string, maxTokens: number = 30000): string {
 
 
 // Function to make a request to Gemini 2.5 Flash
-export async function queryGemini(prompt: string, systemPrompt?: string) {
+export async function queryGemini(prompt: string, systemPrompt?: string, bypassLimits: boolean = false) {
   try {
     console.log(`Calling Gemini API with key: ${AI_CONFIG.gemini.apiKey.substring(0, 10)}...`);
     
@@ -126,7 +135,7 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
     
     // Check if prompt needs truncation
     const originalLength = prompt.length;
-    const truncatedPrompt = truncateToTokenLimit(prompt, MAX_GEMINI_TOKENS);
+    const truncatedPrompt = truncateToTokenLimit(prompt, MAX_GEMINI_TOKENS, bypassLimits);
     
     if (truncatedPrompt.length < originalLength) {
       console.log(`Truncated Gemini prompt from ${originalLength} to ${truncatedPrompt.length} characters`);
@@ -175,8 +184,8 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
           maxOutputTokens: 8192,
         }
       }),
-      // Add timeout to prevent hanging requests with large documents
-      signal: AbortSignal.timeout(120000) // 120 second timeout for large documents
+      // No timeout - let the request complete
+      // signal: AbortSignal.timeout(120000) // Removed timeout
     });
 
     // Check for HTTP errors
@@ -222,7 +231,7 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
                 maxOutputTokens: 8192,
               }
             }),
-            signal: AbortSignal.timeout(120000) // Increased timeout for large documents
+            // signal: AbortSignal.timeout(120000) // Removed timeout
           });
           
           if (retryResponse.ok) {
@@ -530,7 +539,7 @@ export async function queryGemini(prompt: string, systemPrompt?: string) {
 }
 
 // Function to query OpenAI API via Requesty
-export async function queryOpenAI(prompt: string, systemPrompt?: string) {
+export async function queryOpenAI(prompt: string, systemPrompt?: string, bypassLimits: boolean = false) {
   try {
     console.log(`Calling OpenAI API via Requesty with model: ${AI_CONFIG.openai.model}`);
     
@@ -539,7 +548,7 @@ export async function queryOpenAI(prompt: string, systemPrompt?: string) {
     
     // Check if prompt needs truncation
     const originalLength = prompt.length;
-    const truncatedPrompt = truncateToTokenLimit(prompt, MAX_OPENAI_TOKENS);
+    const truncatedPrompt = truncateToTokenLimit(prompt, MAX_OPENAI_TOKENS, bypassLimits);
     
     if (truncatedPrompt.length < originalLength) {
       console.log(`Truncated OpenAI prompt from ${originalLength} to ${truncatedPrompt.length} characters`);
@@ -573,10 +582,10 @@ export async function queryOpenAI(prompt: string, systemPrompt?: string) {
         model: AI_CONFIG.openai.model,
         messages: messages,
         temperature: 0.2,
-        max_tokens: 8192
+        max_tokens: AI_CONFIG.openai.model.includes('gpt-4') ? 32000 : 8192
       }),
-      // Add timeout to prevent hanging requests with large documents
-      signal: AbortSignal.timeout(120000) // 120 second timeout for large documents
+      // No timeout - let the request complete
+      // signal: AbortSignal.timeout(120000) // Removed timeout
     });
     
     // Check for HTTP errors
@@ -689,7 +698,7 @@ export async function queryOpenAI(prompt: string, systemPrompt?: string) {
 }
 
 // Function to query Requesty Router API with Gemini model
-export async function queryRequesty(prompt: string, systemPrompt?: string) {
+export async function queryRequesty(prompt: string, systemPrompt?: string, bypassLimits: boolean = false) {
   try {
     console.log(`Calling Requesty Router API with model: ${AI_CONFIG.requesty.model}`);
     
@@ -698,7 +707,7 @@ export async function queryRequesty(prompt: string, systemPrompt?: string) {
     
     // Check if prompt needs truncation
     const originalLength = prompt.length;
-    const truncatedPrompt = truncateToTokenLimit(prompt, MAX_TOKENS);
+    const truncatedPrompt = truncateToTokenLimit(prompt, MAX_TOKENS, bypassLimits);
     
     if (truncatedPrompt.length < originalLength) {
       console.log(`Truncated prompt from ${originalLength} to ${truncatedPrompt.length} characters`);
@@ -732,12 +741,10 @@ export async function queryRequesty(prompt: string, systemPrompt?: string) {
         model: AI_CONFIG.requesty.model,
         messages: messages,
         temperature: 0.2,
-        max_tokens: 8192
+        max_tokens: AI_CONFIG.requesty.model.includes('claude') ? 32000 : 8192
       }),
-      // Add timeout to prevent hanging requests with large documents
-      // Increased timeout for Vertex AI models that may take longer
-      // Use a shorter timeout that aligns better with Requesty's internal timeout
-      signal: AbortSignal.timeout(90000) // 90 second timeout
+      // No timeout - let the request complete
+      // signal: AbortSignal.timeout(90000) // Removed timeout
     });
     
     // Check for HTTP errors
@@ -1044,7 +1051,7 @@ function normalizeJson(jsonString: string): string {
 }
 
 // Function to query OpenRouter API
-export async function queryOpenRouter(prompt: string, systemPrompt?: string) {
+export async function queryOpenRouter(prompt: string, systemPrompt?: string, useCase: string = 'default', tokenLimits?: any, bypassLimits: boolean = false) {
   try {
     console.log(`Calling OpenRouter API with model: ${AI_CONFIG.openrouter.model}`);
     
@@ -1053,7 +1060,7 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string) {
     
     // Check if prompt needs truncation
     const originalLength = prompt.length;
-    const truncatedPrompt = truncateToTokenLimit(prompt, MAX_TOKENS);
+    const truncatedPrompt = truncateToTokenLimit(prompt, MAX_TOKENS, bypassLimits);
     
     if (truncatedPrompt.length < originalLength) {
       console.log(`Truncated prompt from ${originalLength} to ${truncatedPrompt.length} characters`);
@@ -1100,13 +1107,19 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string) {
         model: AI_CONFIG.openrouter.model,
         messages: messages,
         temperature: 0.2,
-        max_tokens: 8192,
+        max_tokens: calculateOptimalTokens(
+          AI_CONFIG.openrouter.model,
+          prompt.length + (systemPrompt?.length || 0),
+          useCase,
+          tokenLimits?.[useCase] || tokenLimits?.general,
+          bypassLimits
+        ),
         response_format: { type: "json_object" }, // Explicitly request JSON to avoid code blocks
         top_p: 0.1,                              // Lower top_p for more deterministic JSON output
         top_k: 40,                               // Adjust top_k for more focused output
       }),
-      // Use a longer timeout for OpenRouter to handle complex prompts
-      signal: AbortSignal.timeout(180000) // 3 minute timeout
+      // No timeout - let the request complete
+      // signal: AbortSignal.timeout(180000) // Removed timeout
     });
     
     // Check for HTTP errors
@@ -1174,6 +1187,10 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string) {
           console.log('[OPENROUTER] Removed code block markers');
         }
       }
+      
+      // NOTE: Do NOT convert escaped newlines to actual newlines in JSON
+      // JSON requires escaped newlines within strings
+      // Removing this problematic conversion that was breaking valid JSON
       
       // Normalize whitespace in JSON-like responses (Claude sometimes adds extra spaces)
       if (rawContent.trim().startsWith('{') && rawContent.trim().endsWith('}')) {
@@ -1417,7 +1434,7 @@ async function loadUserSettings() {
   };
 }
 
-export async function queryAI(prompt: string, systemPrompt?: string, providedSettings?: any) {
+export async function queryAI(prompt: string, systemPrompt?: string, providedSettings?: any, useCase: string = 'default', bypassLimits: boolean = false) {
   // Use provided settings or load user settings
   const settings = providedSettings || await loadUserSettings();
   
@@ -1427,6 +1444,9 @@ export async function queryAI(prompt: string, systemPrompt?: string, providedSet
   
   console.log(`Using AI provider from settings: ${provider}`);
   console.log(`Using AI model from settings: ${model}`);
+  if (bypassLimits) {
+    console.log(`[QUERY AI] Token limits BYPASSED for this request`);
+  }
   
   // Configure the selected provider and model
   switch (provider) {
@@ -1460,27 +1480,27 @@ export async function queryAI(prompt: string, systemPrompt?: string, providedSet
   switch (provider) {
     case 'requesty':
       console.log(`Using Requesty Router API with model ${AI_CONFIG.requesty.model}`);
-      return await queryRequesty(prompt, systemPrompt);
+      return await queryRequesty(prompt, systemPrompt, bypassLimits);
     case 'openrouter':
       console.log(`Using OpenRouter API with model ${model}`);
-      return await queryOpenRouter(prompt, systemPrompt);
+      return await queryOpenRouter(prompt, systemPrompt, useCase, settings?.tokenLimits, bypassLimits);
     case 'anthropic':
       console.log(`Using Anthropic API directly with model ${model}`);
       // Would need to implement queryAnthropic function
-      return await queryOpenAI(prompt, systemPrompt);
+      return await queryOpenAI(prompt, systemPrompt, bypassLimits);
     case 'google':
       console.log(`Using Google AI API directly with model ${model}`);
-      return await queryGemini(prompt, systemPrompt);
+      return await queryGemini(prompt, systemPrompt, bypassLimits);
     case 'openai':
       console.log(`Using OpenAI API directly with model ${model}`);
-      return await queryOpenAI(prompt, systemPrompt);
+      return await queryOpenAI(prompt, systemPrompt, bypassLimits);
     case 'vertex':
       console.log(`Using Vertex AI with model ${model}`);
       AI_CONFIG.vertex.model = model;
       // For now, we're using Requesty as it can route to Vertex AI
-      return await queryRequesty(prompt, systemPrompt);
+      return await queryRequesty(prompt, systemPrompt, bypassLimits);
     default:
       console.log(`Using Requesty Router API (default) with model ${AI_CONFIG.requesty.model}`);
-      return await queryRequesty(prompt, systemPrompt);
+      return await queryRequesty(prompt, systemPrompt, bypassLimits);
   }
 }

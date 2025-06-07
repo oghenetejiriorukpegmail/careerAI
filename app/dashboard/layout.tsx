@@ -80,102 +80,103 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center px-4">
-          <div className="flex items-center flex-1">
-            <Link href="/dashboard" className="flex items-center space-x-2">
-              <span className="font-bold text-xl">CareerAI</span>
+        <div className="flex h-14 items-center px-4 mx-auto max-w-full md:container">
+          {/* Logo and Navigation in a single flex container for perfect alignment */}
+          <nav className="flex items-center flex-1 min-w-0">
+            <Link href="/dashboard" className="font-semibold text-base mr-8 whitespace-nowrap">
+              CareerAI
             </Link>
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-6 text-sm font-medium ml-6">
-              <Link href="/dashboard" className="transition-colors hover:text-foreground/80">
+            {/* Desktop Navigation - Changed breakpoint from md to lg for better tablet support */}
+            <div className="hidden lg:flex items-center space-x-4 xl:space-x-6 text-base font-medium overflow-x-auto">
+              <Link href="/dashboard" className="transition-colors hover:text-foreground/80 whitespace-nowrap">
                 Dashboard
               </Link>
-              <Link href="/dashboard/resume" className="transition-colors hover:text-foreground/80">
+              <Link href="/dashboard/resume" className="transition-colors hover:text-foreground/80 whitespace-nowrap">
                 Resume
               </Link>
-              <Link href="/dashboard/job-opportunities" className="transition-colors hover:text-foreground/80">
+              <Link href="/dashboard/job-opportunities" className="transition-colors hover:text-foreground/80 whitespace-nowrap">
                 Jobs
               </Link>
-              <Link href="/dashboard/job-matching" className="transition-colors hover:text-foreground/80">
+              <Link href="/dashboard/job-matching" className="transition-colors hover:text-foreground/80 whitespace-nowrap">
                 Matching
               </Link>
-              <Link href="/dashboard/applications" className="transition-colors hover:text-foreground/80">
+              <Link href="/dashboard/applications" className="transition-colors hover:text-foreground/80 whitespace-nowrap">
                 Applications
               </Link>
-              <Link href="/dashboard/profile" className="transition-colors hover:text-foreground/80">
+              <Link href="/dashboard/profile" className="transition-colors hover:text-foreground/80 whitespace-nowrap">
                 Profile
               </Link>
-              <Link href="/dashboard/settings" className="transition-colors hover:text-foreground/80">
+              <Link href="/dashboard/settings" className="transition-colors hover:text-foreground/80 whitespace-nowrap">
                 Settings
               </Link>
-            </nav>
-          </div>
-          <div className="flex items-center space-x-2">
+            </div>
+          </nav>
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <JobStatusIndicator />
             <NotificationBell />
-            <Button variant="ghost" onClick={handleSignOut} className="hidden md:inline-flex">
+            <Button variant="ghost" onClick={handleSignOut} className="hidden lg:inline-flex">
               Sign out
             </Button>
-            {/* Mobile menu button */}
+            {/* Mobile menu button - Now shows on tablets too */}
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="lg:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
           </div>
         </div>
-        {/* Mobile Navigation */}
+        {/* Mobile Navigation - Now shows on tablets too */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t">
+          <div className="lg:hidden border-t">
             <nav className="flex flex-col space-y-4 p-4">
               <Link 
                 href="/dashboard" 
-                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                className="text-base font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Dashboard
               </Link>
               <Link 
                 href="/dashboard/resume" 
-                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                className="text-base font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Resume
               </Link>
               <Link 
                 href="/dashboard/job-opportunities" 
-                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                className="text-base font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Job Opportunities
               </Link>
               <Link 
                 href="/dashboard/job-matching" 
-                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                className="text-base font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Job Matching
               </Link>
               <Link 
                 href="/dashboard/applications" 
-                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                className="text-base font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Applications
               </Link>
               <Link 
                 href="/dashboard/profile" 
-                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                className="text-base font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Profile
               </Link>
               <Link 
                 href="/dashboard/settings" 
-                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                className="text-base font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Settings
@@ -189,7 +190,7 @@ export default function DashboardLayout({
           </div>
         )}
       </header>
-      <main className="flex-1 container py-4 px-4 md:py-8 max-w-full">
+      <main className="flex-1 py-4 px-4 md:py-8 mx-auto w-full max-w-full md:container">
         {children}
       </main>
       <footer className="border-t py-6">

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, FileText, ExternalLink } from "lucide-react";
+import { FileDown, FileText, ExternalLink, Eye } from "lucide-react";
 
 type Application = {
   id: string;
@@ -166,12 +166,76 @@ export default function ApplicationsPage() {
     }
   };
 
-  const downloadDocument = (document: GeneratedDocument) => {
-    // In a real implementation, this would get the file from Supabase Storage
-    toast({
-      title: "Download Started",
-      description: `Downloading ${document.file_name}`,
-    });
+  const downloadDocument = async (doc: GeneratedDocument) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get download URL from Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('user_files')
+        .download(doc.file_path);
+      
+      if (error) {
+        throw error;
+      }
+
+      // Create blob URL and trigger download
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.file_name;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Download Complete",
+        description: `Downloaded ${doc.file_name}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download document",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const viewDocument = async (doc: GeneratedDocument) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get signed URL for viewing
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from('user_files')
+        .createSignedUrl(doc.file_path, 3600); // 1 hour expiry
+
+      if (urlError || !urlData?.signedUrl) {
+        throw urlError || new Error('Failed to get document URL');
+      }
+
+      // Open in new tab
+      window.open(urlData.signedUrl, '_blank');
+
+      toast({
+        title: "Document Opened",
+        description: `Viewing ${doc.file_name}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "View Failed",
+        description: error.message || "Failed to view document",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -259,17 +323,27 @@ export default function ApplicationsPage() {
                       
                       <div className="flex flex-wrap gap-2">
                         {documents[application.id]?.map((doc) => (
-                          <Button
-                            key={doc.id}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center"
-                            onClick={() => downloadDocument(doc)}
-                          >
-                            <FileText className="h-4 w-4 mr-2" />
-                            {doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}
-                            <FileDown className="h-4 w-4 ml-2" />
-                          </Button>
+                          <div key={doc.id} className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center"
+                              onClick={() => viewDocument(doc)}
+                              title={`View ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}`}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              {doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center px-2"
+                              onClick={() => downloadDocument(doc)}
+                              title={`Download ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}`}
+                            >
+                              <FileDown className="h-4 w-4" />
+                            </Button>
+                          </div>
                         ))}
                         
                         {application.job_url && (

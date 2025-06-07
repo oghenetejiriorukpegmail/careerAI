@@ -56,20 +56,18 @@ function cleanAIJsonResponse(content: string): string {
     cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
   }
   
-  // CRITICAL FIX: Replace literal \n characters that appear outside of string values
-  // The AI sometimes returns malformed JSON with \n between JSON elements
-  // We need to be careful to only replace \n that are not within quoted strings
+  // CRITICAL FIX: Only handle actual newlines in the JSON structure
+  // The OpenRouter response appears to have actual newline characters in the JSON
+  // which need to be handled carefully to avoid breaking valid escaped newlines in strings
   
-  // First, let's handle the most common case: \n after commas and closing braces/brackets
-  cleanedContent = cleanedContent
-    .replace(/,\\n/g, ',\n')
-    .replace(/\}\\n/g, '}\n')
-    .replace(/\]\\n/g, ']\n')
-    .replace(/\{\\n/g, '{\n')
-    .replace(/\[\\n/g, '[\n')
-    .replace(/\\n\s*\}/g, '\n}')
-    .replace(/\\n\s*\]/g, '\n]')
-    .replace(/"\\n\s*"/g, '"\n"'); // Handle \n between string values
+  // First check if the content already appears to be valid JSON
+  try {
+    JSON.parse(cleanedContent);
+    // If it parses successfully, don't modify it
+    return cleanedContent;
+  } catch (e) {
+    // Only proceed with cleaning if JSON is actually invalid
+  }
   
   // Remove JavaScript-style comments from JSON (common issue with some AI models)
   // This regex removes both single-line (//) and multi-line (/* */) comments
@@ -369,7 +367,10 @@ export async function generateAtsResume(
         hasSummary: !!tailoredResumeData.summary,
         experienceCount: tailoredResumeData.experience?.length || 0,
         educationCount: tailoredResumeData.education?.length || 0,
-        skillsCount: tailoredResumeData.skills?.length || 0
+        skillsCount: tailoredResumeData.skills?.length || 0,
+        certificationsCount: tailoredResumeData.certifications?.length || 0,
+        firstExperience: tailoredResumeData.experience?.[0]?.title || 'None',
+        firstEducation: tailoredResumeData.education?.[0]?.degree || 'None'
       });
     } catch (parseError: any) {
       console.error('JSON parse error:', parseError.message);
@@ -392,6 +393,18 @@ export async function generateAtsResume(
       try {
         tailoredResumeData = attemptJsonRepair(cleanedContent);
         console.log('Successfully repaired and parsed JSON');
+      console.log('[PDF Generator] Parsed resume data after repair:', {
+        fullName: tailoredResumeData.fullName,
+        hasContactInfo: !!tailoredResumeData.contactInfo,
+        hasSummary: !!tailoredResumeData.summary,
+        experienceCount: tailoredResumeData.experience?.length || 0,
+        educationCount: tailoredResumeData.education?.length || 0,
+        skillsCount: tailoredResumeData.skills?.length || 0,
+        certificationsCount: tailoredResumeData.certifications?.length || 0,
+        trainingsCount: tailoredResumeData.trainings?.length || 0,
+        projectsCount: tailoredResumeData.projects?.length || 0,
+        referencesCount: tailoredResumeData.references?.length || 0
+      });
       } catch (repairError) {
         console.error('JSON repair failed:', repairError);
         

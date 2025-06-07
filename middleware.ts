@@ -1,6 +1,7 @@
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+// import { checkSubscriptionMiddleware } from '@/lib/middleware/subscription'; // Disabled for now
 
 export async function middleware(request: NextRequest) {
   // Handle health check endpoint
@@ -41,16 +42,21 @@ export async function middleware(request: NextRequest) {
     session = null;
   }
   
-  // Only log auth-related paths to reduce noise
-  if (request.nextUrl.pathname.includes('login') || request.nextUrl.pathname.includes('dashboard')) {
-    console.log(`Middleware: ${request.nextUrl.pathname} - Session: ${session ? 'Authenticated' : 'Not authenticated'}`);
-  }
-  
   const isAuthRoute = request.nextUrl.pathname === '/login' || 
                      request.nextUrl.pathname === '/signup' ||
                      request.nextUrl.pathname === '/signup/confirmation' ||
                      request.nextUrl.pathname === '/' ||
-                     request.nextUrl.pathname === '/auth/callback';
+                     request.nextUrl.pathname === '/auth/callback' ||
+                     request.nextUrl.pathname === '/forgot-password' ||
+                     request.nextUrl.pathname === '/reset-password';
+  
+  // Log auth-related paths including password reset
+  if (request.nextUrl.pathname.includes('login') || 
+      request.nextUrl.pathname.includes('dashboard') || 
+      request.nextUrl.pathname.includes('forgot-password') || 
+      request.nextUrl.pathname.includes('reset-password')) {
+    console.log(`Middleware: ${request.nextUrl.pathname} - Session: ${session ? 'Authenticated' : 'Not authenticated'} - isAuthRoute: ${isAuthRoute}`);
+  }
   
   const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
   const isPublicApiRoute = request.nextUrl.pathname === '/api/auth/callback' ||
@@ -59,8 +65,20 @@ export async function middleware(request: NextRequest) {
                        request.nextUrl.pathname === '/favicon.ico' ||
                        request.nextUrl.pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/i);
   
+  // Check if this is a password recovery flow (has access_token and type=recovery in URL)
+  // Note: Supabase sends these as hash fragments, but we also check query params for compatibility
+  const isPasswordRecovery = request.nextUrl.searchParams.has('access_token') && 
+                            request.nextUrl.searchParams.get('type') === 'recovery';
+  
+  // Check if this is a magic link flow
+  const isMagicLink = request.nextUrl.searchParams.has('access_token') && 
+                     request.nextUrl.searchParams.get('type') === 'magiclink';
+  
+  // Also check if we're on the reset-password page (recovery tokens come as hash fragments there)
+  const isResetPasswordPage = request.nextUrl.pathname === '/reset-password';
+  
   // If no session and trying to access protected route
-  if (!session && !isAuthRoute && !isPublicApiRoute && !isPublicAsset) {
+  if (!session && !isAuthRoute && !isPublicApiRoute && !isPublicAsset && !isPasswordRecovery && !isMagicLink) {
     if (isApiRoute) {
       // Return 401 for API routes
       return new NextResponse(
@@ -81,6 +99,14 @@ export async function middleware(request: NextRequest) {
     redirectUrl.pathname = '/dashboard';
     return NextResponse.redirect(redirectUrl);
   }
+  
+  // Check subscription limits for API routes - DISABLED FOR NOW
+  // if (session && isApiRoute && !isPublicApiRoute) {
+  //   const subscriptionResponse = await checkSubscriptionMiddleware(request);
+  //   if (subscriptionResponse.status !== 200 && subscriptionResponse !== response) {
+  //     return subscriptionResponse;
+  //   }
+  // }
   
   // IMPORTANT: Return the response to ensure cookies are properly set
   return response;

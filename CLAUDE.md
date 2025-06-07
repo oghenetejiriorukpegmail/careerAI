@@ -2,6 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially
 ## Project Overview
 
 CareerAI is an AI-Assisted Job Application App that helps users optimize their job search process. The application:
@@ -28,7 +29,7 @@ CareerAI is an AI-Assisted Job Application App that helps users optimize their j
 - Bright Data MCP for web scraping LinkedIn profiles and job boards (Indeed, LinkedIn, Dice)
 
 ### Deployment
-- Application will be deployed on Netlify (free plan) or Replit
+- Application will be deployed on Replit
 - Consider serverless function limitations (execution time, memory)
 
 ## Development Guidelines
@@ -71,3 +72,4 @@ CareerAI is an AI-Assisted Job Application App that helps users optimize their j
    - Manage job application lifecycle
    - Track status of applications
    - Store generated documents
+

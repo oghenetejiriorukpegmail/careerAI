@@ -16,6 +16,8 @@ export default function UploadResumePage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bucketInitialized, setBucketInitialized] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -96,43 +98,33 @@ export default function UploadResumePage() {
       setAnalyzing(true);
       
       try {
-        // All-in-one endpoint that handles upload, parsing, and database insertion
-        const response = await fetch('/api/resumeupload', {
+        // Use async endpoint for background processing
+        const response = await fetch('/api/resumeupload-async', {
           method: 'POST',
           body: formData
         });
         
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Resume processing error:", errorData);
-          throw new Error(errorData.error || "Failed to process resume");
+          console.error("Resume upload error:", errorData);
+          throw new Error(errorData.error || "Failed to upload resume");
         }
         
-        const processedData = await response.json();
+        const result = await response.json();
         
-        if (!processedData.success) {
-          throw new Error(processedData.error || "Resume processing failed");
-        }
+        console.log('Resume upload initiated:', result);
         
-        // Log any partial successes/failures
-        if (processedData.error) {
-          console.warn("Partial success:", processedData.error);
-        }
+        // Store job ID for status tracking
+        setJobId(result.jobId);
+        setJobStatus('processing');
         
-        console.log("Resume processed successfully:", {
-          uploadSuccess: processedData.uploadSuccess,
-          parseSuccess: processedData.parseSuccess,
-          aiSuccess: processedData.aiSuccess,
-          dbSuccess: processedData.dbSuccess
-        });
-        
-        // Success!
         toast({
-          title: "Resume Uploaded",
-          description: "Your resume has been uploaded and analyzed successfully.",
+          title: "Upload Successful",
+          description: "Your resume is being processed. You'll be notified when it's ready.",
         });
         
-        router.push("/dashboard/resume");
+        // Redirect to resumes page where they can see processing status
+        router.push('/dashboard/resume');
       } catch (processingError: any) {
         console.error("Resume processing error:", processingError);
         

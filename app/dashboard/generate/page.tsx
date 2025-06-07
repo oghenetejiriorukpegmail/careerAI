@@ -144,50 +144,79 @@ export default function GenerateDocumentsPage() {
       const companyName = jobData?.company_name || "Company";
       const userName = profileData?.full_name || "User";
       
-      // In a real implementation, we would now call the AI service to generate the documents
-      // and store them in Supabase Storage
+      // Generate documents using the async API
+      const jobIds: { resumeJobId?: string; coverLetterJobId?: string } = {};
       
-      // Simulate AI processing time
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      
-      // Record generated documents in the database (in a real implementation these would point to actual files)
       if (generateResume) {
-        const resumeFileName = `${companyName.replace(/\s+/g, '_')}_${userName.replace(/\s+/g, '_')}_Resume.pdf`;
-        await supabase
-          .from("generated_documents")
-          .insert({
-            user_id: userData.user.id,
-            job_description_id: selectedJobDescription,
-            doc_type: "resume",
-            file_name: resumeFileName,
-            file_path: `generated/${userData.user.id}/${resumeFileName}`,
+        try {
+          const response = await fetch('/api/generate-resume-async', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              jobId: selectedJobDescription,
+              resumeId: selectedResume,
+            }),
           });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to start resume generation');
+          }
+
+          const result = await response.json();
+          jobIds.resumeJobId = result.jobId;
+          
+          toast({
+            title: "Resume Generation Started",
+            description: "Your resume is being generated. You'll be notified when it's ready.",
+          });
+        } catch (error) {
+          console.error('Error generating resume:', error);
+          throw error;
+        }
       }
       
       if (generateCoverLetter) {
-        const coverLetterFileName = `${companyName.replace(/\s+/g, '_')}_${userName.replace(/\s+/g, '_')}_CoverLetter.pdf`;
-        await supabase
-          .from("generated_documents")
-          .insert({
-            user_id: userData.user.id,
-            job_description_id: selectedJobDescription,
-            doc_type: "cover_letter",
-            file_name: coverLetterFileName,
-            file_path: `generated/${userData.user.id}/${coverLetterFileName}`,
+        try {
+          const response = await fetch('/api/generate-cover-letter-async', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              jobId: selectedJobDescription,
+              resumeId: selectedResume,
+            }),
           });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to start cover letter generation');
+          }
+
+          const result = await response.json();
+          jobIds.coverLetterJobId = result.jobId;
+          
+          toast({
+            title: "Cover Letter Generation Started",
+            description: "Your cover letter is being generated. You'll be notified when it's ready.",
+          });
+        } catch (error) {
+          console.error('Error generating cover letter:', error);
+          throw error;
+        }
       }
       
-      // Create a job application entry
-      await supabase
-        .from("job_applications")
-        .insert({
-          user_id: userData.user.id,
-          job_description_id: selectedJobDescription,
-          status: "to_apply",
-        });
-      
+      // Store job IDs for tracking (optional - could show progress)
       setGenerationComplete(true);
       setGenerating(false);
+      
+      // Redirect to applications page after a short delay
+      setTimeout(() => {
+        router.push("/dashboard/applications");
+      }, 2000);
       
     } catch (error: any) {
       setGenerating(false);
@@ -229,9 +258,9 @@ export default function GenerateDocumentsPage() {
             <div className="mb-4 flex items-center justify-center">
               <CheckCircle2 className="h-16 w-16 text-green-500" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Success!</h2>
+            <h2 className="text-2xl font-bold mb-2">Generation Started!</h2>
             <p className="mb-6 text-muted-foreground">
-              Your customized documents are ready to download from the applications page.
+              Your documents are being generated. You'll receive a notification when they're ready.
             </p>
             <div className="flex flex-col space-y-2">
               {generateResume && (
@@ -301,23 +330,31 @@ export default function GenerateDocumentsPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="resume">Select Resume</Label>
+              <Label htmlFor="resume">Select Source Resume</Label>
               <Select
                 value={selectedResume}
                 onValueChange={setSelectedResume}
                 disabled={generating}
               >
                 <SelectTrigger id="resume">
-                  <SelectValue placeholder="Select a resume" />
+                  <SelectValue placeholder="Select a resume to use as the base" />
                 </SelectTrigger>
                 <SelectContent>
                   {resumes.map((resume) => (
                     <SelectItem key={resume.id} value={resume.id}>
-                      {resume.file_name}
+                      <div className="flex flex-col">
+                        <span>{resume.file_name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Uploaded {new Date(resume.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-sm text-muted-foreground">
+                The selected resume will be used as the source for generating tailored documents
+              </p>
             </div>
             
             <div className="space-y-2">
