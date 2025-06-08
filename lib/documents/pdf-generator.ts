@@ -500,16 +500,34 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         currentPage = pageInfo3.page;
         currentY = pageInfo3.y;
         
-        // Simple bullet point for print
+        // Draw bullet point
         drawSanitizedText(currentPage, '•', {
           x: margins.left,
           y: currentY,
           size: 10,
           font: helvetica,
-          color: colors.primary,
+          color: colors.text,
         });
         
-        currentY = drawWrappedText(bullet, margins.left + 15, 9, helvetica, colors.text, contentWidth - 15, 1.3);
+        // Draw the achievement text aligned with bullet
+        const bulletLines = wrapText(bullet, contentWidth - 15, 9, helvetica);
+        for (let i = 0; i < bulletLines.length; i++) {
+          if (i > 0) {
+            // Check for new page for wrapped lines
+            const pageInfo = checkAndAddPage(pdfDoc, currentPage, currentY, 12, margins);
+            currentPage = pageInfo.page;
+            currentY = pageInfo.y;
+          }
+          
+          drawSanitizedText(currentPage, bulletLines[i], {
+            x: margins.left + 15,
+            y: currentY,
+            size: 9,
+            font: helvetica,
+            color: colors.text,
+          });
+          currentY -= 12;
+        }
         currentY -= 3;
       }
       

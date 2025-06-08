@@ -295,7 +295,7 @@ export default function JobOpportunityDetailPage() {
         userId = sessionUserId;
       }
 
-      const response = await fetch('/api/generate-resume', {
+      const response = await fetch('/api/generate-resume-async', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -309,22 +309,57 @@ export default function JobOpportunityDetailPage() {
       });
 
       if (response.ok) {
-        // Download the PDF
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'resume.pdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        const result = await response.json();
+        const jobProcessingId = result.jobId;
         
         toast({
-          title: "Success",
-          description: "Resume generated and downloaded successfully!"
+          title: "Resume Generation Started",
+          description: "Your resume is being generated. You'll be notified when it's ready.",
         });
+        
+        // Poll for job status
+        const checkJobStatus = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`/api/job-status/${jobProcessingId}`);
+            const statusData = await statusResponse.json();
+            
+            if (statusData.status === 'completed') {
+              clearInterval(checkJobStatus);
+              
+              // Get the generated document
+              const docResponse = await fetch(`/api/documents/${statusData.results.documentId}/download`);
+              if (docResponse.ok) {
+                const blob = await docResponse.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = statusData.results.fileName || 'resume.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                toast({
+                  title: "Success",
+                  description: "Resume generated and downloaded successfully!"
+                });
+              }
+            } else if (statusData.status === 'failed') {
+              clearInterval(checkJobStatus);
+              toast({
+                title: "Error",
+                description: statusData.error || 'Failed to generate resume',
+                variant: "destructive"
+              });
+            }
+          } catch (error) {
+            console.error('Error checking job status:', error);
+          }
+        }, 2000); // Check every 2 seconds
+        
+        // Stop checking after 2 minutes
+        setTimeout(() => clearInterval(checkJobStatus), 120000);
       } else {
         const errorData = await response.json();
         console.error('Failed to generate resume:', errorData.error);
@@ -372,7 +407,7 @@ export default function JobOpportunityDetailPage() {
         userId = sessionUserId;
       }
 
-      const response = await fetch('/api/generate-cover-letter', {
+      const response = await fetch('/api/generate-cover-letter-async', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -386,22 +421,57 @@ export default function JobOpportunityDetailPage() {
       });
 
       if (response.ok) {
-        // Download the PDF
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'cover-letter.pdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        const result = await response.json();
+        const jobProcessingId = result.jobId;
         
         toast({
-          title: "Success",
-          description: "Cover letter generated and downloaded successfully!"
+          title: "Cover Letter Generation Started",
+          description: "Your cover letter is being generated. You'll be notified when it's ready.",
         });
+        
+        // Poll for job status
+        const checkJobStatus = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`/api/job-status/${jobProcessingId}`);
+            const statusData = await statusResponse.json();
+            
+            if (statusData.status === 'completed') {
+              clearInterval(checkJobStatus);
+              
+              // Get the generated document
+              const docResponse = await fetch(`/api/documents/${statusData.results.documentId}/download`);
+              if (docResponse.ok) {
+                const blob = await docResponse.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = statusData.results.fileName || 'cover-letter.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                toast({
+                  title: "Success",
+                  description: "Cover letter generated and downloaded successfully!"
+                });
+              }
+            } else if (statusData.status === 'failed') {
+              clearInterval(checkJobStatus);
+              toast({
+                title: "Error",
+                description: statusData.error || 'Failed to generate cover letter',
+                variant: "destructive"
+              });
+            }
+          } catch (error) {
+            console.error('Error checking job status:', error);
+          }
+        }, 2000); // Check every 2 seconds
+        
+        // Stop checking after 2 minutes
+        setTimeout(() => clearInterval(checkJobStatus), 120000);
       } else {
         const errorData = await response.json();
         console.error('Failed to generate cover letter:', errorData.error);
