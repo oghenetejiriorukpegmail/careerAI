@@ -48,7 +48,17 @@ Job seekers across various industries and experience levels who are looking to:
 ### 2.2 Information Extraction and AI Analysis
 * **2.2.1 Resume Parsing:** AI engine extracts structured information from the uploaded resume (contact details, work experience, education, skills, projects, summary).
 * **2.2.2 LinkedIn Profile Scraping & Parsing:** (If URL provided) AI engine, using Bright Data MCP, scrapes and extracts structured information from the user's public LinkedIn profile.
-* **2.2.3 Job Opportunity Input & Analysis:**
+
+### 2.3 🔒 CRITICAL: AI Content Integrity
+* **2.3.1 Absolute Truthfulness Requirement:** The AI system MUST maintain complete truthfulness in all generated content:
+    * **Source of Truth:** Only information from the user's uploaded resume can be used
+    * **No Fabrication:** The AI will NEVER invent experiences, skills, achievements, or qualifications
+    * **No Embellishment:** Metrics and accomplishments will not be exaggerated or enhanced
+    * **Allowed Operations:** Rewording for clarity, reorganizing for impact, using professional language
+* **2.3.2 Implementation:** Strict prompts in `/lib/ai/document-generator.ts` enforce these rules
+* **2.3.3 Rationale:** Users must be able to defend all claims in interviews; false information can lead to termination
+
+### 2.4 Job Opportunity Input & Analysis
     * **2.2.3.1 Multiple Input Methods:**
         * **URL Input:** Users can provide job posting URLs from major job boards (LinkedIn, Indeed, Dice, company career pages)
         * **Text Paste:** Users can copy and paste job descriptions directly into a text area

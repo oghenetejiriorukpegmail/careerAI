@@ -43,6 +43,40 @@ CareerAI is an AI-Assisted Job Application App that helps users optimize their j
 - Follow secure practices for handling user data
 - Implement protection against common web vulnerabilities (XSS, CSRF, SQLi)
 
+### 🔒 CRITICAL: Resume Integrity & Truthfulness
+
+**This is the most important requirement in the entire codebase:**
+
+The AI document generation system MUST maintain absolute truthfulness. When generating resumes or cover letters:
+
+1. **STRICT RULES - NEVER VIOLATE:**
+   - Use ONLY information from the user's uploaded resume
+   - NEVER invent experiences, skills, or achievements
+   - NEVER add qualifications the user doesn't have
+   - NEVER embellish metrics or accomplishments
+   - NEVER create false employment history
+
+2. **ALLOWED OPERATIONS:**
+   - Reword existing content for ATS optimization
+   - Reorganize information for better impact
+   - Use professional synonyms for existing skills
+   - Format achievements with action verbs
+   - Connect real experience to job requirements
+
+3. **IMPLEMENTATION:**
+   - Location: `/lib/ai/document-generator.ts`
+   - Functions: `generateAtsResume()` and `generateCoverLetter()`
+   - Both system and user prompts enforce these rules
+   - Multiple layers of instructions prevent fabrication
+
+4. **WHY THIS MATTERS:**
+   - Users must defend claims in interviews
+   - False info = immediate termination risk
+   - Legal and ethical implications
+   - Trust and reputation protection
+
+**Testing:** Any modifications to AI prompts MUST be tested to ensure no fabrication is possible.
+
 ## Data Flow
 
 1. **User Data Ingestion**:
