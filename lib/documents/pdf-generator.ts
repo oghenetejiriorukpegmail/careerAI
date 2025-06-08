@@ -500,12 +500,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         currentPage = pageInfo3.page;
         currentY = pageInfo3.y;
         
-        // Draw bullet point
-        drawSanitizedText(currentPage, '•', {
-          x: margins.left,
-          y: currentY,
-          size: 10,
-          font: helvetica,
+        // Draw bullet point using a filled circle shape
+        currentPage.drawCircle({
+          x: margins.left + 3,
+          y: currentY + 3,
+          size: 2,
           color: colors.text,
         });
         
