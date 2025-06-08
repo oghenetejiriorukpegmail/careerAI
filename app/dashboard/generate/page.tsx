@@ -51,11 +51,20 @@ export default function GenerateDocumentsPage() {
           // Fetch user's resumes
           const { data: resumeData, error: resumeError } = await supabase
             .from("resumes")
-            .select("id, file_name, created_at")
+            .select("id, file_name, created_at, processing_status")
             .eq("user_id", userData.user.id)
+            .eq("processing_status", "completed")
             .order("created_at", { ascending: false });
             
-          if (resumeError) throw resumeError;
+          if (resumeError) {
+            console.error('Error fetching resumes:', resumeError);
+            throw resumeError;
+          }
+          console.log('Fetched resumes:', resumeData);
+          console.log('Resume count:', resumeData?.length || 0);
+          if (resumeData && resumeData.length > 0) {
+            console.log('First resume:', resumeData[0]);
+          }
           setResumes(resumeData || []);
           
           // If we have resumes, select the most recent one by default
@@ -330,31 +339,52 @@ export default function GenerateDocumentsPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="resume">Select Source Resume</Label>
-              <Select
-                value={selectedResume}
-                onValueChange={setSelectedResume}
-                disabled={generating}
-              >
-                <SelectTrigger id="resume">
-                  <SelectValue placeholder="Select a resume to use as the base" />
-                </SelectTrigger>
-                <SelectContent>
-                  {resumes.map((resume) => (
-                    <SelectItem key={resume.id} value={resume.id}>
-                      <div className="flex flex-col">
-                        <span>{resume.file_name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          Uploaded {new Date(resume.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                The selected resume will be used as the source for generating tailored documents
-              </p>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="resume">Select Source Resume</Label>
+                <span className="text-sm text-muted-foreground">
+                  {resumes.length} resume{resumes.length !== 1 ? 's' : ''} available
+                </span>
+              </div>
+              {resumes.length > 0 ? (
+                <>
+                  <Select
+                    value={selectedResume}
+                    onValueChange={(value) => {
+                      console.log('Selected resume:', value);
+                      setSelectedResume(value);
+                    }}
+                    disabled={generating}
+                  >
+                    <SelectTrigger id="resume">
+                      <SelectValue placeholder="Select a resume to use as the base" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {resumes.map((resume) => (
+                        <SelectItem key={resume.id} value={resume.id}>
+                          {resume.file_name || 'Untitled Resume'} - Uploaded {new Date(resume.created_at).toLocaleDateString()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    The selected resume will be used as the source for generating tailored documents
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-md border border-dashed p-4 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No resumes found. Please upload a resume first.
+                  </p>
+                  <Button 
+                    className="mt-2" 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => router.push("/dashboard/resume/new")}
+                  >
+                    Upload Resume
+                  </Button>
+                </div>
+              )}
             </div>
             
             <div className="space-y-2">

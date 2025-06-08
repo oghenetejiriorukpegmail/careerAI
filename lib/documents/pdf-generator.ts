@@ -1,5 +1,49 @@
 import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont } from 'pdf-lib';
 
+// Helper function to sanitize text for PDF encoding
+function sanitizeForPDF(text: string): string {
+  if (!text) return '';
+  
+  // Replace common Unicode characters with ASCII equivalents
+  const replacements: { [key: string]: string } = {
+    'Μ': 'M', // Greek capital Mu
+    'μ': 'u', // Greek small mu
+    '–': '-', // En dash
+    '—': '-', // Em dash
+    '"': '"', // Left double quote
+    '"': '"', // Right double quote
+    ''': "'", // Left single quote
+    ''': "'", // Right single quote
+    '…': '...', // Ellipsis
+    '°': ' degrees', // Degree symbol
+    '±': '+/-', // Plus-minus
+    '×': 'x', // Multiplication sign
+    '÷': '/', // Division sign
+    '≤': '<=', // Less than or equal
+    '≥': '>=', // Greater than or equal
+    '≠': '!=', // Not equal
+    '∞': 'infinity', // Infinity
+    '™': '(TM)', // Trademark
+    '®': '(R)', // Registered
+    '©': '(C)', // Copyright
+    '€': 'EUR', // Euro
+    '£': 'GBP', // Pound
+    '¥': 'JPY', // Yen
+    '₹': 'INR', // Rupee
+    // Add more as needed
+  };
+  
+  let sanitized = text;
+  for (const [unicode, ascii] of Object.entries(replacements)) {
+    sanitized = sanitized.replace(new RegExp(unicode, 'g'), ascii);
+  }
+  
+  // Remove any remaining non-ASCII characters
+  sanitized = sanitized.replace(/[^\x00-\x7F]/g, '');
+  
+  return sanitized;
+}
+
 // Interface for resume data
 export interface ResumeData {
   fullName: string;
@@ -86,7 +130,9 @@ const colors = {
 
 // Helper function to wrap text and calculate height
 function wrapText(text: string, maxWidth: number, fontSize: number, font: PDFFont): string[] {
-  const words = text.split(' ');
+  // Sanitize text before processing
+  const sanitizedText = sanitizeForPDF(text);
+  const words = sanitizedText.split(' ');
   const lines: string[] = [];
   let currentLine = '';
 
@@ -112,6 +158,23 @@ function wrapText(text: string, maxWidth: number, fontSize: number, font: PDFFon
   }
   
   return lines;
+}
+
+// Helper function to safely draw text with sanitization
+function drawSanitizedText(
+  page: PDFPage,
+  text: string,
+  options: {
+    x: number;
+    y: number;
+    size: number;
+    font: PDFFont;
+    color?: { red: number; green: number; blue: number };
+    opacity?: number;
+  }
+): void {
+  const sanitizedText = sanitizeForPDF(text);
+  page.drawText(sanitizedText, options);
 }
 
 // Helper function to add a new page when needed
@@ -154,7 +217,7 @@ function drawSectionHeader(
   font: PDFFont
 ): number {
   // Draw section title with larger size for better print visibility
-  page.drawText(text.toUpperCase(), {
+  drawSanitizedText(page, text.toUpperCase(), {
     x,
     y,
     size: 12,
@@ -187,7 +250,7 @@ function addPageNumbers(pdfDoc: PDFDocument, font: PDFFont): void {
     const text = `Page ${pageNumber} of ${totalPages}`;
     const textWidth = font.widthOfTextAtSize(text, 8);
     
-    page.drawText(text, {
+    drawSanitizedText(page, text, {
       x: (width - textWidth) / 2,
       y: 30, // 30 points from bottom
       size: 8,
@@ -214,7 +277,7 @@ function drawContactItem(
     color: colors.primary,
   });
   
-  page.drawText(text, {
+  drawSanitizedText(page, text, {
     x: x + 12,
     y,
     size: 9,
@@ -276,7 +339,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentPage = pageInfo.page;
       currentY = pageInfo.y;
       
-      currentPage.drawText(line, {
+      drawSanitizedText(currentPage, line, {
         x,
         y: currentY,
         size: fontSize,
@@ -292,7 +355,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   // HEADER SECTION WITH PRINT-FRIENDLY LAYOUT
   // Name with larger, bold typography for impact
-  currentPage.drawText(data.fullName, {
+  drawSanitizedText(currentPage, data.fullName, {
     x: margins.left,
     y: currentY,
     size: 22, // Slightly smaller for better balance on print
@@ -353,7 +416,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   if (!data.experience || data.experience.length === 0) {
     console.warn('[PDF Generator] No experience data found!');
-    currentPage.drawText('No experience data available', {
+    drawSanitizedText(currentPage, 'No experience data available', {
       x: margins.left,
       y: currentY,
       size: 10,
@@ -368,7 +431,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentY = pageInfo2.y;
       
       // Job title and company in modern layout
-      currentPage.drawText(job.title, {
+      drawSanitizedText(currentPage, job.title, {
         x: margins.left,
         y: currentY,
         size: 12,
@@ -379,7 +442,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       // Company name on the same line, right-aligned
       const companyText = job.company;
       const companyWidth = helveticaBold.widthOfTextAtSize(companyText, 11);
-      currentPage.drawText(companyText, {
+      drawSanitizedText(currentPage, companyText, {
         x: width - margins.right - companyWidth,
         y: currentY,
         size: 11,
@@ -390,7 +453,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       // Date range and location
       const dateText = `${job.startDate} - ${job.endDate || 'Present'}`;
-      currentPage.drawText(dateText, {
+      drawSanitizedText(currentPage, dateText, {
         x: margins.left,
         y: currentY,
         size: 9,
@@ -400,7 +463,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       if (job.location) {
         const locationWidth = helvetica.widthOfTextAtSize(job.location, 9);
-        currentPage.drawText(job.location, {
+        drawSanitizedText(currentPage, job.location, {
           x: width - margins.right - locationWidth,
           y: currentY,
           size: 9,
@@ -417,7 +480,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         currentY = pageInfo3.y;
         
         // Simple bullet point for print
-        currentPage.drawText('•', {
+        drawSanitizedText(currentPage, '•', {
           x: margins.left,
           y: currentY,
           size: 10,
@@ -444,7 +507,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   if (!data.education || data.education.length === 0) {
     console.warn('[PDF Generator] No education data found!');
-    currentPage.drawText('No education data available', {
+    drawSanitizedText(currentPage, 'No education data available', {
       x: margins.left,
       y: currentY,
       size: 10,
@@ -460,7 +523,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       // Degree and field
       const degree = `${edu.degree}${edu.field ? ' in ' + edu.field : ''}`;
-      currentPage.drawText(degree, {
+      drawSanitizedText(currentPage, degree, {
         x: margins.left,
         y: currentY,
         size: 11,
@@ -471,7 +534,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       // Graduation date (right-aligned)
       if (edu.graduationDate) {
         const dateWidth = helvetica.widthOfTextAtSize(edu.graduationDate, 9);
-        currentPage.drawText(edu.graduationDate, {
+        drawSanitizedText(currentPage, edu.graduationDate, {
           x: width - margins.right - dateWidth,
           y: currentY,
           size: 9,
@@ -482,7 +545,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentY -= 16;
       
       // Institution
-      currentPage.drawText(edu.institution, {
+      drawSanitizedText(currentPage, edu.institution, {
         x: margins.left,
         y: currentY,
         size: 10,
@@ -504,7 +567,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   if (!data.skills || data.skills.length === 0) {
     console.warn('[PDF Generator] No skills data found!');
-    currentPage.drawText('No skills data available', {
+    drawSanitizedText(currentPage, 'No skills data available', {
       x: margins.left,
       y: currentY,
       size: 10,
@@ -545,7 +608,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       });
       
       // Draw skill text
-      currentPage.drawText(skill, {
+      drawSanitizedText(currentPage, skill, {
         x: skillX + 8,
         y: skillY + 3,
         size: 9,
@@ -575,7 +638,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentPage = pageInfoCertItem.page;
       currentY = pageInfoCertItem.y;
       
-      currentPage.drawText(cert.name, {
+      drawSanitizedText(currentPage, cert.name, {
         x: margins.left,
         y: currentY,
         size: 11,
@@ -585,7 +648,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       if (cert.date) {
         const dateWidth = helvetica.widthOfTextAtSize(cert.date, 9);
-        currentPage.drawText(cert.date, {
+        drawSanitizedText(currentPage, cert.date, {
           x: width - margins.right - dateWidth,
           y: currentY,
           size: 9,
@@ -597,7 +660,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       const certInfo = [cert.issuer, cert.credentialId ? `ID: ${cert.credentialId}` : null].filter(Boolean).join(' | ');
       if (certInfo) {
-        currentPage.drawText(certInfo, {
+        drawSanitizedText(currentPage, certInfo, {
           x: margins.left,
           y: currentY,
           size: 9,
@@ -623,7 +686,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentPage = pageInfoTrainItem.page;
       currentY = pageInfoTrainItem.y;
       
-      currentPage.drawText(training.name, {
+      drawSanitizedText(currentPage, training.name, {
         x: margins.left,
         y: currentY,
         size: 11,
@@ -633,7 +696,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       if (training.date) {
         const dateWidth = helvetica.widthOfTextAtSize(training.date, 9);
-        currentPage.drawText(training.date, {
+        drawSanitizedText(currentPage, training.date, {
           x: width - margins.right - dateWidth,
           y: currentY,
           size: 9,
@@ -645,7 +708,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       const trainInfo = [training.provider, training.duration ? `Duration: ${training.duration}` : null].filter(Boolean).join(' | ');
       if (trainInfo) {
-        currentPage.drawText(trainInfo, {
+        drawSanitizedText(currentPage, trainInfo, {
           x: margins.left,
           y: currentY,
           size: 9,
@@ -675,7 +738,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentPage = pageInfo8.page;
       currentY = pageInfo8.y;
       
-      currentPage.drawText(project.name, {
+      drawSanitizedText(currentPage, project.name, {
         x: margins.left,
         y: currentY,
         size: 11,
@@ -704,7 +767,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       // Handle "References available upon request" case
       if (ref.name === "References available upon request") {
-        currentPage.drawText("References available upon request", {
+        drawSanitizedText(currentPage, "References available upon request", {
           x: margins.left,
           y: currentY,
           size: 11,
@@ -715,7 +778,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       } else {
         // Reference name and title
         const nameTitle = ref.title ? `${ref.name}, ${ref.title}` : ref.name;
-        currentPage.drawText(nameTitle, {
+        drawSanitizedText(currentPage, nameTitle, {
           x: margins.left,
           y: currentY,
           size: 11,
@@ -726,7 +789,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         
         // Company
         if (ref.company) {
-          currentPage.drawText(ref.company, {
+          drawSanitizedText(currentPage, ref.company, {
             x: margins.left,
             y: currentY,
             size: 10,
@@ -800,7 +863,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
       currentPage = pageInfo.page;
       currentY = pageInfo.y;
       
-      currentPage.drawText(line, {
+      drawSanitizedText(currentPage, line, {
         x,
         y: currentY,
         size: fontSize,
@@ -814,7 +877,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   };
   
   // Draw name at the top
-  currentPage.drawText(data.fullName, {
+  drawSanitizedText(currentPage, data.fullName, {
     x: margins.left,
     y: currentY,
     size: 16,
@@ -833,7 +896,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   currentY -= 30;
   
   // Date
-  currentPage.drawText(data.date, {
+  drawSanitizedText(currentPage, data.date, {
     x: margins.left,
     y: currentY,
     size: 10,
@@ -844,7 +907,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   // Recipient info
   if (data.recipient) {
     if (data.recipient.name) {
-      currentPage.drawText(data.recipient.name, {
+      drawSanitizedText(currentPage, data.recipient.name, {
         x: margins.left,
         y: currentY,
         size: 10,
@@ -854,7 +917,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
       
       // Show title only if we have a specific name (not "Hiring Manager")
       if (data.recipient.title && data.recipient.name !== 'Hiring Manager' && data.recipient.title !== 'Hiring Manager') {
-        currentPage.drawText(data.recipient.title, {
+        drawSanitizedText(currentPage, data.recipient.title, {
           x: margins.left,
           y: currentY,
           size: 10,
@@ -864,7 +927,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
       }
     }
     
-    currentPage.drawText(data.recipient.company, {
+    drawSanitizedText(currentPage, data.recipient.company, {
       x: margins.left,
       y: currentY,
       size: 10,
@@ -882,7 +945,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   
   // Subject line
   const subjectText = `Re: Application for ${data.jobTitle} Position`;
-  currentPage.drawText(subjectText, {
+  drawSanitizedText(currentPage, subjectText, {
     x: margins.left,
     y: currentY,
     size: 10,
@@ -895,7 +958,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
     ? `Dear ${data.recipient.name},` 
     : 'Dear Hiring Manager,';
   
-  currentPage.drawText(greeting, {
+  drawSanitizedText(currentPage, greeting, {
     x: margins.left,
     y: currentY,
     size: 10,
@@ -916,7 +979,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   
   // Closing
   currentY -= 10;
-  currentPage.drawText(data.closing, {
+  drawSanitizedText(currentPage, data.closing, {
     x: margins.left,
     y: currentY,
     size: 10,
@@ -926,7 +989,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   currentY -= 60; // Space for signature
   
   // Name
-  currentPage.drawText(data.fullName, {
+  drawSanitizedText(currentPage, data.fullName, {
     x: margins.left,
     y: currentY,
     size: 10,

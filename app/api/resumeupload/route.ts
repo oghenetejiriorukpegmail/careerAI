@@ -26,13 +26,7 @@ async function processDocumentWithGoogleAI(fileBuffer: ArrayBuffer, mimeType: st
         mimeType,
       },
       // Enable imageless mode to support up to 30 pages
-      processOptions: {
-        ocrConfig: {
-          enableImageQualityScores: false,
-          enableSymbol: false,
-          computeStyleInfo: false,
-        },
-      },
+      imagelessMode: true,
     };
 
     // Process the document
