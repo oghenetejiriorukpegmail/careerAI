@@ -299,7 +299,21 @@ export async function generateAtsResume(
         [{"name": "References available upon request", "title": "", "company": "", "phone": "", "email": "", "relationship": ""}]
       - Always include the references section unless specifically inappropriate for the role
       
-      Ensure all the experience descriptions are achievement-oriented and quantifiable where possible.
+      IMPORTANT for experience descriptions:
+      - Each job's "description" field MUST be an array of individual bullet points
+      - Each array element should be a single achievement or responsibility
+      - Start each bullet with an action verb (e.g., "Managed", "Developed", "Led", "Implemented")
+      - Make descriptions achievement-oriented and quantifiable where possible
+      - Include metrics and results when available (e.g., "Increased sales by 25%", "Managed team of 10")
+      - Each bullet point should be 1-2 lines long for optimal ATS scanning
+      - DO NOT combine multiple achievements into a single array element
+      - Example format:
+        "description": [
+          "Led cross-functional team of 12 engineers to deliver project 2 weeks ahead of schedule",
+          "Implemented automated testing framework that reduced bug reports by 40%",
+          "Developed RESTful APIs serving 1M+ daily requests with 99.9% uptime"
+        ]
+      
       Include the most relevant skills from the candidate's profile that match the job requirements.
       Keep the content truthful and based on the provided information.
     `;
@@ -308,6 +322,15 @@ export async function generateAtsResume(
       You are an expert resume writer who specializes in creating ATS-optimized resumes.
       Your goal is to tailor the candidate's resume to match the job description without fabricating experience.
       Focus on highlighting relevant experience, using appropriate keywords, and creating achievement-oriented bullet points.
+      
+      CRITICAL for ATS optimization:
+      - Experience descriptions MUST be formatted as arrays of individual bullet points
+      - Each bullet point should be a separate string in the description array
+      - This allows ATS systems to properly parse and score individual achievements
+      - Bullet points are MORE ATS-friendly than paragraph format because:
+        * ATS can identify and score individual achievements
+        * Keywords are easier to extract from structured bullet points
+        * Action verbs at the start of bullets are weighted higher by ATS algorithms
       
       CRITICAL: You must return a valid JSON object exactly matching the requested structure.
       - Do not include any markdown formatting or code blocks

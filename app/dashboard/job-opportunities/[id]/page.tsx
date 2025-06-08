@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Building2, 
   MapPin, 
@@ -52,6 +53,12 @@ type JobOpportunity = {
   raw_content?: string;
 };
 
+type Resume = {
+  id: string;
+  file_name: string;
+  created_at: string;
+};
+
 export default function JobOpportunityDetailPage() {
   const [opportunity, setOpportunity] = useState<JobOpportunity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,6 +66,11 @@ export default function JobOpportunityDetailPage() {
   const [generatingResume, setGeneratingResume] = useState(false);
   const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [resumeSelectionModal, setResumeSelectionModal] = useState(false);
+  const [documentType, setDocumentType] = useState<'resume' | 'coverLetter'>('resume');
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [selectedResumeId, setSelectedResumeId] = useState<string>('');
+  const [loadingResumes, setLoadingResumes] = useState(false);
   const [editFormData, setEditFormData] = useState({
     job_title: '',
     company_name: '',
@@ -193,6 +205,70 @@ export default function JobOpportunityDetailPage() {
     }
   };
 
+  const fetchUserResumes = async () => {
+    try {
+      setLoadingResumes(true);
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (userData && userData.user) {
+        const { data: resumeData, error: resumeError } = await supabase
+          .from("resumes")
+          .select("id, file_name, created_at, processing_status")
+          .eq("user_id", userData.user.id)
+          .eq("processing_status", "completed")
+          .order("created_at", { ascending: false });
+          
+        if (resumeError) throw resumeError;
+        
+        if (resumeData && resumeData.length > 0) {
+          setResumes(resumeData);
+          setSelectedResumeId(resumeData[0].id); // Select the most recent by default
+        } else {
+          toast({
+            title: "No Resumes Found",
+            description: "Please upload a resume before generating documents.",
+            variant: "destructive"
+          });
+          setResumeSelectionModal(false);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching resumes:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load resumes",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingResumes(false);
+    }
+  };
+
+  const handleGenerateButtonClick = async (type: 'resume' | 'coverLetter') => {
+    setDocumentType(type);
+    setResumeSelectionModal(true);
+    await fetchUserResumes();
+  };
+
+  const handleConfirmGenerate = async () => {
+    if (!selectedResumeId) {
+      toast({
+        title: "No Resume Selected",
+        description: "Please select a resume to continue",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setResumeSelectionModal(false);
+    
+    if (documentType === 'resume') {
+      await handleGenerateResume();
+    } else {
+      await handleGenerateCoverLetter();
+    }
+  };
+
   const handleGenerateResume = async () => {
     setGeneratingResume(true);
     try {
@@ -226,6 +302,7 @@ export default function JobOpportunityDetailPage() {
         },
         body: JSON.stringify({
           jobId: jobId,
+          resumeId: selectedResumeId,
           sessionId: sessionId,
           userId: sessionId ? null : userId, // Use userId only for authenticated users
         }),
@@ -302,6 +379,7 @@ export default function JobOpportunityDetailPage() {
         },
         body: JSON.stringify({
           jobId: jobId,
+          resumeId: selectedResumeId,
           sessionId: sessionId,
           userId: sessionId ? null : userId, // Use userId only for authenticated users
         }),
@@ -672,7 +750,7 @@ export default function JobOpportunityDetailPage() {
             <CardContent className="space-y-3">
               <Button 
                 className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                onClick={handleGenerateResume}
+                onClick={() => handleGenerateButtonClick('resume')}
                 disabled={generatingResume}
               >
                 {generatingResume ? (
@@ -685,7 +763,7 @@ export default function JobOpportunityDetailPage() {
               <Button 
                 variant="outline" 
                 className="w-full h-12 text-base font-semibold border-2 hover:bg-blue-50 dark:hover:bg-blue-950"
-                onClick={handleGenerateCoverLetter}
+                onClick={() => handleGenerateButtonClick('coverLetter')}
                 disabled={generatingCoverLetter}
               >
                 {generatingCoverLetter ? (
@@ -894,6 +972,71 @@ export default function JobOpportunityDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Resume Selection Modal */}
+      <Dialog open={resumeSelectionModal} onOpenChange={setResumeSelectionModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Select Resume for {documentType === 'resume' ? 'Tailored Resume' : 'Cover Letter'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {loadingResumes ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="h-6 w-6 animate-spin" />
+              </div>
+            ) : resumes.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">No resumes found</p>
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    setResumeSelectionModal(false);
+                    router.push("/dashboard/resume/new");
+                  }}
+                >
+                  Upload Resume
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="resume-select">Choose a resume to use as the base:</Label>
+                  <Select
+                    value={selectedResumeId}
+                    onValueChange={setSelectedResumeId}
+                  >
+                    <SelectTrigger id="resume-select">
+                      <SelectValue placeholder="Select a resume" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {resumes.map((resume) => (
+                        <SelectItem key={resume.id} value={resume.id}>
+                          {resume.file_name} - Uploaded {new Date(resume.created_at).toLocaleDateString()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  The selected resume will be used to generate a {documentType === 'resume' ? 'tailored resume' : 'customized cover letter'} for the {opportunity?.job_title} position at {opportunity?.company_name}.
+                </p>
+              </>
+            )}
+          </div>
+          {resumes.length > 0 && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setResumeSelectionModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmGenerate} disabled={!selectedResumeId}>
+                Generate {documentType === 'resume' ? 'Resume' : 'Cover Letter'}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

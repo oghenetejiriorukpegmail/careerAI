@@ -10,10 +10,10 @@ function sanitizeForPDF(text: string): string {
     'μ': 'u', // Greek small mu
     '–': '-', // En dash
     '—': '-', // Em dash
-    '"': '"', // Left double quote
-    '"': '"', // Right double quote
-    ''': "'", // Left single quote
-    ''': "'", // Right single quote
+    '\u201C': '"', // Left double quote
+    '\u201D': '"', // Right double quote
+    '\u2018': "'", // Left single quote
+    '\u2019': "'", // Right single quote
     '…': '...', // Ellipsis
     '°': ' degrees', // Degree symbol
     '±': '+/-', // Plus-minus
