@@ -233,6 +233,13 @@ export async function generateAtsResume(
       - You can reword for clarity but the facts must remain the same
       - If the candidate lacks a required skill, work with what they have
       
+      DATE FORMATTING REQUIREMENTS:
+      - Preserve EXACT dates as they appear in the source resume
+      - Use the same format (e.g., "April 2023", "Apr 2023", "04/2023", "2023-04")
+      - For current positions, use "Present" for endDate
+      - DO NOT convert date formats or change date representations
+      - Example: If resume says "April 2023 - Present", use exactly that
+      
       Focus on incorporating the keywords from the job description naturally while maintaining truthfulness.
       Return the result as a JSON object with this structure:
       {
@@ -614,7 +621,7 @@ export async function generateCoverLetter(
       3. When referencing experience, use the EXACT:
          - Job titles from the resume
          - Company names from the resume
-         - Dates from the resume
+         - Dates from the resume (preserve exact format, don't convert "April 2023" to "04/2023")
       4. You may:
          - Rephrase existing content professionally
          - Connect existing experience to job requirements

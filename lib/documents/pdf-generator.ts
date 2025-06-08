@@ -431,7 +431,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentPage = pageInfo2.page;
       currentY = pageInfo2.y;
       
-      // Job title and company in modern layout
+      // Job title
       drawSanitizedText(currentPage, job.title, {
         x: margins.left,
         y: currentY,
@@ -439,20 +439,19 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         font: helveticaBold,
         color: colors.primary,
       });
+      currentY -= 14;
       
-      // Company name on the same line, right-aligned
-      const companyText = job.company;
-      const companyWidth = helveticaBold.widthOfTextAtSize(companyText, 11);
-      drawSanitizedText(currentPage, companyText, {
-        x: width - margins.right - companyWidth,
+      // Company name on next line
+      drawSanitizedText(currentPage, job.company, {
+        x: margins.left,
         y: currentY,
         size: 11,
         font: helveticaBold,
         color: colors.secondary,
       });
-      currentY -= 16;
+      currentY -= 14;
       
-      // Date range and location
+      // Date range
       const dateText = `${job.startDate} - ${job.endDate || 'Present'}`;
       drawSanitizedText(currentPage, dateText, {
         x: margins.left,
@@ -462,15 +461,32 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         color: colors.secondary,
       });
       
+      // Location on the same line, right-aligned if it fits
       if (job.location) {
+        const dateWidth = helvetica.widthOfTextAtSize(dateText, 9);
         const locationWidth = helvetica.widthOfTextAtSize(job.location, 9);
-        drawSanitizedText(currentPage, job.location, {
-          x: width - margins.right - locationWidth,
-          y: currentY,
-          size: 9,
-          font: helvetica,
-          color: colors.secondary,
-        });
+        const totalWidth = dateWidth + locationWidth + 40; // 40pt gap
+        
+        if (totalWidth < contentWidth) {
+          // Fits on same line
+          drawSanitizedText(currentPage, job.location, {
+            x: width - margins.right - locationWidth,
+            y: currentY,
+            size: 9,
+            font: helvetica,
+            color: colors.secondary,
+          });
+        } else {
+          // Put on next line
+          currentY -= 12;
+          drawSanitizedText(currentPage, job.location, {
+            x: margins.left,
+            y: currentY,
+            size: 9,
+            font: helvetica,
+            color: colors.secondary,
+          });
+        }
       }
       currentY -= 18;
       
