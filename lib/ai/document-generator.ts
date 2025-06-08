@@ -242,6 +242,7 @@ export async function generateAtsResume(
             "location": "",
             "startDate": "",
             "endDate": "",
+            "summary": "",
             "description": ["", ""]
           }
         ],
@@ -299,8 +300,11 @@ export async function generateAtsResume(
         [{"name": "References available upon request", "title": "", "company": "", "phone": "", "email": "", "relationship": ""}]
       - Always include the references section unless specifically inappropriate for the role
       
-      IMPORTANT for experience descriptions:
-      - Each job's "description" field MUST be an array of individual bullet points
+      IMPORTANT for experience section:
+      - Each job should include BOTH a "summary" field AND a "description" array
+      - The "summary" field should be a 1-2 sentence overview of the role, responsibilities, and scope
+      - The "summary" should naturally incorporate relevant keywords from the job description
+      - The "description" field MUST be an array of individual bullet points for achievements
       - Each array element should be a single achievement or responsibility
       - Start each bullet with an action verb (e.g., "Managed", "Developed", "Led", "Implemented")
       - Make descriptions achievement-oriented and quantifiable where possible
@@ -308,11 +312,16 @@ export async function generateAtsResume(
       - Each bullet point should be 1-2 lines long for optimal ATS scanning
       - DO NOT combine multiple achievements into a single array element
       - Example format:
-        "description": [
-          "Led cross-functional team of 12 engineers to deliver project 2 weeks ahead of schedule",
-          "Implemented automated testing framework that reduced bug reports by 40%",
-          "Developed RESTful APIs serving 1M+ daily requests with 99.9% uptime"
-        ]
+        {
+          "title": "Senior Software Engineer",
+          "company": "Tech Corp",
+          "summary": "Led development of cloud-native applications serving 5M+ users, managing a team of 8 engineers and collaborating with product and design teams to deliver customer-facing features.",
+          "description": [
+            "Led cross-functional team of 12 engineers to deliver project 2 weeks ahead of schedule",
+            "Implemented automated testing framework that reduced bug reports by 40%",
+            "Developed RESTful APIs serving 1M+ daily requests with 99.9% uptime"
+          ]
+        }
       
       Include the most relevant skills from the candidate's profile that match the job requirements.
       Keep the content truthful and based on the provided information.

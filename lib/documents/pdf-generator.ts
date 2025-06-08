@@ -60,6 +60,7 @@ export interface ResumeData {
     location?: string;
     startDate: string;
     endDate?: string;
+    summary?: string;
     description: string[];
   }>;
   education: Array<{
@@ -472,6 +473,26 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         });
       }
       currentY -= 18;
+      
+      // Role summary if available
+      if (job.summary) {
+        const summaryLines = wrapText(job.summary, contentWidth, 9, helvetica);
+        for (const line of summaryLines) {
+          const pageInfo = checkAndAddPage(pdfDoc, currentPage, currentY, 12, margins);
+          currentPage = pageInfo.page;
+          currentY = pageInfo.y;
+          
+          drawSanitizedText(currentPage, line, {
+            x: margins.left,
+            y: currentY,
+            size: 9,
+            font: helvetica,
+            color: colors.text,
+          });
+          currentY -= 12;
+        }
+        currentY -= 6; // Extra space after summary
+      }
       
       // Achievement bullets with modern styling
       for (const bullet of job.description) {
