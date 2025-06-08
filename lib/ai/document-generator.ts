@@ -224,7 +224,16 @@ export async function generateAtsResume(
       ${JSON.stringify(jobDescription, null, 2)}
 
       Please tailor the resume to highlight relevant skills and experience that match the job requirements.
-      Focus on incorporating the keywords from the job description naturally.
+      
+      STRICT RULES:
+      - Use ONLY the information provided in the candidate's resume above
+      - DO NOT add any new experiences, skills, or qualifications
+      - DO NOT change job titles, company names, dates, or locations
+      - DO NOT add metrics or achievements not in the original
+      - You can reword for clarity but the facts must remain the same
+      - If the candidate lacks a required skill, work with what they have
+      
+      Focus on incorporating the keywords from the job description naturally while maintaining truthfulness.
       Return the result as a JSON object with this structure:
       {
         "fullName": "",
@@ -329,8 +338,26 @@ export async function generateAtsResume(
 
     const systemPrompt = `
       You are an expert resume writer who specializes in creating ATS-optimized resumes.
-      Your goal is to tailor the candidate's resume to match the job description without fabricating experience.
-      Focus on highlighting relevant experience, using appropriate keywords, and creating achievement-oriented bullet points.
+      Your goal is to tailor the candidate's resume to match the job description WITHOUT fabricating ANY information.
+      
+      ABSOLUTE REQUIREMENTS - NEVER VIOLATE THESE RULES:
+      1. USE ONLY information that exists in the candidate's uploaded resume
+      2. DO NOT invent, create, or embellish ANY:
+         - Job titles, companies, or dates
+         - Skills the candidate doesn't have
+         - Achievements or metrics not in the original
+         - Certifications or education not listed
+         - Technologies or tools not mentioned
+      3. You may ONLY:
+         - Reword existing content for clarity and ATS optimization
+         - Reorganize existing information for better impact
+         - Highlight relevant existing experience for the specific job
+         - Use synonyms or industry-standard terms for existing skills
+         - Format existing achievements with better action verbs
+      4. If the candidate lacks certain qualifications mentioned in the job:
+         - DO NOT add them
+         - Instead, emphasize their related/transferable skills
+         - Focus on what they DO have that's relevant
       
       CRITICAL for ATS optimization:
       - Experience descriptions MUST be formatted as arrays of individual bullet points
@@ -340,6 +367,9 @@ export async function generateAtsResume(
         * ATS can identify and score individual achievements
         * Keywords are easier to extract from structured bullet points
         * Action verbs at the start of bullets are weighted higher by ATS algorithms
+      
+      REMEMBER: The candidate must be able to defend every single item in an interview.
+      If it's not in their original resume, it CANNOT be in the tailored version.
       
       CRITICAL: You must return a valid JSON object exactly matching the requested structure.
       - Do not include any markdown formatting or code blocks
@@ -528,10 +558,18 @@ export async function generateCoverLetter(
 
       Please generate a professional, compelling cover letter that:
       1. Expresses interest in the specific role
-      2. Highlights 2-3 most relevant qualifications/experiences
+      2. Highlights 2-3 most relevant qualifications/experiences FROM THE RESUME
       3. Demonstrates understanding of the company
-      4. Explains why the candidate is a good fit
+      4. Explains why the candidate is a good fit BASED ON THEIR ACTUAL EXPERIENCE
       5. Includes a call to action
+
+      ABSOLUTE REQUIREMENTS:
+      - Use ONLY experiences, skills, and achievements that exist in the candidate's resume
+      - DO NOT invent any new qualifications, experiences, or skills
+      - DO NOT add metrics, achievements, or details not in the original resume
+      - If the candidate lacks certain requirements, focus on transferable skills they DO have
+      - Every claim must be traceable back to something in their resume
+      - The candidate must be able to back up every statement in an interview
 
       Return the result as a JSON object with this structure:
       {
@@ -565,6 +603,35 @@ export async function generateCoverLetter(
       You are an expert cover letter writer who specializes in creating personalized, compelling cover letters.
       Your goal is to create a cover letter that highlights the candidate's most relevant qualifications
       and demonstrates their fit for the specific role and company.
+      
+      STRICT INTEGRITY RULES - NEVER VIOLATE:
+      1. Use ONLY information from the candidate's provided resume
+      2. NEVER invent, embellish, or add:
+         - Job experiences not in the resume
+         - Skills or technologies not mentioned
+         - Metrics or achievements not listed
+         - Certifications or education not present
+      3. When referencing experience, use the EXACT:
+         - Job titles from the resume
+         - Company names from the resume
+         - Dates from the resume
+      4. You may:
+         - Rephrase existing content professionally
+         - Connect existing experience to job requirements
+         - Highlight transferable skills they actually have
+         - Use professional language to describe their real experience
+      5. If they lack specific requirements:
+         - Focus on related experience they DO have
+         - Emphasize transferable skills
+         - Show enthusiasm and ability to learn
+         - NEVER claim to have the missing requirement
+      
+      REMEMBER: The cover letter is a legal document. False claims can lead to:
+      - Immediate termination if discovered
+      - Damage to professional reputation
+      - Legal consequences in some cases
+      
+      The candidate must be able to provide examples and elaborate on EVERY claim in an interview.
       
       CRITICAL: You must return a valid JSON object exactly matching the requested structure.
       - Do not include any markdown formatting or code blocks
