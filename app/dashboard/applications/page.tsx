@@ -173,34 +173,52 @@ export default function ApplicationsPage() {
         throw new Error('User not authenticated');
       }
 
-      // Get download URL from Supabase Storage
+      // Try to download directly from Supabase Storage
       const { data, error } = await supabase.storage
         .from('user_files')
         .download(doc.file_path);
       
       if (error) {
-        throw error;
+        console.error('Storage download error:', error);
+        
+        // Fallback to API endpoint if direct download fails
+        const response = await fetch(`/api/documents/${doc.id}/download`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to download document');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.file_name;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        // Create blob URL and trigger download
+        const blob = new Blob([data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.file_name;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
       }
-
-      // Create blob URL and trigger download
-      const blob = new Blob([data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = doc.file_name;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
 
       toast({
         title: "Download Complete",
         description: `Downloaded ${doc.file_name}`,
       });
     } catch (error: any) {
+      console.error('Download error:', error);
       toast({
         title: "Download Failed",
-        description: error.message || "Failed to download document",
+        description: error.message || "Failed to download document. Please try again.",
         variant: "destructive",
       });
     }
@@ -219,20 +237,46 @@ export default function ApplicationsPage() {
         .createSignedUrl(doc.file_path, 3600); // 1 hour expiry
 
       if (urlError || !urlData?.signedUrl) {
-        throw urlError || new Error('Failed to get document URL');
+        console.error('Signed URL error:', urlError);
+        
+        // Fallback: Try to download and open as blob
+        const { data, error } = await supabase.storage
+          .from('user_files')
+          .download(doc.file_path);
+        
+        if (error) {
+          throw new Error('Unable to access document. It may have been moved or deleted.');
+        }
+        
+        // Create blob URL and open in new tab
+        const blob = new Blob([data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const newWindow = window.open(url, '_blank');
+        
+        // Clean up blob URL after a delay
+        if (newWindow) {
+          setTimeout(() => window.URL.revokeObjectURL(url), 60000); // 1 minute
+        } else {
+          window.URL.revokeObjectURL(url);
+          throw new Error('Pop-up blocked. Please allow pop-ups for this site.');
+        }
+      } else {
+        // Open signed URL in new tab
+        const newWindow = window.open(urlData.signedUrl, '_blank');
+        if (!newWindow) {
+          throw new Error('Pop-up blocked. Please allow pop-ups for this site.');
+        }
       }
-
-      // Open in new tab
-      window.open(urlData.signedUrl, '_blank');
 
       toast({
         title: "Document Opened",
         description: `Viewing ${doc.file_name}`,
       });
     } catch (error: any) {
+      console.error('View error:', error);
       toast({
         title: "View Failed",
-        description: error.message || "Failed to view document",
+        description: error.message || "Failed to view document. Try downloading instead.",
         variant: "destructive",
       });
     }

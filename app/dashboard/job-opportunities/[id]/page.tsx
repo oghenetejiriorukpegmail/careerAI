@@ -71,6 +71,8 @@ export default function JobOpportunityDetailPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState<string>('');
   const [loadingResumes, setLoadingResumes] = useState(false);
+  const [existingApplication, setExistingApplication] = useState<any>(null);
+  const [checkingApplication, setCheckingApplication] = useState(false);
   const [editFormData, setEditFormData] = useState({
     job_title: '',
     company_name: '',
@@ -89,6 +91,7 @@ export default function JobOpportunityDetailPage() {
   useEffect(() => {
     if (jobId) {
       fetchJobOpportunity();
+      checkExistingApplication();
     }
   }, [jobId]);
 
@@ -202,6 +205,30 @@ export default function JobOpportunityDetailPage() {
       });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const checkExistingApplication = async () => {
+    try {
+      setCheckingApplication(true);
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (userData && userData.user) {
+        const { data: appData, error: appError } = await supabase
+          .from("job_applications")
+          .select("*, generated_documents!inner(id, doc_type, file_name)")
+          .eq("user_id", userData.user.id)
+          .eq("job_description_id", jobId)
+          .single();
+          
+        if (!appError && appData) {
+          setExistingApplication(appData);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking application:", error);
+    } finally {
+      setCheckingApplication(false);
     }
   };
 
@@ -326,30 +353,52 @@ export default function JobOpportunityDetailPage() {
             if (statusData.status === 'completed') {
               clearInterval(checkJobStatus);
               
-              // Get the generated document
-              const docResponse = await fetch(`/api/documents/${statusData.results.documentId}/download`);
-              if (docResponse.ok) {
-                const blob = await docResponse.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = statusData.results.fileName || 'resume.pdf';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
+              // Get the generated document - check both result and results fields
+              const documentId = statusData.result?.documentId || statusData.results?.documentId;
+              const fileName = statusData.result?.fileName || statusData.results?.fileName || 'resume.pdf';
+              
+              if (documentId) {
+                const docResponse = await fetch(`/api/documents/${documentId}/download`);
+                if (docResponse.ok) {
+                  const blob = await docResponse.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.style.display = 'none';
+                  a.href = url;
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  
+                  toast({
+                    title: "Success",
+                    description: "Resume generated and downloaded successfully!"
+                  });
+                  
+                  // Refresh application status
+                  checkExistingApplication();
+                } else {
+                  toast({
+                    title: "Download Failed",
+                    description: "Resume was generated but download failed. Please check the Applications page.",
+                    variant: "destructive"
+                  });
+                }
+              } else {
                 toast({
                   title: "Success",
-                  description: "Resume generated and downloaded successfully!"
+                  description: "Resume generated successfully! Check the Applications page to download.",
                 });
+                
+                // Refresh application status
+                checkExistingApplication();
               }
             } else if (statusData.status === 'failed') {
               clearInterval(checkJobStatus);
               toast({
-                title: "Error",
-                description: statusData.error || 'Failed to generate resume',
+                title: "Generation Failed",
+                description: statusData.error || 'Failed to generate resume. Please try again.',
                 variant: "destructive"
               });
             }
@@ -438,30 +487,52 @@ export default function JobOpportunityDetailPage() {
             if (statusData.status === 'completed') {
               clearInterval(checkJobStatus);
               
-              // Get the generated document
-              const docResponse = await fetch(`/api/documents/${statusData.results.documentId}/download`);
-              if (docResponse.ok) {
-                const blob = await docResponse.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = statusData.results.fileName || 'cover-letter.pdf';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
+              // Get the generated document - check both result and results fields
+              const documentId = statusData.result?.documentId || statusData.results?.documentId;
+              const fileName = statusData.result?.fileName || statusData.results?.fileName || 'cover-letter.pdf';
+              
+              if (documentId) {
+                const docResponse = await fetch(`/api/documents/${documentId}/download`);
+                if (docResponse.ok) {
+                  const blob = await docResponse.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.style.display = 'none';
+                  a.href = url;
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  
+                  toast({
+                    title: "Success",
+                    description: "Cover letter generated and downloaded successfully!"
+                  });
+                  
+                  // Refresh application status
+                  checkExistingApplication();
+                } else {
+                  toast({
+                    title: "Download Failed",
+                    description: "Cover letter was generated but download failed. Please check the Applications page.",
+                    variant: "destructive"
+                  });
+                }
+              } else {
                 toast({
                   title: "Success",
-                  description: "Cover letter generated and downloaded successfully!"
+                  description: "Cover letter generated successfully! Check the Applications page to download.",
                 });
+                
+                // Refresh application status
+                checkExistingApplication();
               }
             } else if (statusData.status === 'failed') {
               clearInterval(checkJobStatus);
               toast({
-                title: "Error",
-                description: statusData.error || 'Failed to generate cover letter',
+                title: "Generation Failed",
+                description: statusData.error || 'Failed to generate cover letter. Please try again.',
                 variant: "destructive"
               });
             }
@@ -821,27 +892,27 @@ export default function JobOpportunityDetailPage() {
               <Button 
                 className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                 onClick={() => handleGenerateButtonClick('resume')}
-                disabled={generatingResume}
+                disabled={generatingResume || checkingApplication}
               >
                 {generatingResume ? (
                   <Loader className="h-5 w-5 mr-3 animate-spin" />
                 ) : (
                   <FileText className="h-5 w-5 mr-3" />
                 )}
-                Generate Tailored Resume
+                {existingApplication?.resume_id ? 'Regenerate' : 'Generate'} Tailored Resume
               </Button>
               <Button 
                 variant="outline" 
                 className="w-full h-12 text-base font-semibold border-2 hover:bg-blue-50 dark:hover:bg-blue-950"
                 onClick={() => handleGenerateButtonClick('coverLetter')}
-                disabled={generatingCoverLetter}
+                disabled={generatingCoverLetter || checkingApplication}
               >
                 {generatingCoverLetter ? (
                   <Loader className="h-5 w-5 mr-3 animate-spin" />
                 ) : (
                   <Download className="h-5 w-5 mr-3" />
                 )}
-                Generate Cover Letter
+                {existingApplication?.cover_letter_id ? 'Regenerate' : 'Generate'} Cover Letter
               </Button>
             </CardContent>
           </Card>

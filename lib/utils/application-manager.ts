@@ -208,6 +208,23 @@ export async function saveGeneratedDocument(
       throw new Error('Database connection not available');
     }
 
+    // Check if document already exists
+    const { data: existingDoc, error: checkError } = await supabase
+      .from('generated_documents')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('job_description_id', jobDescriptionId)
+      .eq('doc_type', docType)
+      .eq('file_path', filePath)
+      .single();
+
+    if (existingDoc && !checkError) {
+      // Document already exists, return its ID
+      console.log('Document already exists, returning existing ID:', existingDoc.id);
+      return existingDoc.id;
+    }
+
+    // Create new document
     const documentData = {
       user_id: userId,
       job_description_id: jobDescriptionId,
@@ -224,6 +241,24 @@ export async function saveGeneratedDocument(
       .single();
 
     if (error) {
+      // If it's a duplicate key error, try to fetch the existing document
+      if (error.code === '23505' || error.message?.includes('duplicate')) {
+        console.warn('Duplicate document detected, fetching existing document');
+        const { data: existingDoc2, error: fetchError } = await supabase
+          .from('generated_documents')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('job_description_id', jobDescriptionId)
+          .eq('doc_type', docType)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!fetchError && existingDoc2) {
+          return existingDoc2.id;
+        }
+      }
+      
       console.error('Error saving generated document:', error);
       throw new Error('Failed to save generated document');
     }
