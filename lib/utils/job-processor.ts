@@ -432,7 +432,7 @@ export class JobProcessor {
         .from('user_files')
         .upload(filePath, Buffer.from(pdf), {
           contentType: 'application/pdf',
-          upsert: false
+          upsert: true  // Allow overwriting for retries
         });
       
       if (uploadError) {
@@ -526,7 +526,7 @@ export class JobProcessor {
         .from('user_files')
         .upload(filePath, pdfBuffer, {
           contentType: 'application/pdf',
-          upsert: false
+          upsert: true  // Allow overwriting for retries
         });
       
       if (uploadError) {
@@ -596,6 +596,8 @@ export class JobProcessor {
   static async processPendingJobs(batchSize: number = 1): Promise<void> {
     const supabase = createServiceRoleClient();
     
+    console.log(`[JOB PROCESSOR] Querying for pending jobs (batch size: ${batchSize})`);
+    
     // Get oldest pending jobs
     const { data: jobs, error } = await supabase
       .from('job_processing')
@@ -604,13 +606,33 @@ export class JobProcessor {
       .order('created_at', { ascending: true })
       .limit(batchSize);
     
-    if (error || !jobs || jobs.length === 0) {
+    if (error) {
+      console.error('[JOB PROCESSOR] Error querying pending jobs:', error);
+      return;
+    }
+    
+    if (!jobs || jobs.length === 0) {
+      console.log('[JOB PROCESSOR] No pending jobs found');
       return; // No pending jobs
     }
     
+    console.log(`[JOB PROCESSOR] Found ${jobs.length} pending jobs to process`);
+    jobs.forEach(job => {
+      console.log(`[JOB PROCESSOR] - Job ${job.id}: type=${job.type}, created=${job.created_at}`);
+    });
+    
     // Process jobs in parallel with concurrency limit
     const promises = jobs.map(job => this.processJob(job as JobProcessingRecord));
-    await Promise.allSettled(promises);
+    const results = await Promise.allSettled(promises);
+    
+    results.forEach((result, index) => {
+      const job = jobs[index];
+      if (result.status === 'rejected') {
+        console.error(`[JOB PROCESSOR] Failed to process job ${job.id}:`, result.reason);
+      } else {
+        console.log(`[JOB PROCESSOR] Successfully processed job ${job.id}`);
+      }
+    });
   }
   
   /**
@@ -629,20 +651,28 @@ export class JobProcessor {
    * Process a single job
    */
   private static async processJob(job: JobProcessingRecord): Promise<void> {
-    // Process based on job type
-    switch (job.type) {
-      case 'resume_parse':
-        await this.processResumeParseJob(job);
-        break;
-      case 'resume_generate':
-        await this.processResumeGenerateJob(job);
-        break;
-      case 'cover_letter':
-        await this.processCoverLetterJob(job);
-        break;
-      default:
-        console.error('Unknown job type:', job.type);
-        await this.updateJobStatus(job.id, 'failed', null, 'Unknown job type');
+    console.log(`[JOB PROCESSOR] Starting to process job ${job.id} of type ${job.type}`);
+    
+    try {
+      // Process based on job type
+      switch (job.type) {
+        case 'resume_parse':
+          await this.processResumeParseJob(job);
+          break;
+        case 'resume_generate':
+          await this.processResumeGenerateJob(job);
+          break;
+        case 'cover_letter':
+          await this.processCoverLetterJob(job);
+          break;
+        default:
+          console.error('Unknown job type:', job.type);
+          await this.updateJobStatus(job.id, 'failed', null, 'Unknown job type');
+      }
+      console.log(`[JOB PROCESSOR] Completed processing job ${job.id}`);
+    } catch (error) {
+      console.error(`[JOB PROCESSOR] Error processing job ${job.id}:`, error);
+      throw error;
     }
   }
   

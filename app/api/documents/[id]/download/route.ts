@@ -34,13 +34,25 @@ export async function GET(
     
     // Get file from storage
     const { data: fileData, error: fileError } = await supabase.storage
-      .from('documents')
+      .from('user_files')
       .download(document.file_path);
       
     if (fileError || !fileData) {
-      console.error('Error downloading file:', fileError);
+      console.error('Error downloading file from user_files:', fileError);
+      console.error('Document details:', {
+        id: document.id,
+        file_path: document.file_path,
+        file_name: document.file_name,
+        doc_type: document.doc_type
+      });
+      
+      // If the file is not found in user_files, it might be a path issue
+      // Return a more helpful error message
       return NextResponse.json({ 
-        error: 'Failed to download file'
+        error: 'Failed to download file',
+        details: fileError?.message || 'File not found in storage',
+        documentId: document.id,
+        filePath: document.file_path
       }, { status: 500 });
     }
     

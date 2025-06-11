@@ -1,5 +1,11 @@
 import { calculateOptimalTokens } from './token-manager';
 
+// Debug environment variables during initialization
+console.log('[AI_CONFIG] Initializing with environment:', {
+  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? `${process.env.OPENROUTER_API_KEY.substring(0, 10)}...` : 'NOT SET',
+  NODE_ENV: process.env.NODE_ENV
+});
+
 // AI model configuration
 export const AI_CONFIG = {
   // OpenRouter configuration
@@ -1092,6 +1098,15 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
         console.log("Adding JSON formatting to system prompt");
         systemPrompt += "\nIMPORTANT: Return your response as a valid JSON object without any markdown formatting or code blocks.";
       }
+    }
+    
+    // Debug log the API key availability
+    if (!AI_CONFIG.openrouter.apiKey) {
+      console.error('[OPENROUTER] API key is not set! Check OPENROUTER_API_KEY environment variable.');
+      console.error('[OPENROUTER] Current env check:', {
+        hasKey: !!process.env.OPENROUTER_API_KEY,
+        keyPrefix: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.substring(0, 10) : 'undefined'
+      });
     }
     
     // Make the request to OpenRouter API

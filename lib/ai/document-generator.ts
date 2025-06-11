@@ -390,8 +390,9 @@ export async function generateAtsResume(
     let userSettings;
     if (userId) {
       try {
-        const { createServerClient } = await import('../supabase/server-client');
-        const supabase = createServerClient();
+        // Use service role client for background jobs to avoid cookie context issues
+        const { createServiceRoleClient } = await import('../supabase/server-client');
+        const supabase = createServiceRoleClient();
         
         const { data: settingsRow } = await supabase
           .from('user_settings')
@@ -405,6 +406,7 @@ export async function generateAtsResume(
         }
       } catch (error) {
         console.error('[RESUME] Error loading user settings:', error);
+        // Continue without user settings - use defaults
       }
     }
 
@@ -651,8 +653,9 @@ export async function generateCoverLetter(
     let userSettings;
     if (userId) {
       try {
-        const { createServerClient } = await import('../supabase/server-client');
-        const supabase = createServerClient();
+        // Use service role client for background jobs to avoid cookie context issues
+        const { createServiceRoleClient } = await import('../supabase/server-client');
+        const supabase = createServiceRoleClient();
         
         const { data: settingsRow } = await supabase
           .from('user_settings')

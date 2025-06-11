@@ -2,16 +2,19 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-// Get these from environment variables - required for production
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
 /**
  * Creates a Supabase Admin client with the Service Role key - can bypass RLS
  * IMPORTANT: Only use server-side
  */
 export function createServiceRoleClient() {
+  // Get these from environment variables at runtime
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  
   if (!supabaseUrl || !serviceKey) {
+    console.error('Environment check in createServiceRoleClient:');
+    console.error('- NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? 'Set' : 'Not set');
+    console.error('- SUPABASE_SERVICE_ROLE_KEY:', serviceKey ? 'Set' : 'Not set');
     throw new Error('Missing required Supabase environment variables');
   }
   

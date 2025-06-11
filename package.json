@@ -10,7 +10,7 @@
     "start:replit": "NODE_ENV=production REPLIT=true node server-replit.js",
     "start:standalone": "node .next/standalone/server.js",
     "lint": "next lint",
-    "worker": "tsx scripts/job-worker.ts",
+    "worker": "node scripts/job-worker-entry.js",
     "dev:all": "concurrently \"npm run dev\" \"npm run worker\""
   },
   "dependencies": {
