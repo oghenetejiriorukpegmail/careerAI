@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
 
     const userIdentifier = userId || sessionId;
     
+    console.log('[STATS API] Fetching stats for user:', userIdentifier);
+    
     const stats = await getApplicationStats(userIdentifier!, sessionId || undefined);
 
     return NextResponse.json({ stats });

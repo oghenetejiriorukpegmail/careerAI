@@ -24,6 +24,11 @@ export function getSupabaseClient() {
         persistSession: true,
         detectSessionInUrl: true,
         storageKey: 'careerai-auth-token'
+      },
+      global: {
+        headers: {
+          'x-client-info': 'supabase-js/2.39.0'
+        }
       }
     });
   }

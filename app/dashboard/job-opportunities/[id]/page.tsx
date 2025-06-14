@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +60,7 @@ type Resume = {
 };
 
 export default function JobOpportunityDetailPage() {
+  const supabase = getSupabaseClient();
   const [opportunity, setOpportunity] = useState<JobOpportunity | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -212,19 +213,26 @@ export default function JobOpportunityDetailPage() {
   const checkExistingApplication = async () => {
     try {
       setCheckingApplication(true);
-      const { data: userData } = await supabase.auth.getUser();
       
-      if (userData && userData.user) {
-        const { data: appData, error: appError } = await supabase
-          .from("job_applications")
-          .select("*, generated_documents!inner(id, doc_type, file_name)")
-          .eq("user_id", userData.user.id)
-          .eq("job_description_id", jobId)
-          .single();
-          
-        if (!appError && appData) {
-          setExistingApplication(appData);
+      console.log("Checking for existing application via API...");
+      
+      const response = await fetch(`/api/applications/check?jobDescriptionId=${jobId}`);
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log("Application check result:", data);
+        
+        if (data.application) {
+          console.log("Found existing application:", data.application);
+          setExistingApplication(data.application);
+        } else {
+          console.log("No existing application found");
+          if (data.documents && data.documents.length > 0) {
+            console.log("Found documents without application:", data.documents);
+          }
         }
+      } else {
+        console.error("Error checking application:", data.error, data.details);
       }
     } catch (error) {
       console.error("Error checking application:", error);
@@ -386,12 +394,23 @@ export default function JobOpportunityDetailPage() {
             if (statusData.status === 'completed') {
               clearInterval(checkJobStatus);
               
+              console.log('Job completed, status data:', statusData);
+              
               // Get the generated document - check both result and results fields
               const documentId = statusData.result?.documentId || statusData.results?.documentId;
               const fileName = statusData.result?.fileName || statusData.results?.fileName || 'resume.pdf';
               
+              console.log('Document ID:', documentId, 'File Name:', fileName);
+              
               if (documentId) {
-                const docResponse = await fetch(`/api/documents/${documentId}/download`);
+                const sessionId = localStorage.getItem('sessionUserId');
+                const headers: any = {};
+                if (sessionId) {
+                  headers['x-session-id'] = sessionId;
+                }
+                const docResponse = await fetch(`/api/documents/${documentId}/download`, {
+                  headers
+                });
                 if (docResponse.ok) {
                   const blob = await docResponse.blob();
                   const url = window.URL.createObjectURL(blob);
@@ -409,9 +428,42 @@ export default function JobOpportunityDetailPage() {
                     description: "Resume generated and downloaded successfully!"
                   });
                   
-                  // Refresh application status
-                  checkExistingApplication();
+                  // Refresh application status after a short delay to ensure DB is updated
+                  setTimeout(async () => {
+                    console.log("Refreshing application status after resume generation...");
+                    await checkExistingApplication();
+                    
+                    // If still no application found, create one manually
+                    if (!existingApplication && documentId) {
+                      console.log("Creating application record manually for resume...");
+                      try {
+                        const response = await fetch('/api/applications/create', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            jobDescriptionId: jobId,
+                            resumeId: documentId
+                          })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                          console.log("Application created/updated successfully:", data.application);
+                          setExistingApplication(data.application);
+                        } else {
+                          console.error("Error creating application:", data.error, data.details);
+                        }
+                      } catch (error) {
+                        console.error("Error calling create application API:", error);
+                      }
+                    }
+                  }, 2000);
                 } else {
+                  const errorText = await docResponse.text();
+                  console.error('Download failed:', docResponse.status, errorText);
                   toast({
                     title: "Download Failed",
                     description: "Resume was generated but download failed. Please check the Applications page.",
@@ -517,15 +569,28 @@ export default function JobOpportunityDetailPage() {
             const statusResponse = await fetch(`/api/job-status/${jobProcessingId}`);
             const statusData = await statusResponse.json();
             
+            console.log('Cover Letter Job status check:', statusData);
+            
             if (statusData.status === 'completed') {
               clearInterval(checkJobStatus);
+              
+              console.log('Cover Letter Job completed, full status data:', statusData);
               
               // Get the generated document - check both result and results fields
               const documentId = statusData.result?.documentId || statusData.results?.documentId;
               const fileName = statusData.result?.fileName || statusData.results?.fileName || 'cover-letter.pdf';
               
+              console.log('Cover Letter - Document ID:', documentId, 'File Name:', fileName);
+              
               if (documentId) {
-                const docResponse = await fetch(`/api/documents/${documentId}/download`);
+                const sessionId = localStorage.getItem('sessionUserId');
+                const headers: any = {};
+                if (sessionId) {
+                  headers['x-session-id'] = sessionId;
+                }
+                const docResponse = await fetch(`/api/documents/${documentId}/download`, {
+                  headers
+                });
                 if (docResponse.ok) {
                   const blob = await docResponse.blob();
                   const url = window.URL.createObjectURL(blob);
@@ -543,9 +608,42 @@ export default function JobOpportunityDetailPage() {
                     description: "Cover letter generated and downloaded successfully!"
                   });
                   
-                  // Refresh application status
-                  checkExistingApplication();
+                  // Refresh application status after a short delay to ensure DB is updated
+                  setTimeout(async () => {
+                    console.log("Refreshing application status after cover letter generation...");
+                    await checkExistingApplication();
+                    
+                    // If still no application found, create one manually
+                    if (!existingApplication && documentId) {
+                      console.log("Creating application record manually for cover letter...");
+                      try {
+                        const response = await fetch('/api/applications/create', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            jobDescriptionId: jobId,
+                            coverLetterId: documentId
+                          })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                          console.log("Application created/updated successfully:", data.application);
+                          setExistingApplication(data.application);
+                        } else {
+                          console.error("Error creating application:", data.error, data.details);
+                        }
+                      } catch (error) {
+                        console.error("Error calling create application API:", error);
+                      }
+                    }
+                  }, 2000);
                 } else {
+                  const errorText = await docResponse.text();
+                  console.error('Cover Letter Download failed:', docResponse.status, errorText);
                   toast({
                     title: "Download Failed",
                     description: "Cover letter was generated but download failed. Please check the Applications page.",
@@ -553,13 +651,17 @@ export default function JobOpportunityDetailPage() {
                   });
                 }
               } else {
+                console.log("No document ID returned, but job completed successfully");
                 toast({
                   title: "Success",
                   description: "Cover letter generated successfully! Check the Applications page to download.",
                 });
                 
-                // Refresh application status
-                checkExistingApplication();
+                // Refresh application status with a delay
+                setTimeout(() => {
+                  console.log("Refreshing application status after document generation (no ID case)...");
+                  checkExistingApplication();
+                }, 2000);
               }
             } else if (statusData.status === 'failed') {
               clearInterval(checkJobStatus);

@@ -27,6 +27,7 @@ CareerAI is an AI-Assisted Job Application App that helps users optimize their j
 
 ### External Services
 - Bright Data MCP for web scraping LinkedIn profiles and job boards (Indeed, LinkedIn, Dice)
+- Puppeteer MCP for browser automation and advanced web scraping capabilities
 
 ### Deployment
 - Application will be deployed on Replit

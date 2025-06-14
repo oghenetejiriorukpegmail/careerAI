@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server-client';
+import { getSupabaseAdminClient } from '@/lib/supabase/client';
 
 export async function GET(
   request: NextRequest,
@@ -12,28 +13,49 @@ export async function GET(
     const supabase = createServerClient();
     const { data: { session } } = await supabase.auth.getSession();
     
-    if (!session?.user) {
+    let userId: string | null = null;
+    
+    if (session?.user) {
+      userId = session.user.id;
+    } else {
+      // Check for session-based user
+      const sessionUserId = request.headers.get('x-session-id');
+      if (sessionUserId) {
+        userId = sessionUserId;
+      }
+    }
+    
+    if (!userId) {
       return NextResponse.json({ 
         error: 'Authentication required'
       }, { status: 401 });
     }
     
-    // Get document from database
-    const { data: document, error: docError } = await supabase
+    // Use service role client to bypass RLS for document lookup
+    const adminSupabase = getSupabaseAdminClient();
+    
+    // Get document from database - first verify it belongs to the user
+    const { data: document, error: docError } = await adminSupabase
       .from('generated_documents')
       .select('*')
       .eq('id', documentId)
-      .eq('user_id', session.user.id)
+      .eq('user_id', userId)
       .single();
       
     if (docError || !document) {
+      console.error('Document lookup error:', {
+        documentId,
+        userId,
+        error: docError
+      });
       return NextResponse.json({ 
-        error: 'Document not found'
+        error: 'Document not found',
+        details: docError?.message
       }, { status: 404 });
     }
     
-    // Get file from storage
-    const { data: fileData, error: fileError } = await supabase.storage
+    // Get file from storage using admin client
+    const { data: fileData, error: fileError } = await adminSupabase.storage
       .from('user_files')
       .download(document.file_path);
       

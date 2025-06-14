@@ -66,6 +66,7 @@
     "zod": "^3.25.21"
   },
   "devDependencies": {
+    "@modelcontextprotocol/server-puppeteer": "^2025.5.12",
     "@types/cheerio": "^0.22.35",
     "@types/node": "^20",
     "@types/react": "^18",

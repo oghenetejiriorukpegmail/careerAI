@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ type JobMatch = {
 };
 
 export default function DashboardPage() {
+  const supabase = getSupabaseClient();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<JobApplication[]>([]);
@@ -48,80 +49,28 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
+        // First check if user is authenticated
         const { data: userData } = await supabase.auth.getUser();
         
         if (userData && userData.user) {
-          // Fetch profile data
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userData.user.id)
-            .single();
+          // Fetch all dashboard data via API (bypasses RLS)
+          const dashboardResponse = await fetch('/api/dashboard/data');
           
-          setProfile(profileData);
-          
-          // Fetch job applications (recent)
-          const { data: applicationsData } = await supabase
-            .from("job_applications")
-            .select(`
-              id,
-              status,
-              created_at,
-              job_description_id,
-              job_descriptions (
-                company_name,
-                job_title
-              )
-            `)
-            .eq("user_id", userData.user.id)
-            .order("created_at", { ascending: false })
-            .limit(5);
+          if (dashboardResponse.ok) {
+            const dashboardData = await dashboardResponse.json();
             
-          if (applicationsData) {
-            setApplications(applicationsData.map((app: any) => ({
-              id: app.id,
-              company_name: app.job_descriptions?.company_name || "Unknown Company",
-              job_title: app.job_descriptions?.job_title || "Unknown Position",
-              status: app.status,
-              created_at: app.created_at
-            })));
+            setProfile(dashboardData.profile);
+            setApplications(dashboardData.applications);
+            setTotalApplications(dashboardData.totalApplications);
+            setJobMatches(dashboardData.jobMatches);
+            setTotalJobMatches(dashboardData.totalJobMatches);
+            setResumeCount(dashboardData.resumeCount);
+            
+            console.log('Dashboard data loaded:', dashboardData);
+          } else {
+            const error = await dashboardResponse.json();
+            console.error('Error fetching dashboard data:', error);
           }
-
-          // Fetch total application count
-          const { count: totalAppCount } = await supabase
-            .from("job_applications")
-            .select("*", { count: 'exact', head: true })
-            .eq("user_id", userData.user.id);
-            
-          setTotalApplications(totalAppCount || 0);
-
-          // Fetch job matches (recent)
-          const { data: matchesData } = await supabase
-            .from("job_matches")
-            .select("*")
-            .eq("user_id", userData.user.id)
-            .order("matched_at", { ascending: false })
-            .limit(5);
-            
-          if (matchesData) {
-            setJobMatches(matchesData);
-          }
-
-          // Fetch total job matches count
-          const { count: totalMatchCount } = await supabase
-            .from("job_matches")
-            .select("*", { count: 'exact', head: true })
-            .eq("user_id", userData.user.id);
-            
-          setTotalJobMatches(totalMatchCount || 0);
-
-          // Fetch resume count
-          const { count: resumeCount } = await supabase
-            .from("resumes")
-            .select("*", { count: 'exact', head: true })
-            .eq("user_id", userData.user.id);
-            
-          setResumeCount(resumeCount || 0);
 
           // Fetch application statistics
           try {
@@ -129,6 +78,7 @@ export default function DashboardPage() {
             if (statsResponse.ok) {
               const { stats } = await statsResponse.json();
               setApplicationStats(stats);
+              console.log('Application stats loaded:', stats);
             }
           } catch (statsError) {
             console.error('Error fetching application stats:', statsError);
@@ -171,6 +121,14 @@ export default function DashboardPage() {
           <Link href="/dashboard/job-matching" passHref>
             <Button variant="outline">Find Jobs</Button>
           </Link>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => window.location.reload()}
+            title="Refresh dashboard data"
+          >
+            Refresh
+          </Button>
         </div>
       </div>
 

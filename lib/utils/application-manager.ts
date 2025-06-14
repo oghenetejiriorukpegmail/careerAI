@@ -25,6 +25,8 @@ export interface UpdateApplicationParams {
  */
 export async function createOrUpdateApplication(params: CreateApplicationParams) {
   try {
+    console.log('createOrUpdateApplication called with:', params);
+    
     const supabase = getSupabaseAdminClient();
     if (!supabase) {
       throw new Error('Database connection not available');
@@ -41,9 +43,9 @@ export async function createOrUpdateApplication(params: CreateApplicationParams)
       .select('id, status, applied_date, resume_id, cover_letter_id')
       .eq('user_id', userIdentifier)
       .eq('job_description_id', params.jobDescriptionId)
-      .single();
+      .maybeSingle();
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+    if (checkError) {
       console.error('Error checking existing application:', checkError);
       throw new Error('Failed to check existing application');
     }
@@ -203,6 +205,8 @@ export async function saveGeneratedDocument(
   filePath: string
 ): Promise<string> {
   try {
+    console.log('saveGeneratedDocument called with:', { userId, jobDescriptionId, docType, fileName, filePath });
+    
     const supabase = getSupabaseAdminClient();
     if (!supabase) {
       throw new Error('Database connection not available');
@@ -295,6 +299,8 @@ export async function getApplicationStats(userId: string, sessionId?: string) {
       throw new Error('Failed to fetch application stats');
     }
 
+    console.log('Application stats - raw data:', applications);
+
     const stats = {
       total: applications?.length || 0,
       to_apply: 0,
@@ -311,9 +317,13 @@ export async function getApplicationStats(userId: string, sessionId?: string) {
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     applications?.forEach((app: any) => {
+      console.log('Processing application:', { status: app.status, applied_date: app.applied_date });
+      
       // Count by status
       if (app.status in stats) {
         (stats as any)[app.status]++;
+      } else {
+        console.warn('Unknown status:', app.status);
       }
 
       // Count applications by time period
@@ -327,6 +337,8 @@ export async function getApplicationStats(userId: string, sessionId?: string) {
         }
       }
     });
+    
+    console.log('Final application stats:', stats);
 
     return stats;
   } catch (error) {
