@@ -6,6 +6,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ApplicationStatusSelect } from "@/components/application-status-select";
 
 type JobApplication = {
   id: string;
@@ -203,26 +204,31 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-5">
-              <div className="text-center">
+              <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20">
                 <div className="text-2xl font-bold text-blue-600">{applicationStats.to_apply}</div>
                 <p className="text-xs text-muted-foreground">To Apply</p>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/20">
                 <div className="text-2xl font-bold text-yellow-600">{applicationStats.applied}</div>
                 <p className="text-xs text-muted-foreground">Applied</p>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20">
                 <div className="text-2xl font-bold text-purple-600">{applicationStats.interviewing}</div>
                 <p className="text-xs text-muted-foreground">Interviewing</p>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 rounded-lg bg-green-50 dark:bg-green-950/20">
                 <div className="text-2xl font-bold text-green-600">{applicationStats.offered}</div>
                 <p className="text-xs text-muted-foreground">Offered</p>
               </div>
-              <div className="text-center">
+              <div className="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950/20">
                 <div className="text-2xl font-bold text-red-600">{applicationStats.rejected}</div>
                 <p className="text-xs text-muted-foreground">Rejected</p>
               </div>
+            </div>
+            <div className="mt-4 p-3 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground text-center">
+                Click on any application status above to update it
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -238,16 +244,38 @@ export default function DashboardPage() {
             {applications.length > 0 ? (
               <div className="space-y-4">
                 {applications.map((application) => (
-                  <div key={application.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{application.job_title}</p>
-                      <p className="text-sm text-muted-foreground">{application.company_name}</p>
+                  <div key={application.id} className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{application.job_title}</p>
+                      <p className="text-sm text-muted-foreground truncate">{application.company_name}</p>
                     </div>
-                    <div>
-                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-secondary">
-                        {application.status.replace("_", " ")}
-                      </span>
-                    </div>
+                    <ApplicationStatusSelect
+                      applicationId={application.id}
+                      currentStatus={application.status}
+                      onStatusChange={async (newStatus) => {
+                        // Update local state
+                        const updatedApps = applications.map(app => 
+                          app.id === application.id ? { ...app, status: newStatus } : app
+                        );
+                        setApplications(updatedApps);
+                        
+                        // Refresh stats after a short delay
+                        setTimeout(async () => {
+                          try {
+                            const { data: userData } = await supabase.auth.getUser();
+                            if (userData?.user) {
+                              const statsResponse = await fetch(`/api/applications/stats?userId=${userData.user.id}`);
+                              if (statsResponse.ok) {
+                                const { stats } = await statsResponse.json();
+                                setApplicationStats(stats);
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Error refreshing stats:', error);
+                          }
+                        }, 500);
+                      }}
+                    />
                   </div>
                 ))}
               </div>
