@@ -67,6 +67,7 @@ export default function JobOpportunityDetailPage() {
   const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [resumeSelectionModal, setResumeSelectionModal] = useState(false);
+  const [regenerateConfirmModal, setRegenerateConfirmModal] = useState(false);
   const [documentType, setDocumentType] = useState<'resume' | 'coverLetter'>('resume');
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState<string>('');
@@ -272,9 +273,41 @@ export default function JobOpportunityDetailPage() {
   };
 
   const handleGenerateButtonClick = async (type: 'resume' | 'coverLetter') => {
+    // Check if document already exists
+    const hasExistingDocument = type === 'resume' 
+      ? existingApplication?.resume_id 
+      : existingApplication?.cover_letter_id;
+    
     setDocumentType(type);
+    
+    if (hasExistingDocument) {
+      // Show confirmation dialog for regeneration
+      setRegenerateConfirmModal(true);
+    } else {
+      // No existing document, proceed with generation
+      setResumeSelectionModal(true);
+      await fetchUserResumes();
+    }
+  };
+  
+  const handleConfirmRegenerate = async () => {
+    setRegenerateConfirmModal(false);
     setResumeSelectionModal(true);
     await fetchUserResumes();
+  };
+  
+  const handleCancelRegenerate = () => {
+    setRegenerateConfirmModal(false);
+    
+    // Navigate to applications page to see existing documents
+    toast({
+      title: "View Existing Documents",
+      description: "Redirecting to Applications page where you can download existing documents.",
+    });
+    
+    setTimeout(() => {
+      router.push('/dashboard/applications');
+    }, 1000);
   };
 
   const handleConfirmGenerate = async () => {
@@ -889,6 +922,35 @@ export default function JobOpportunityDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Show existing documents info if available */}
+              {(existingApplication?.resume_id || existingApplication?.cover_letter_id) && (
+                <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-3">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                    Documents already generated:
+                  </p>
+                  <div className="space-y-1">
+                    {existingApplication?.resume_id && (
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        ✓ Tailored Resume
+                      </p>
+                    )}
+                    {existingApplication?.cover_letter_id && (
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        ✓ Cover Letter
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="px-0 h-auto mt-2 text-xs"
+                    onClick={() => router.push('/dashboard/applications')}
+                  >
+                    View in Applications →
+                  </Button>
+                </div>
+              )}
+              
               <Button 
                 className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                 onClick={() => handleGenerateButtonClick('resume')}
@@ -1176,6 +1238,45 @@ export default function JobOpportunityDetailPage() {
               </Button>
             </DialogFooter>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Regeneration Confirmation Modal */}
+      <Dialog open={regenerateConfirmModal} onOpenChange={setRegenerateConfirmModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {documentType === 'resume' ? 'Resume' : 'Cover Letter'} Already Exists
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              A {documentType === 'resume' ? 'resume' : 'cover letter'} has already been generated for this job opportunity.
+            </p>
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                Regenerating will create a new document and replace the existing one.
+              </p>
+            </div>
+            <p className="text-sm">
+              Would you like to:
+            </p>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleCancelRegenerate}
+              className="w-full sm:w-auto"
+            >
+              View Existing Document
+            </Button>
+            <Button 
+              onClick={handleConfirmRegenerate}
+              className="w-full sm:w-auto"
+            >
+              Regenerate {documentType === 'resume' ? 'Resume' : 'Cover Letter'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
