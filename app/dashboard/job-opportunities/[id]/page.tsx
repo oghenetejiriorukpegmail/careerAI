@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -1183,6 +1183,9 @@ export default function JobOpportunityDetailPage() {
             <DialogTitle>
               Select Resume for {documentType === 'resume' ? 'Tailored Resume' : 'Cover Letter'}
             </DialogTitle>
+            <DialogDescription>
+              Choose which resume to use as the base for generating your {documentType === 'resume' ? 'tailored resume' : 'cover letter'}.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {loadingResumes ? (
@@ -1248,6 +1251,9 @@ export default function JobOpportunityDetailPage() {
             <DialogTitle>
               {documentType === 'resume' ? 'Resume' : 'Cover Letter'} Already Exists
             </DialogTitle>
+            <DialogDescription>
+              You have already generated a {documentType} for this job opportunity.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-muted-foreground mb-4">
