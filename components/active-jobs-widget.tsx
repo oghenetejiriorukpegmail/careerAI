@@ -132,7 +132,7 @@ export function ActiveJobsWidget() {
                   </p>
                 </div>
               </div>
-              <Badge variant={job.status === 'completed' ? 'success' : 'destructive'}>
+              <Badge variant={job.status === 'completed' ? 'default' : 'destructive'}>
                 {job.status}
               </Badge>
             </div>

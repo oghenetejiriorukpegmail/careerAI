@@ -93,7 +93,7 @@ export function ManualEditDialog({
       } else if (contentType === 'array-of-objects') {
         setEditedContent(Array.isArray(currentContent) ? [...currentContent] : []);
       } else if (contentType === 'object') {
-        setEditedContent({ ...currentContent } || {});
+        setEditedContent(currentContent ? { ...currentContent } : {});
       } else {
         setEditedContent(currentContent || '');
       }
@@ -149,7 +149,7 @@ export function ManualEditDialog({
     }
   };
 
-  const handleObjectFieldChange = (index: number, field: string, value: string) => {
+  const handleObjectFieldChange = (index: number, field: string, value: string | any[]) => {
     const newArray = [...editedContent];
     newArray[index] = { ...newArray[index], [field]: value };
     setEditedContent(newArray);

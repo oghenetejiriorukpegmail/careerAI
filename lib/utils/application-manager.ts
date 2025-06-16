@@ -289,17 +289,38 @@ export async function getApplicationStats(userId: string, sessionId?: string) {
       throw new Error('User ID or Session ID is required');
     }
 
+    console.log('[getApplicationStats] Starting query for user:', userIdentifier);
+    
+    // Force fresh data by adding a timestamp to break any caching
     const { data: applications, error } = await supabase
       .from('job_applications')
-      .select('status, applied_date, created_at')
-      .eq('user_id', userIdentifier);
+      .select('id, status, applied_date, created_at, user_id, updated_at')
+      .eq('user_id', userIdentifier)
+      .order('updated_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching application stats:', error);
       throw new Error('Failed to fetch application stats');
     }
 
-    console.log('Application stats - raw data:', applications);
+    console.log('[getApplicationStats] Query complete');
+    console.log('[getApplicationStats] Total applications found:', applications?.length);
+    console.log('[getApplicationStats] First 3 applications:', applications?.slice(0, 3));
+    
+    // Let's also do a raw count query to verify
+    let rawCounts: any = {};
+    const { data: statusCounts, error: countError } = await supabase
+      .from('job_applications')
+      .select('status')
+      .eq('user_id', userIdentifier);
+      
+    if (!countError && statusCounts) {
+      statusCounts.forEach((row: any) => {
+        const status = row.status || 'null';
+        rawCounts[status] = (rawCounts[status] || 0) + 1;
+      });
+      console.log('[getApplicationStats] Raw status counts from DB:', rawCounts);
+    }
 
     const stats = {
       total: applications?.length || 0,
@@ -309,24 +330,64 @@ export async function getApplicationStats(userId: string, sessionId?: string) {
       offered: 0,
       rejected: 0,
       applied_this_week: 0,
-      applied_this_month: 0
+      applied_this_month: 0,
+      _debug: {
+        rawCounts: rawCounts || {},
+        sampleApps: applications?.slice(0, 3).map((app: any) => ({
+          id: app.id.substring(0, 8),
+          status: app.status,
+          statusType: typeof app.status
+        }))
+      }
     };
 
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    applications?.forEach((app: any) => {
-      console.log('Processing application:', { status: app.status, applied_date: app.applied_date });
+    // Log first few applications to see their structure
+    if (applications && applications.length > 0) {
+      console.log('[getApplicationStats] Sample application structure:', applications[0]);
+    }
+    
+    applications?.forEach((app: any, index: number) => {
+      if (index < 3) {  // Only log first 3 to avoid clutter
+        console.log(`[getApplicationStats] App ${index}:`, { 
+          id: app.id,
+          status: app.status,
+          status_type: typeof app.status,
+          status_value: `"${app.status}"`,
+          applied_date: app.applied_date,
+          user_id: app.user_id 
+        });
+      }
       
-      // Count by status
-      if (app.status in stats) {
-        (stats as any)[app.status]++;
-      } else {
-        console.warn('Unknown status:', app.status);
+      // Count by status - ensure we handle the exact status values
+      switch(app.status) {
+        case 'to_apply':
+          stats.to_apply++;
+          break;
+        case 'applied':
+          stats.applied++;
+          break;
+        case 'interviewing':
+          stats.interviewing++;
+          break;
+        case 'offered':
+          stats.offered++;
+          break;
+        case 'rejected':
+          stats.rejected++;
+          break;
+        default:
+          console.warn('Unknown status:', app.status, 'for application:', app.id);
+          // Still count it as to_apply if status is null or unknown
+          if (!app.status) {
+            stats.to_apply++;
+          }
       }
 
-      // Count applications by time period
+      // Count applications by time period based on applied_date
       if (app.applied_date) {
         const appliedDate = new Date(app.applied_date);
         if (appliedDate >= oneWeekAgo) {
@@ -339,6 +400,13 @@ export async function getApplicationStats(userId: string, sessionId?: string) {
     });
     
     console.log('Final application stats:', stats);
+    console.log('Stats breakdown by status:', {
+      to_apply: stats.to_apply,
+      applied: stats.applied,
+      interviewing: stats.interviewing,
+      offered: stats.offered,
+      rejected: stats.rejected
+    });
 
     return stats;
   } catch (error) {

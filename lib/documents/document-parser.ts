@@ -939,10 +939,8 @@ async function parseJobDescriptionSection(
       
       console.log(`Successfully parsed ${sectionType} section JSON response`);
       
-      // Post-process the data to ensure proper formatting
-      const formattedData = await postProcessResumeData(structuredData);
-      
-      return formattedData;
+      // Return the parsed job description data directly (no need for resume post-processing)
+      return structuredData;
     } catch (parseError) {
       console.error(`Error parsing ${sectionType} section AI response as JSON:`, parseError);
       

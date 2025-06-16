@@ -35,13 +35,14 @@ export async function GET(request: NextRequest) {
         .eq('id', userId)
         .single(),
         
-      // Recent applications with job details
+      // Recent applications with job details (order by updated_at to show recently modified)
       adminSupabase
         .from('job_applications')
         .select(`
           id,
           status,
           created_at,
+          updated_at,
           job_description_id,
           job_descriptions (
             company_name,
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
           )
         `)
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(5),
         
       // Total application count
@@ -60,15 +61,23 @@ export async function GET(request: NextRequest) {
         
       // Recent job matches
       adminSupabase
-        .from('job_matches')
-        .select('*')
+        .from('job_match_results')
+        .select(`
+          *,
+          job_descriptions (
+            company_name,
+            job_title,
+            location,
+            url
+          )
+        `)
         .eq('user_id', userId)
-        .order('matched_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(5),
         
       // Total job matches count
       adminSupabase
-        .from('job_matches')
+        .from('job_match_results')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId),
         
@@ -80,13 +89,18 @@ export async function GET(request: NextRequest) {
     ]);
     
     // Process applications data
+    console.log('[Dashboard API] Raw applications data:', applicationsResult.data);
+    
     const applications = applicationsResult.data?.map((app: any) => ({
       id: app.id,
       company_name: app.job_descriptions?.company_name || 'Unknown Company',
       job_title: app.job_descriptions?.job_title || 'Unknown Position',
       status: app.status,
-      created_at: app.created_at
+      created_at: app.created_at,
+      updated_at: app.updated_at
     })) || [];
+    
+    console.log('[Dashboard API] Processed applications:', applications);
     
     return NextResponse.json({
       profile: profileResult.data,

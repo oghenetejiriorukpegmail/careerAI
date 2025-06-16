@@ -242,11 +242,11 @@ async function parseResumeText(text: string, userId?: string) {
       structuredData = JSON.parse(parsedContent);
       console.log(`[AI PROCESSING] Successfully parsed JSON response`);
       
+      // Import bullet processor utility
+      const { convertTextToBullets } = await import('@/lib/utils/bullet-processor');
+      
       // Post-process experience descriptions to ensure they are arrays
       if (structuredData.experience && Array.isArray(structuredData.experience)) {
-        // Import bullet processor utility
-        const { convertTextToBullets } = await import('@/lib/utils/bullet-processor');
-        
         structuredData.experience = structuredData.experience.map((exp: any) => {
           if (exp.description && typeof exp.description === 'string') {
             console.log(`[AI PROCESSING] Converting experience description to bullet points for: ${exp.title}`);

@@ -27,7 +27,7 @@ if (fs.existsSync(envPath)) {
 try {
   const envContent = fs.readFileSync(envPath, 'utf8');
   const lines = envContent.split('\n');
-  const openrouterLine = lines.find(line => line.startsWith('OPENROUTER_API_KEY'));
+  const openrouterLine = lines.find((line: string) => line.startsWith('OPENROUTER_API_KEY'));
   if (openrouterLine) {
     console.log('- Found OPENROUTER_API_KEY in .env.local');
   } else {

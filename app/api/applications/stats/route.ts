@@ -12,11 +12,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID or Session ID is required' }, { status: 400 });
     }
 
-    const userIdentifier = userId || sessionId;
+    console.log('[STATS API] Fetching stats for user:', userId || sessionId);
     
-    console.log('[STATS API] Fetching stats for user:', userIdentifier);
-    
-    const stats = await getApplicationStats(userIdentifier!, sessionId || undefined);
+    const stats = await getApplicationStats(userId || '', sessionId || undefined);
 
     return NextResponse.json({ stats });
 

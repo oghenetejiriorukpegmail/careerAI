@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
     
     const body = await request.json();
-    const { jobDescriptionId, resumeId, coverLetterId } = body;
+    const { jobDescriptionId, resumeId, coverLetterId, resetStatus = false } = body;
     
     if (!jobDescriptionId) {
       return NextResponse.json({ 
@@ -50,6 +50,14 @@ export async function POST(request: NextRequest) {
       
       if (resumeId) updateData.resume_id = resumeId;
       if (coverLetterId) updateData.cover_letter_id = coverLetterId;
+      
+      // If resetStatus is true, or if current status is 'applied' or beyond, reset to 'to_apply'
+      // This ensures newly generated documents reset the application to "ready to apply" state
+      if (resetStatus || ['applied', 'interviewing', 'offered', 'rejected'].includes(existingApp.status)) {
+        updateData.status = 'to_apply';
+        // Clear applied_date since we're resetting to "to_apply"
+        updateData.applied_date = null;
+      }
       
       const { data: updatedApp, error: updateError } = await adminSupabase
         .from('job_applications')

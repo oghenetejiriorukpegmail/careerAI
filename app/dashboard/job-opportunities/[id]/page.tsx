@@ -444,7 +444,8 @@ export default function JobOpportunityDetailPage() {
                           },
                           body: JSON.stringify({
                             jobDescriptionId: jobId,
-                            resumeId: documentId
+                            resumeId: documentId,
+                            resetStatus: true  // Reset to 'to_apply' when generating new documents
                           })
                         });
                         
@@ -624,7 +625,8 @@ export default function JobOpportunityDetailPage() {
                           },
                           body: JSON.stringify({
                             jobDescriptionId: jobId,
-                            coverLetterId: documentId
+                            coverLetterId: documentId,
+                            resetStatus: true  // Reset to 'to_apply' when generating new documents
                           })
                         });
                         

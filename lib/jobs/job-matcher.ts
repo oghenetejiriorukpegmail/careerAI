@@ -1,4 +1,5 @@
 import { queryAIJson } from '@/lib/ai/ai-service';
+import { queryAI } from '@/lib/ai/config';
 import { ParsedResume } from '@/lib/documents/document-parser';
 
 export interface JobMatch {
@@ -31,6 +32,12 @@ export interface JobMatchingCriteria {
 }
 
 export class JobMatcher {
+  private userSettings?: any;
+  
+  constructor(userSettings?: any) {
+    this.userSettings = userSettings;
+  }
+  
   async matchJobsToProfile(
     userProfile: ParsedResume,
     jobs: any[],
@@ -39,14 +46,18 @@ export class JobMatcher {
     const systemPrompt = `You are an expert job matching AI. Analyze the user profile and job descriptions to determine match scores.
     
     Consider these factors:
-    1. Skills match (both required and preferred)
-    2. Experience level alignment
-    3. Location preferences
-    4. Salary expectations
-    5. Job type preferences
-    6. Career progression fit
+    1. Skills match (both required and preferred) - 40% weight
+    2. Experience level alignment - 30% weight
+    3. Education requirements - 20% weight
+    4. Location preferences - 10% weight
+    5. Salary expectations (if provided)
+    6. Job type preferences
+    7. Career progression fit
+    8. Industry/domain alignment
     
-    Return a JSON array of matched jobs with scores and detailed reasons.`;
+    Score each job from 0-100 based on how well it matches the candidate's profile.
+    Return ALL jobs with their scores, even if below 60.
+    Provide specific, actionable reasons for the match and identify key missing skills.`;
     
     const prompt = `
     User Profile:
@@ -74,21 +85,81 @@ export class JobMatcher {
       url: job.url,
     })), null, 2)}
     
-    Analyze each job and return matches with scores above 60%. Include:
-    - matchScore (0-100)
-    - matchReasons (array of specific reasons why it's a good match)
-    - missingSkills (skills the job requires that the user doesn't have)
+    Analyze each job and return matches with scores above 60%.
+    
+    Return an array of objects with EXACTLY this structure:
+    [
+      {
+        "jobId": "<use the exact job.id from the input>",
+        "title": "<job title>",
+        "company": "<company name>",
+        "location": "<location>",
+        "matchScore": <number 0-100>,
+        "matchReasons": ["reason 1", "reason 2", ...],
+        "missingSkills": ["skill 1", "skill 2", ...],
+        "skillsScore": <number 0-100>,
+        "experienceScore": <number 0-100>,
+        "educationScore": <number 0-100>,
+        "locationScore": <number 0-100>
+      }
+    ]
+    
+    CRITICAL: The jobId MUST be the exact id from the input jobs list, not a generated value.
     `;
     
     try {
-      const matches = await queryAIJson<JobMatch[]>(prompt, systemPrompt);
+      let matches: JobMatch[];
+      
+      if (this.userSettings) {
+        // Use queryAI with user settings
+        const response = await queryAI(prompt, systemPrompt, this.userSettings, 'job_matching');
+        const content = response.choices[0].message.content;
+        // Parse AI response
+        
+        let parsed;
+        try {
+          parsed = JSON.parse(content);
+        } catch (parseError) {
+          // Failed to parse AI response
+          throw new Error('Invalid AI response format');
+        }
+        
+        matches = parsed.matches || parsed;
+        
+        if (!Array.isArray(matches)) {
+          // Invalid response format, return empty matches
+          matches = [];
+        }
+        
+        // Process matches
+      } else {
+        // Fallback to default AI service
+        matches = await queryAIJson<JobMatch[]>(prompt, systemPrompt);
+      }
+      
+      // Ensure consistent property names
+      matches = matches.map((match: any) => ({
+        ...match,
+        jobId: match.jobId || match.id,
+        relevanceScore: match.matchScore || match.relevanceScore || 0,
+        matchReasons: match.matchReasons || [],
+        missingSkills: match.missingSkills || [],
+        // Add additional scores for detailed breakdown
+        skillsScore: match.skillsScore || 0,
+        experienceScore: match.experienceScore || 0,
+        educationScore: match.educationScore || 0,
+        locationScore: match.locationScore || 0
+      }));
       
       // Sort by match score descending
+      // Sort by match score descending
+      
+      // Lower threshold to 50 for debugging
       return matches
-        .filter(match => match.matchScore >= 60)
-        .sort((a, b) => b.matchScore - a.matchScore);
+        .filter((match: any) => (match.matchScore || match.relevanceScore) >= 50)
+        .sort((a: any, b: any) => (b.matchScore || b.relevanceScore) - (a.matchScore || a.relevanceScore));
     } catch (error) {
-      console.error('Error matching jobs:', error);
+      // Error occurred during job matching
       throw new Error('Failed to match jobs to profile');
     }
   }
@@ -113,9 +184,17 @@ export class JobMatcher {
     `;
     
     try {
-      return await queryAIJson<JobMatchingCriteria>(prompt, systemPrompt);
+      if (this.userSettings) {
+        // Use queryAI with user settings
+        const response = await queryAI(prompt, systemPrompt, this.userSettings, 'job_matching');
+        const content = response.choices[0].message.content;
+        return JSON.parse(content);
+      } else {
+        // Fallback to default AI service
+        return await queryAIJson<JobMatchingCriteria>(prompt, systemPrompt);
+      }
     } catch (error) {
-      console.error('Error extracting matching criteria:', error);
+      // Error extracting criteria, use defaults
       
       // Return default criteria based on profile
       return {

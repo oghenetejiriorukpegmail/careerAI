@@ -507,10 +507,28 @@ export async function generateAtsResume(
             linkedin: resume.contactInfo?.linkedin || ''
           },
           summary: resume.summary || 'Experienced professional seeking new opportunities.',
-          experience: Array.isArray(resume.experience) ? resume.experience : [],
-          education: Array.isArray(resume.education) ? resume.education : [],
+          experience: Array.isArray(resume.experience) ? resume.experience.map(exp => ({
+            title: exp.title || 'Position',
+            company: exp.company || 'Company',
+            location: exp.location,
+            startDate: exp.startDate || '',
+            endDate: exp.endDate,
+            description: Array.isArray(exp.description) ? exp.description : (typeof exp.description === 'string' ? [exp.description] : [])
+          })) : [],
+          education: Array.isArray(resume.education) ? resume.education.map(edu => ({
+            institution: edu.institution || 'Institution',
+            degree: edu.degree || 'Degree',
+            field: edu.field,
+            graduationDate: edu.graduationDate
+          })) : [],
           skills: Array.isArray(resume.skills) ? resume.skills : [],
-          certifications: resume.certifications || [],
+          certifications: resume.certifications ? resume.certifications.map(cert => ({
+            name: cert.name || cert.title || 'Certification',
+            issuer: cert.issuer || cert.organization || 'Issuer',
+            date: cert.date || cert.issueDate,
+            expiryDate: cert.validUntil,
+            credentialId: undefined
+          })) : [],
           trainings: [],
           projects: [],
           references: [{

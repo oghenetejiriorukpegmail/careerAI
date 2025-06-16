@@ -168,16 +168,23 @@ export default function JobMatchingPage() {
             Jobs matched to your profile from major job boards
           </p>
         </div>
-        <Button onClick={findNewJobs} disabled={searching}>
-          {searching ? (
-            <>
-              <Loader className="mr-2 h-4 w-4 animate-spin" />
-              Searching...
-            </>
-          ) : (
-            "Find New Jobs"
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Link href="/dashboard/job-matching/stored">
+            <Button variant="outline">
+              Match Stored Jobs
+            </Button>
+          </Link>
+          <Button onClick={findNewJobs} disabled={searching}>
+            {searching ? (
+              <>
+                <Loader className="mr-2 h-4 w-4 animate-spin" />
+                Searching...
+              </>
+            ) : (
+              "Find New Jobs"
+            )}
+          </Button>
+        </div>
       </div>
 
       <Card>

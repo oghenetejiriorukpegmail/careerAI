@@ -175,7 +175,20 @@ function drawSanitizedText(
   }
 ): void {
   const sanitizedText = sanitizeForPDF(text);
-  page.drawText(sanitizedText, options);
+  const drawOptions: any = {
+    x: options.x,
+    y: options.y,
+    size: options.size,
+    font: options.font,
+    opacity: options.opacity
+  };
+  
+  // Convert color to pdf-lib's rgb format if provided
+  if (options.color) {
+    drawOptions.color = rgb(options.color.red, options.color.green, options.color.blue);
+  }
+  
+  page.drawText(sanitizedText, drawOptions);
 }
 
 // Helper function to add a new page when needed

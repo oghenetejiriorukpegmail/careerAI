@@ -38,13 +38,12 @@ export function ApplicationStatusSelect({
 
     setUpdating(true);
     try {
-      const response = await fetch("/api/applications/update-status", {
-        method: "PUT",
+      const response = await fetch(`/api/applications/${applicationId}`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          applicationId,
           status: newStatus,
         }),
       });
@@ -55,7 +54,7 @@ export function ApplicationStatusSelect({
         setStatus(newStatus);
         toast({
           title: "Status Updated",
-          description: data.message,
+          description: `Application status changed to ${newStatus}`,
         });
         
         if (onStatusChange) {
