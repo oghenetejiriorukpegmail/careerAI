@@ -5,21 +5,17 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
-// Force dynamic rendering to ensure proper health checks
-export const dynamic = 'force-dynamic';
-
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center px-4">
-          {/* Logo and Navigation in a single container for perfect alignment */}
-          <nav className="flex items-center flex-1">
-            <Link href="/" className="font-semibold text-base mr-8 whitespace-nowrap">
-              CareerAI
+          <div className="flex flex-1 items-center">
+            <Link href="/" className="flex items-center space-x-2">
+              <span className="font-bold text-xl">CareerAI</span>
             </Link>
-            <div className="hidden md:flex items-center space-x-6 text-base font-medium">
+            <nav className="hidden md:flex items-center space-x-6 text-sm font-medium ml-6">
               <Link href="#features" className="transition-colors hover:text-foreground/80">
                 Features
               </Link>
@@ -29,8 +25,8 @@ export default function Home() {
               <Link href="#about" className="transition-colors hover:text-foreground/80">
                 About
               </Link>
-            </div>
-          </nav>
+            </nav>
+          </div>
           <div className="flex items-center space-x-2">
             <nav className="hidden md:flex items-center">
               <Link href="/login" passHref>
@@ -59,21 +55,21 @@ export default function Home() {
             <nav className="flex flex-col space-y-4 p-4">
               <Link 
                 href="#features" 
-                className="text-base font-medium transition-colors hover:text-foreground/80"
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Features
               </Link>
               <Link 
                 href="#pricing" 
-                className="text-base font-medium transition-colors hover:text-foreground/80"
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Pricing
               </Link>
               <Link 
                 href="#about" 
-                className="text-base font-medium transition-colors hover:text-foreground/80"
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About

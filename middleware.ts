@@ -42,6 +42,14 @@ export async function middleware(request: NextRequest) {
     session = null;
   }
   
+  // Log auth-related paths including password reset
+  if (request.nextUrl.pathname.includes('login') || 
+      request.nextUrl.pathname.includes('dashboard') || 
+      request.nextUrl.pathname.includes('forgot-password') || 
+      request.nextUrl.pathname.includes('reset-password')) {
+    console.log(`Middleware: ${request.nextUrl.pathname} - Session: ${session ? 'Authenticated' : 'Not authenticated'}`);
+  }
+  
   const isAuthRoute = request.nextUrl.pathname === '/login' || 
                      request.nextUrl.pathname === '/signup' ||
                      request.nextUrl.pathname === '/signup/confirmation' ||
@@ -49,14 +57,6 @@ export async function middleware(request: NextRequest) {
                      request.nextUrl.pathname === '/auth/callback' ||
                      request.nextUrl.pathname === '/forgot-password' ||
                      request.nextUrl.pathname === '/reset-password';
-  
-  // Log auth-related paths including password reset
-  if (request.nextUrl.pathname.includes('login') || 
-      request.nextUrl.pathname.includes('dashboard') || 
-      request.nextUrl.pathname.includes('forgot-password') || 
-      request.nextUrl.pathname.includes('reset-password')) {
-    console.log(`Middleware: ${request.nextUrl.pathname} - Session: ${session ? 'Authenticated' : 'Not authenticated'} - isAuthRoute: ${isAuthRoute}`);
-  }
   
   const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
   const isPublicApiRoute = request.nextUrl.pathname === '/api/auth/callback' ||

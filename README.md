@@ -11,16 +11,6 @@ CareerAI is an AI-powered job application platform that helps users optimize the
 - **LinkedIn Profile Optimization**: Get actionable suggestions to improve your LinkedIn profile visibility and attractiveness to recruiters.
 - **Flexible Authentication**: Optional user authentication - core features work without login, authentication enables persistent settings and advanced features.
 
-## 🔒 Resume Integrity Promise
-
-CareerAI is built on a foundation of **absolute truthfulness**. Our AI will NEVER:
-- ❌ Invent or fabricate experiences, skills, or achievements
-- ❌ Add qualifications you don't possess
-- ❌ Embellish metrics or accomplishments
-- ❌ Create false employment history
-
-All generated content is based **exclusively** on your uploaded resume. This ensures you can confidently defend every claim in interviews and maintain professional integrity throughout your job search.
-
 ## Tech Stack
 
 - **Frontend**: Next.js, TypeScript, Tailwind CSS, shadcn/ui

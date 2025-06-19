@@ -10,12 +10,10 @@ function fixCommonJsonErrors(content: string): string {
   fixed = fixed.replace(/"(https?:)\s*\}/g, '"$1//example.com"}');
   fixed = fixed.replace(/"(https?:)\s*,/g, '"$1//example.com",');
   
-  // Fix incomplete strings before closing braces/brackets
-  fixed = fixed.replace(/"([^"]*?)\s*\}/g, (match, p1) => {
-    if (!p1.includes('"')) {
-      return `"${p1}"}`;  
-    }
-    return match;
+  // Fix incomplete key-value pairs that end abruptly
+  fixed = fixed.replace(/"([^"]+)":\s*,/g, (match, key) => {
+    // If the value is missing, add an empty string
+    return `"${key}": "",`;
   });
   
   // Fix double quotes within string values
@@ -36,7 +34,7 @@ function cleanAIJsonResponse(content: string): string {
     cleanedContent = codeBlockMatch[1].trim();
   } else {
     // Try format with language on separate line
-    codeBlockRegex = /```\s*\n\s*(?:json)?\s*\n([\s\S]*?)\s*```/g;
+    codeBlockRegex = /```\s*json\s*([\s\S]*?)\s*```/g;
     codeBlockMatch = codeBlockRegex.exec(cleanedContent);
     if (codeBlockMatch) {
       cleanedContent = codeBlockMatch[1].trim();
@@ -82,13 +80,8 @@ function cleanAIJsonResponse(content: string): string {
     (match, before, after) => `"${before}\\n${after}"`
   );
   
-  // Handle URLs that might be split across lines
-  cleanedContent = cleanedContent.replace(
-    /"(https?:\/\/[^"\s]*)\s*\n\s*([^"\s]*?)"/g,
-    (match, urlPart1, urlPart2) => `"${urlPart1}${urlPart2}"`
-  );
-  
-  // Remove any remaining unescaped newlines within quoted strings
+  // Fix unescaped newlines within strings more comprehensively
+  // This is a more careful approach that tracks string boundaries
   let inString = false;
   let result = '';
   let escapeNext = false;
@@ -339,6 +332,7 @@ export async function generateAtsResume(
           ]
         }
       
+      Ensure all the experience descriptions are achievement-oriented and quantifiable where possible.
       Include the most relevant skills from the candidate's profile that match the job requirements.
       Keep the content truthful and based on the provided information.
     `;

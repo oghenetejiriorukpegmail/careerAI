@@ -7,8 +7,7 @@ import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader, Upload, Check, X, HardDrive } from "lucide-react";
-import { GoogleDrivePicker } from "@/components/google-drive-picker";
+import { Loader, Upload, Check, X } from "lucide-react";
 
 export default function UploadResumePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,8 +15,6 @@ export default function UploadResumePage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bucketInitialized, setBucketInitialized] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [jobStatus, setJobStatus] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -37,29 +34,27 @@ export default function UploadResumePage() {
     checkBuckets();
   }, []);
 
-  const handleFilePicked = useCallback((selectedFile: File) => {
-    // Check file type
-    const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    if (!validTypes.includes(selectedFile.type)) {
-      setError("Please upload a PDF or DOCX file");
-      return;
-    }
-    
-    // Check file size (max 5MB)
-    if (selectedFile.size > 5 * 1024 * 1024) {
-      setError("File size must be less than 5MB");
-      return;
-    }
-    
-    setFile(selectedFile);
-    setError(null);
-  }, []);
-
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
-      handleFilePicked(acceptedFiles[0]);
+      const selectedFile = acceptedFiles[0];
+      
+      // Check file type
+      const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!validTypes.includes(selectedFile.type)) {
+        setError("Please upload a PDF or DOCX file");
+        return;
+      }
+      
+      // Check file size (max 5MB)
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        setError("File size must be less than 5MB");
+        return;
+      }
+      
+      setFile(selectedFile);
+      setError(null);
     }
-  }, [handleFilePicked]);
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -98,33 +93,43 @@ export default function UploadResumePage() {
       setAnalyzing(true);
       
       try {
-        // Use async endpoint for background processing
-        const response = await fetch('/api/resumeupload-async', {
+        // All-in-one endpoint that handles upload, parsing, and database insertion
+        const response = await fetch('/api/resumeupload', {
           method: 'POST',
           body: formData
         });
         
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Resume upload error:", errorData);
-          throw new Error(errorData.error || "Failed to upload resume");
+          console.error("Resume processing error:", errorData);
+          throw new Error(errorData.error || "Failed to process resume");
         }
         
-        const result = await response.json();
+        const processedData = await response.json();
         
-        console.log('Resume upload initiated:', result);
+        if (!processedData.success) {
+          throw new Error(processedData.error || "Resume processing failed");
+        }
         
-        // Store job ID for status tracking
-        setJobId(result.jobId);
-        setJobStatus('processing');
+        // Log any partial successes/failures
+        if (processedData.error) {
+          console.warn("Partial success:", processedData.error);
+        }
         
-        toast({
-          title: "Upload Successful",
-          description: "Your resume is being processed. You'll be notified when it's ready.",
+        console.log("Resume processed successfully:", {
+          uploadSuccess: processedData.uploadSuccess,
+          parseSuccess: processedData.parseSuccess,
+          aiSuccess: processedData.aiSuccess,
+          dbSuccess: processedData.dbSuccess
         });
         
-        // Redirect to resumes page where they can see processing status
-        router.push('/dashboard/resume');
+        // Success!
+        toast({
+          title: "Resume Uploaded",
+          description: "Your resume has been uploaded and analyzed successfully.",
+        });
+        
+        router.push("/dashboard/resume");
       } catch (processingError: any) {
         console.error("Resume processing error:", processingError);
         
@@ -152,10 +157,10 @@ export default function UploadResumePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Upload Resume</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-1">
+        <h1 className="text-3xl font-bold tracking-tight">Upload Resume</h1>
+        <p className="text-muted-foreground">
           Upload your current resume to get started with CareerAI
         </p>
       </div>
@@ -191,54 +196,16 @@ export default function UploadResumePage() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div {...getRootProps()} className="cursor-pointer">
-                <div className={`border-2 border-dashed rounded-md p-6 sm:p-8 text-center ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}`}>
-                  <input {...getInputProps()} />
-                  <div className="flex flex-col items-center justify-center space-y-2">
-                    <Upload className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
-                    <h3 className="text-base sm:text-lg font-medium">Drag & drop your resume</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground">
-                      or click to browse files (PDF or DOCX, max 5MB)
-                    </p>
-                  </div>
+            <div {...getRootProps()} className="cursor-pointer">
+              <div className={`border-2 border-dashed rounded-md p-8 text-center ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}`}>
+                <input {...getInputProps()} />
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <h3 className="text-lg font-medium">Drag & drop your resume</h3>
+                  <p className="text-sm text-muted-foreground">
+                    or click to browse files (PDF or DOCX, max 5MB)
+                  </p>
                 </div>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or choose from</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFilePicked(file);
-                    }}
-                    disabled={uploading || analyzing}
-                    className="sr-only"
-                    id="device-file-input"
-                  />
-                  <label
-                    htmlFor="device-file-input"
-                    className={`inline-flex items-center justify-center w-full rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 ${
-                      uploading || analyzing ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-                    }`}
-                  >
-                    <HardDrive className="mr-2 h-4 w-4" />
-                    Device Files
-                  </label>
-                </div>
-                <GoogleDrivePicker 
-                  onFilePicked={handleFilePicked}
-                  disabled={uploading || analyzing}
-                />
               </div>
             </div>
           )}

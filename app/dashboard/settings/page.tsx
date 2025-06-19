@@ -9,10 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Loader } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase/client';
-import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
-// import { SubscriptionManager } from '@/components/subscription-manager'; // Disabled for now
-// import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'; // Disabled for now
 
 // Define available AI providers
 const AI_PROVIDERS = [
@@ -27,8 +23,6 @@ const AI_PROVIDERS = [
 // Define available AI models by provider
 const AI_MODELS = {
   requesty: [
-    { id: 'anthropic/claude-opus-4', name: 'Claude 4 Opus (Latest)' },
-    { id: 'anthropic/claude-sonnet-4', name: 'Claude 4 Sonnet (Latest)' },
     { id: 'coding/gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview (Coding)' },
     { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (Fast)' },
     { id: 'anthropic/claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
@@ -38,13 +32,7 @@ const AI_MODELS = {
     { id: 'mistral/mistral-large', name: 'Mistral Large' },
   ],
   openrouter: [
-    { id: 'anthropic/claude-opus-4', name: 'Claude 4 Opus (Latest)' },
-    { id: 'anthropic/claude-sonnet-4', name: 'Claude 4 Sonnet (Latest)' },
-    { id: 'deepseek/deepseek-r1-0528:free', name: 'DeepSeek R1 (Free)' },
-    { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1' },
     { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Recommended)' },
-    { id: 'mistralai/devstral-small:free', name: 'Mistral Devstral Small (Free)' },
-    { id: 'mistralai/devstral-small', name: 'Mistral Devstral Small' },
     { id: 'google/gemini-2.5-pro-preview', name: 'Gemini 2.5 Pro Preview' },
     { id: 'google/gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash Preview (Latest)' },
     { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (April)' },
@@ -54,8 +42,6 @@ const AI_MODELS = {
     { id: 'openai/gpt-4o', name: 'GPT-4o' },
   ],
   anthropic: [
-    { id: 'claude-opus-4', name: 'Claude 4 Opus (Latest)' },
-    { id: 'claude-sonnet-4', name: 'Claude 4 Sonnet (Latest)' },
     { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' },
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
@@ -73,8 +59,6 @@ const AI_MODELS = {
     { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
   ],
   vertex: [
-    { id: 'vertex/anthropic/claude-opus-4@us-east5', name: 'Claude 4 Opus (Vertex)' },
-    { id: 'vertex/anthropic/claude-sonnet-4@us-east5', name: 'Claude 4 Sonnet (Vertex)' },
     { id: 'vertex/anthropic/claude-3-7-sonnet-20250219@us-east5', name: 'Claude 3.7 Sonnet (Vertex)' },
     { id: 'vertex/anthropic/claude-3-opus-latest@us-east5', name: 'Claude 3 Opus (Vertex)' },
     { id: 'vertex/anthropic/claude-3-sonnet-latest@us-east5', name: 'Claude 3 Sonnet (Vertex)' },
@@ -88,12 +72,6 @@ interface UserSettings {
   documentAiOnly: boolean;
   enableLogging: boolean;
   showAiAttribution: boolean;
-  tokenLimits?: {
-    resumeParsing?: number;
-    coverLetter?: number;
-    jobMatching?: number;
-    general?: number;
-  };
   updatedAt?: number;
 }
 
@@ -104,17 +82,6 @@ const defaultSettings: UserSettings = {
   documentAiOnly: true,
   enableLogging: true,
   showAiAttribution: false,
-  tokenLimits: {
-    resumeParsing: 0, // 0 means use automatic
-    coverLetter: 0,
-    jobMatching: 0,
-    general: 0
-  } as {
-    resumeParsing: number;
-    coverLetter: number;
-    jobMatching: number;
-    general: number;
-  },
   updatedAt: Date.now()
 };
 
@@ -128,12 +95,6 @@ export default function SettingsPage() {
   const [documentAiOnly, setDocumentAiOnly] = useState<boolean>(true);
   const [enableLogging, setEnableLogging] = useState<boolean>(true);
   const [showAiAttribution, setShowAiAttribution] = useState<boolean>(false);
-  const [tokenLimits, setTokenLimits] = useState({
-    resumeParsing: 0,
-    coverLetter: 0,
-    jobMatching: 0,
-    general: 0
-  });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [dbStorageStatus, setDbStorageStatus] = useState<'unknown' | 'success' | 'error'>('unknown');
   const { toast } = useToast();
@@ -179,12 +140,6 @@ export default function SettingsPage() {
             setDocumentAiOnly(settings.documentAiOnly !== undefined ? settings.documentAiOnly : defaultSettings.documentAiOnly);
             setEnableLogging(settings.enableLogging !== undefined ? settings.enableLogging : defaultSettings.enableLogging);
             setShowAiAttribution(settings.showAiAttribution !== undefined ? settings.showAiAttribution : defaultSettings.showAiAttribution);
-            setTokenLimits({
-              resumeParsing: settings.tokenLimits?.resumeParsing ?? defaultSettings.tokenLimits!.resumeParsing,
-              coverLetter: settings.tokenLimits?.coverLetter ?? defaultSettings.tokenLimits!.coverLetter,
-              jobMatching: settings.tokenLimits?.jobMatching ?? defaultSettings.tokenLimits!.jobMatching,
-              general: settings.tokenLimits?.general ?? defaultSettings.tokenLimits!.general
-            });
             
             // Save to localStorage for backup
             localStorage.setItem('userSettings', JSON.stringify(settings));
@@ -197,12 +152,6 @@ export default function SettingsPage() {
             setDocumentAiOnly(defaultSettings.documentAiOnly);
             setEnableLogging(defaultSettings.enableLogging);
             setShowAiAttribution(defaultSettings.showAiAttribution);
-            setTokenLimits({
-              resumeParsing: defaultSettings.tokenLimits!.resumeParsing ?? 0,
-              coverLetter: defaultSettings.tokenLimits!.coverLetter ?? 0,
-              jobMatching: defaultSettings.tokenLimits!.jobMatching ?? 0,
-              general: defaultSettings.tokenLimits!.general ?? 0
-            });
             setDbStorageStatus('error');
           } else {
             console.error('API returned error status:', response.status);
@@ -213,13 +162,6 @@ export default function SettingsPage() {
             setSelectedModel(defaultSettings.aiModel);
             setDocumentAiOnly(defaultSettings.documentAiOnly);
             setEnableLogging(defaultSettings.enableLogging);
-            setShowAiAttribution(defaultSettings.showAiAttribution);
-            setTokenLimits({
-              resumeParsing: defaultSettings.tokenLimits!.resumeParsing ?? 0,
-              coverLetter: defaultSettings.tokenLimits!.coverLetter ?? 0,
-              jobMatching: defaultSettings.tokenLimits!.jobMatching ?? 0,
-              general: defaultSettings.tokenLimits!.general ?? 0
-            });
           }
         } catch (error) {
           console.error('Error fetching settings from API:', error);
@@ -230,13 +172,6 @@ export default function SettingsPage() {
           setSelectedModel(defaultSettings.aiModel);
           setDocumentAiOnly(defaultSettings.documentAiOnly);
           setEnableLogging(defaultSettings.enableLogging);
-          setShowAiAttribution(defaultSettings.showAiAttribution);
-          setTokenLimits({
-            resumeParsing: defaultSettings.tokenLimits!.resumeParsing ?? 0,
-            coverLetter: defaultSettings.tokenLimits!.coverLetter ?? 0,
-            jobMatching: defaultSettings.tokenLimits!.jobMatching ?? 0,
-            general: defaultSettings.tokenLimits!.general ?? 0
-          });
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -246,13 +181,6 @@ export default function SettingsPage() {
         setSelectedModel(defaultSettings.aiModel);
         setDocumentAiOnly(defaultSettings.documentAiOnly);
         setEnableLogging(defaultSettings.enableLogging);
-        setShowAiAttribution(defaultSettings.showAiAttribution);
-        setTokenLimits({
-          resumeParsing: defaultSettings.tokenLimits!.resumeParsing ?? 0,
-          coverLetter: defaultSettings.tokenLimits!.coverLetter ?? 0,
-          jobMatching: defaultSettings.tokenLimits!.jobMatching ?? 0,
-          general: defaultSettings.tokenLimits!.general ?? 0
-        });
       } finally {
         setLoading(false);
       }
@@ -272,8 +200,6 @@ export default function SettingsPage() {
         aiModel: selectedModel,
         documentAiOnly,
         enableLogging,
-        showAiAttribution,
-        tokenLimits,
         updatedAt: Date.now()
       };
       
@@ -427,7 +353,6 @@ export default function SettingsPage() {
         documentAiOnly,
         enableLogging,
         showAiAttribution,
-        tokenLimits,
         updatedAt: Date.now()
       };
       
@@ -559,7 +484,7 @@ export default function SettingsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Settings</h1>
-          <p className="text-muted-foreground mt-1">Manage your subscription and application preferences</p>
+          <p className="text-muted-foreground mt-1">Configure AI models and application preferences</p>
         </div>
         <div className="mt-4 md:mt-0">
           <Button onClick={() => window.location.href = '/dashboard'} variant="outline" className="mr-2">
@@ -568,19 +493,7 @@ export default function SettingsPage() {
         </div>
       </div>
       
-      {/* Subscription tabs disabled for now */}
-      {/* <Tabs defaultValue="subscription" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="subscription">Subscription</TabsTrigger>
-          <TabsTrigger value="ai-settings">AI Settings</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="subscription">
-          <SubscriptionManager />
-        </TabsContent>
-        
-        <TabsContent value="ai-settings"> */}
-          <div className="grid gap-6">
+      <div className="grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle>AI Configuration</CardTitle>
@@ -690,94 +603,6 @@ export default function SettingsPage() {
                   />
                 </div>
                 
-                {/* Token Limits Section */}
-                <div className="space-y-4 border-t pt-4">
-                  <div className="space-y-2">
-                    <Label>Token Limits</Label>
-                    <p className="text-sm text-gray-500">
-                      Set custom token limits for different operations. Set to 0 to use automatic optimal limits.
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="token-resume" className="text-sm">Resume Parsing</Label>
-                        <span className="text-sm text-muted-foreground">
-                          {tokenLimits.resumeParsing === 0 ? 'Auto' : tokenLimits.resumeParsing.toLocaleString()}
-                        </span>
-                      </div>
-                      <Slider
-                        id="token-resume"
-                        min={0}
-                        max={128000}
-                        step={1000}
-                        value={[tokenLimits.resumeParsing]}
-                        onValueChange={(value) => setTokenLimits({...tokenLimits, resumeParsing: value[0]})}
-                        className="w-full"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="token-cover" className="text-sm">Cover Letter Generation</Label>
-                        <span className="text-sm text-muted-foreground">
-                          {tokenLimits.coverLetter === 0 ? 'Auto' : tokenLimits.coverLetter.toLocaleString()}
-                        </span>
-                      </div>
-                      <Slider
-                        id="token-cover"
-                        min={0}
-                        max={32000}
-                        step={500}
-                        value={[tokenLimits.coverLetter]}
-                        onValueChange={(value) => setTokenLimits({...tokenLimits, coverLetter: value[0]})}
-                        className="w-full"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="token-job" className="text-sm">Job Matching</Label>
-                        <span className="text-sm text-muted-foreground">
-                          {tokenLimits.jobMatching === 0 ? 'Auto' : tokenLimits.jobMatching.toLocaleString()}
-                        </span>
-                      </div>
-                      <Slider
-                        id="token-job"
-                        min={0}
-                        max={32000}
-                        step={500}
-                        value={[tokenLimits.jobMatching]}
-                        onValueChange={(value) => setTokenLimits({...tokenLimits, jobMatching: value[0]})}
-                        className="w-full"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="token-general" className="text-sm">General Operations</Label>
-                        <span className="text-sm text-muted-foreground">
-                          {tokenLimits.general === 0 ? 'Auto' : tokenLimits.general.toLocaleString()}
-                        </span>
-                      </div>
-                      <Slider
-                        id="token-general"
-                        min={0}
-                        max={16000}
-                        step={500}
-                        value={[tokenLimits.general]}
-                        onValueChange={(value) => setTokenLimits({...tokenLimits, general: value[0]})}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-                  
-                  <p className="text-xs text-gray-500 mt-2">
-                    Higher token limits allow for longer responses but increase costs. Our system automatically optimizes based on the model and task when set to Auto.
-                  </p>
-                </div>
-                
                 <div className="flex flex-col space-y-2">
                   <Button 
                     onClick={saveSettings} 
@@ -867,7 +692,6 @@ export default function SettingsPage() {
                 <li>For resume parsing: OpenRouter with Qwen3 235B</li>
                 <li>For fast responses: Requesty with Gemini 2.5 Flash</li>
                 <li>For highest quality: Anthropic with Claude 3.7 Sonnet</li>
-                <li>For free usage: OpenRouter with DeepSeek R1 (Free)</li>
               </ul>
             </div>
             
@@ -880,8 +704,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
-        {/* </TabsContent>
-      </Tabs> */}
     </div>
   );
 }

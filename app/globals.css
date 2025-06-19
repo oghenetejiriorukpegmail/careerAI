@@ -87,33 +87,8 @@
   }
   
   /* Prevent horizontal scroll on mobile */
-  html, body {
+  body {
     overflow-x: hidden;
-    width: 100%;
-    position: relative;
-  }
-  
-  /* Additional mobile-specific fixes */
-  @media (max-width: 640px) {
-    html, body {
-      overflow-x: hidden !important;
-      max-width: 100vw !important;
-    }
-    
-    /* Ensure all containers respect viewport width */
-    .container {
-      max-width: 100vw !important;
-    }
-    
-    /* Prevent fixed widths from breaking mobile layout */
-    [class*="min-w-"] {
-      min-width: unset !important;
-    }
-    
-    /* Ensure cards and content boxes are responsive */
-    .flex-row {
-      flex-direction: column !important;
-    }
   }
   
   /* Optimize form inputs for mobile */

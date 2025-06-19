@@ -6,9 +6,6 @@ import { updateAIConfig } from '@/lib/ai/update-config';
 import { AI_CONFIG } from '@/lib/ai/config';
 import { settingsSchema, safeValidateInput } from '@/lib/validation/schemas';
 import { z } from 'zod';
-// import { getFeatureUsage } from '@/lib/stripe/usage'; // Disabled for now
-
-export const dynamic = 'force-dynamic';
 
 // In-memory cache for authenticated user settings only
 const userSettingsCache = new Map<string, UserSettings>();
@@ -75,18 +72,7 @@ export async function GET() {
       responseSettings.updatedAt = Date.now();
     }
     
-    // Get usage data - DISABLED FOR NOW
-    // let usage = null;
-    // try {
-    //   usage = await getFeatureUsage(userId);
-    // } catch (usageError) {
-    //   console.error('Failed to get usage data:', usageError);
-    // }
-    
-    return NextResponse.json({
-      ...responseSettings,
-      // usage
-    }, {
+    return NextResponse.json(responseSettings, {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
@@ -139,17 +125,11 @@ export async function POST(request: NextRequest) {
     
     // Create AI settings schema (separate from full settings)
     const aiSettingsSchema = z.object({
-      aiProvider: z.enum(['openai', 'gemini', 'openrouter', 'requesty', 'anthropic', 'google', 'vertex']),
+      aiProvider: z.enum(['openai', 'gemini', 'openrouter', 'requesty']),
       aiModel: z.string().min(1),
       documentAiOnly: z.boolean().optional(),
       enableLogging: z.boolean().optional(),
       showAiAttribution: z.boolean().optional(),
-      tokenLimits: z.object({
-        resumeParsing: z.number().min(0).max(200000).optional(),
-        coverLetter: z.number().min(0).max(100000).optional(),
-        jobMatching: z.number().min(0).max(100000).optional(),
-        general: z.number().min(0).max(50000).optional()
-      }).optional(),
       openrouterApiKey: z.string().optional(),
       openaiApiKey: z.string().optional(),
       geminiApiKey: z.string().optional(),
