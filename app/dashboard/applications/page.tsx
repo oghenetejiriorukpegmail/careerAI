@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, FileText, ExternalLink } from "lucide-react";
+import { FileDown, FileText, ExternalLink, Eye } from "lucide-react";
 
 type Application = {
   id: string;
@@ -166,12 +166,120 @@ export default function ApplicationsPage() {
     }
   };
 
-  const downloadDocument = (document: GeneratedDocument) => {
-    // In a real implementation, this would get the file from Supabase Storage
-    toast({
-      title: "Download Started",
-      description: `Downloading ${document.file_name}`,
-    });
+  const downloadDocument = async (doc: GeneratedDocument) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Try to download directly from Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('user_files')
+        .download(doc.file_path);
+      
+      if (error) {
+        console.error('Storage download error:', error);
+        
+        // Fallback to API endpoint if direct download fails
+        const response = await fetch(`/api/documents/${doc.id}/download`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to download document');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.file_name;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        // Create blob URL and trigger download
+        const blob = new Blob([data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.file_name;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+
+      toast({
+        title: "Download Complete",
+        description: `Downloaded ${doc.file_name}`,
+      });
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download document. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const viewDocument = async (doc: GeneratedDocument) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get signed URL for viewing
+      const { data: urlData, error: urlError } = await supabase.storage
+        .from('user_files')
+        .createSignedUrl(doc.file_path, 3600); // 1 hour expiry
+
+      if (urlError || !urlData?.signedUrl) {
+        console.error('Signed URL error:', urlError);
+        
+        // Fallback: Try to download and open as blob
+        const { data, error } = await supabase.storage
+          .from('user_files')
+          .download(doc.file_path);
+        
+        if (error) {
+          throw new Error('Unable to access document. It may have been moved or deleted.');
+        }
+        
+        // Create blob URL and open in new tab
+        const blob = new Blob([data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const newWindow = window.open(url, '_blank');
+        
+        // Clean up blob URL after a delay
+        if (newWindow) {
+          setTimeout(() => window.URL.revokeObjectURL(url), 60000); // 1 minute
+        } else {
+          window.URL.revokeObjectURL(url);
+          throw new Error('Pop-up blocked. Please allow pop-ups for this site.');
+        }
+      } else {
+        // Open signed URL in new tab
+        const newWindow = window.open(urlData.signedUrl, '_blank');
+        if (!newWindow) {
+          throw new Error('Pop-up blocked. Please allow pop-ups for this site.');
+        }
+      }
+
+      toast({
+        title: "Document Opened",
+        description: `Viewing ${doc.file_name}`,
+      });
+    } catch (error: any) {
+      console.error('View error:', error);
+      toast({
+        title: "View Failed",
+        description: error.message || "Failed to view document. Try downloading instead.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -227,7 +335,7 @@ export default function ApplicationsPage() {
         <div className="space-y-6">
           {applications.map((application) => (
             <Card key={application.id}>
-              <div className="md:flex">
+              <div className="flex flex-col sm:flex-row">
                 <div className="flex-1">
                   <CardHeader>
                     <div className="flex justify-between items-start">
@@ -259,17 +367,27 @@ export default function ApplicationsPage() {
                       
                       <div className="flex flex-wrap gap-2">
                         {documents[application.id]?.map((doc) => (
-                          <Button
-                            key={doc.id}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center"
-                            onClick={() => downloadDocument(doc)}
-                          >
-                            <FileText className="h-4 w-4 mr-2" />
-                            {doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}
-                            <FileDown className="h-4 w-4 ml-2" />
-                          </Button>
+                          <div key={doc.id} className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center"
+                              onClick={() => viewDocument(doc)}
+                              title={`View ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}`}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              {doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center px-2"
+                              onClick={() => downloadDocument(doc)}
+                              title={`Download ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}`}
+                            >
+                              <FileDown className="h-4 w-4" />
+                            </Button>
+                          </div>
                         ))}
                         
                         {application.job_url && (
@@ -285,7 +403,7 @@ export default function ApplicationsPage() {
                   </CardContent>
                 </div>
                 
-                <div className="shrink-0 p-6 bg-muted/10 flex flex-col justify-center space-y-3 min-w-[220px]">
+                <div className="shrink-0 p-4 sm:p-6 bg-muted/10 flex flex-col justify-center space-y-3 sm:min-w-[220px]">
                   <div className="space-y-2">
                     <h3 className="text-sm font-medium">Update Status</h3>
                     <Select

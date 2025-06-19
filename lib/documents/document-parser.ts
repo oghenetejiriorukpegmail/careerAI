@@ -16,7 +16,7 @@ export interface ParsedResume {
     location?: string;
     startDate?: string;
     endDate?: string;
-    description: string[];
+    description: string[] | string;
   }>;
   education: Array<{
     institution?: string;
@@ -283,6 +283,20 @@ async function extractResumeSection(
       8. If you can't find certain information, omit the field rather than leaving it empty
       9. Be VERY thorough in extracting all information from the resume
       
+      EXPERIENCE DESCRIPTION FORMATTING - CRITICAL:
+      - ALWAYS return experience descriptions as an array of strings, NEVER as a single string
+      - If the description is a paragraph, YOU MUST break it down into multiple bullet points
+      - Analyze the text and identify distinct responsibilities, tasks, and achievements
+      - Each array element should be one complete bullet point
+      - Include ALL responsibilities and achievements - do not limit the number of bullets
+      - Each bullet should start with a strong action verb (e.g., Developed, Managed, Led, Implemented, Designed, Collaborated, Coordinated, Analyzed, Created, Established)
+      - Focus on achievements, responsibilities, and quantifiable results
+      - Remove any bullet markers (•, -, *) from the text itself
+      - Extract every distinct responsibility, achievement, or task as a separate bullet point
+      - Even if the original text is one long sentence, break it into logical bullet points
+      - Example: If text says "Responsible for managing team and developing software and conducting meetings", 
+        return: ["Managed cross-functional team of developers", "Developed software solutions for client needs", "Conducted regular team meetings and status updates"]
+      
       Your entire response must be a valid JSON object that can be directly processed by JSON.parse().
       
       AGAIN: NEVER USE MARKDOWN CODE FORMATTING ANYWHERE IN YOUR RESPONSE.
@@ -402,7 +416,11 @@ async function extractResumeSection(
       }
       
       console.log(`Successfully parsed ${sectionType} section JSON response`);
-      return structuredData;
+      
+      // Post-process the data to ensure proper formatting
+      const formattedData = await postProcessResumeData(structuredData);
+      
+      return formattedData;
     } catch (parseError) {
       console.error(`Error parsing ${sectionType} section AI response as JSON:`, parseError);
       
@@ -533,7 +551,10 @@ async function extractResumeSection(
         extractedData.education = extractedData.education || [];
         extractedData.skills = extractedData.skills || [];
         
-        return extractedData;
+        // Post-process the extracted data
+        const formattedData = await postProcessResumeData(extractedData);
+        
+        return formattedData;
       }
       
       // If all extraction methods fail, return a minimal structure
@@ -660,7 +681,10 @@ async function extractResumeSection(
           }
         }
         
-        return fallbackData;
+        // Post-process the fallback data
+        const formattedFallbackData = await postProcessResumeData(fallbackData);
+        
+        return formattedFallbackData;
       } catch (fallbackError) {
         console.error('[FALLBACK] Basic extraction failed:', fallbackError);
         
@@ -914,6 +938,8 @@ async function parseJobDescriptionSection(
       structuredData.company_culture = structuredData.company_culture || [];
       
       console.log(`Successfully parsed ${sectionType} section JSON response`);
+      
+      // Return the parsed job description data directly (no need for resume post-processing)
       return structuredData;
     } catch (parseError) {
       console.error(`Error parsing ${sectionType} section AI response as JSON:`, parseError);
@@ -1199,10 +1225,228 @@ async function parseJobDescriptionSection(
 }
 
 /**
- * Get potential job titles based on resume data
- * @param resumeData Parsed resume data
- * @returns Array of potential job titles
+ * Format experience description into bullet points
+ * @param description String or array of strings
+ * @returns Array of bullet points
  */
+function formatExperienceDescription(description: string | string[]): string[] {
+  // If already an array, ensure each item is cleaned
+  if (Array.isArray(description)) {
+    return description
+      .filter(item => item && item.trim())
+      .map(item => cleanBulletPoint(item));
+  }
+  
+  // If it's a string, convert to bullet points
+  let text = description || '';
+  
+  // Split by common delimiters
+  let bullets: string[] = [];
+  
+  // First, try to split by existing bullet markers
+  if (text.includes('•') || text.includes('●') || text.includes('■')) {
+    bullets = text.split(/[•●■]/).filter(item => item.trim());
+  }
+  // Try dash markers with proper spacing
+  else if (text.includes(' - ') || text.includes('\n-')) {
+    bullets = text.split(/(?:\n|^)\s*-\s*/).filter(item => item.trim());
+  }
+  // Try asterisk markers
+  else if (text.includes(' * ') || text.includes('\n*')) {
+    bullets = text.split(/(?:\n|^)\s*\*\s*/).filter(item => item.trim());
+  }
+  // Try numbered lists
+  else if (/\d+\.\s/.test(text)) {
+    bullets = text.split(/(?:\n|^)\s*\d+\.\s*/).filter(item => item.trim());
+  }
+  // Try newline splits if text has multiple lines
+  else if (text.includes('\n') && text.split('\n').filter(line => line.trim()).length > 1) {
+    bullets = text.split('\n').filter(line => line.trim());
+  }
+  // Try splitting by periods if text has multiple sentences
+  else if (text.includes('. ')) {
+    bullets = text.split(/\.\s+/)
+      .filter(item => item.trim() && item.length > 10)
+      .map(item => item.trim() + (item.endsWith('.') ? '' : '.'));
+  }
+  // Try splitting by "and" if it's a compound sentence
+  else if (text.toLowerCase().includes(' and ') && text.length > 100) {
+    bullets = text.split(/\s+and\s+/i)
+      .filter(item => item.trim() && item.length > 10)
+      .map(item => {
+        let cleaned = item.trim();
+        // Capitalize first letter if needed
+        if (cleaned.length > 0 && /^[a-z]/.test(cleaned)) {
+          cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+        }
+        return cleaned;
+      });
+  }
+  // Try splitting by semicolons
+  else if (text.includes(';')) {
+    bullets = text.split(';')
+      .filter(item => item.trim())
+      .map(item => item.trim());
+  }
+  // Otherwise, check if it's one long paragraph that needs to be a single bullet
+  else if (text.trim()) {
+    bullets = [text.trim()];
+  }
+  
+  // Clean and format each bullet point
+  return bullets
+    .map(bullet => cleanBulletPoint(bullet))
+    .filter(bullet => bullet.length > 0); // Only remove empty bullets
+}
+
+/**
+ * Clean and format a single bullet point
+ * @param bullet Raw bullet point text
+ * @returns Cleaned bullet point
+ */
+function cleanBulletPoint(bullet: string): string {
+  // Remove leading/trailing whitespace
+  let cleaned = bullet.trim();
+  
+  // Remove any remaining bullet markers at the start
+  cleaned = cleaned.replace(/^[•●■\-\*]\s*/, '');
+  
+  // Remove line breaks within the bullet
+  cleaned = cleaned.replace(/\n/g, ' ');
+  
+  // Ensure proper spacing
+  cleaned = cleaned.replace(/\s+/g, ' ');
+  
+  // Capitalize first letter if not already
+  if (cleaned.length > 0 && /^[a-z]/.test(cleaned)) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  
+  // Ensure bullet ends with a period if it doesn't end with punctuation
+  if (cleaned.length > 0 && !/[.!?]$/.test(cleaned)) {
+    cleaned += '.';
+  }
+  
+  return cleaned;
+}
+
+/**
+ * Post-process parsed resume data to ensure proper formatting
+ * @param resumeData Parsed resume data
+ * @returns Formatted resume data
+ */
+async function postProcessResumeData(resumeData: ParsedResume): Promise<ParsedResume> {
+  // Format experience descriptions
+  if (resumeData.experience && Array.isArray(resumeData.experience)) {
+    // Process each experience entry
+    for (let i = 0; i < resumeData.experience.length; i++) {
+      const exp = resumeData.experience[i];
+      if (exp.description) {
+        // First try basic formatting
+        let formattedDescription = formatExperienceDescription(exp.description);
+        
+        // If we only got one bullet point, try AI formatting regardless of length
+        // Also try AI if we have a string that wasn't properly converted to array
+        if (formattedDescription.length === 1 || 
+            (typeof exp.description === 'string' && exp.description.length > 50)) {
+          try {
+            const textToFormat = Array.isArray(exp.description) 
+              ? formattedDescription[0] 
+              : exp.description;
+              
+            console.log(`Converting experience description to bullet points for ${exp.title} at ${exp.company}`);
+            
+            formattedDescription = await formatDescriptionWithAI(
+              textToFormat, 
+              exp.title || 'Professional',
+              exp.company || ''
+            );
+            
+            console.log(`Successfully converted to ${formattedDescription.length} bullet points`);
+          } catch (error) {
+            console.error('AI formatting failed, using basic formatting:', error);
+            // Keep the basic formatted version
+          }
+        }
+        
+        resumeData.experience[i].description = formattedDescription;
+      }
+    }
+  }
+  
+  return resumeData;
+}
+
+/**
+ * Use AI to convert a long paragraph into bullet points
+ * @param description Long paragraph description
+ * @param jobTitle Job title for context
+ * @param company Company name for context
+ * @returns Array of bullet points
+ */
+async function formatDescriptionWithAI(description: string, jobTitle: string, company: string): Promise<string[]> {
+  try {
+    const prompt = `
+You are converting a job description into bullet points. The text may be one long paragraph or sentence.
+Your task is to analyze it and break it down into distinct, comprehensive bullet points.
+
+INSTRUCTIONS:
+1. Identify ALL distinct tasks, responsibilities, and achievements in the text
+2. Convert each one into a separate bullet point
+3. Start each bullet with a strong action verb
+4. If the text mentions multiple activities with "and", create separate bullets for each
+5. Extract quantifiable metrics and results when present
+6. Make each bullet concise but complete
+
+Job Title: ${jobTitle}
+Company: ${company}
+
+Original Description:
+${description}
+
+CONVERSION RULES:
+- If text says "responsible for X and Y and Z", create 3 separate bullets
+- If text describes a process, break it into steps as separate bullets
+- If text mentions tools or technologies used, include them in relevant bullets
+- Include ALL information - do not summarize or skip details
+
+Return ONLY a JSON array of strings. Each string is one bullet point.
+DO NOT return a single string. MUST be an array even if original is one sentence.
+
+Example input: "Managed team of developers and handled client communications and developed new features using React"
+Example output: ["Managed team of developers to deliver projects on schedule", "Handled client communications to ensure requirement clarity", "Developed new features using React framework"]
+
+CRITICAL: Return ONLY the JSON array. No markdown, no explanations, just the array.
+`;
+
+    const systemPrompt = "You are an expert resume writer. Convert job descriptions into concise, impactful bullet points. Return ONLY a JSON array of strings.";
+    
+    const response = await queryAI(prompt, systemPrompt);
+    
+    if (response?.choices?.[0]?.message?.content) {
+      let content = response.choices[0].message.content.trim();
+      
+      // Remove markdown if present
+      content = content.replace(/^```(\w*\n|\n)?/, '').replace(/```$/, '');
+      
+      try {
+        const bullets = JSON.parse(content);
+        if (Array.isArray(bullets) && bullets.length > 0) {
+          // Clean each bullet point
+          return bullets.map(bullet => cleanBulletPoint(bullet));
+        }
+      } catch (e) {
+        console.error('Failed to parse AI response for bullet points:', e);
+      }
+    }
+  } catch (error) {
+    console.error('Error formatting with AI:', error);
+  }
+  
+  // Fallback to original if AI fails
+  return [description];
+}
+
 /**
  * Extract certifications from text using pattern matching
  * @param text Resume text to analyze

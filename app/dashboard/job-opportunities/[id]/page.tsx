@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Building2, 
   MapPin, 
@@ -52,13 +53,28 @@ type JobOpportunity = {
   raw_content?: string;
 };
 
+type Resume = {
+  id: string;
+  file_name: string;
+  created_at: string;
+};
+
 export default function JobOpportunityDetailPage() {
+  const supabase = getSupabaseClient();
   const [opportunity, setOpportunity] = useState<JobOpportunity | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [generatingResume, setGeneratingResume] = useState(false);
   const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [resumeSelectionModal, setResumeSelectionModal] = useState(false);
+  const [regenerateConfirmModal, setRegenerateConfirmModal] = useState(false);
+  const [documentType, setDocumentType] = useState<'resume' | 'coverLetter'>('resume');
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [selectedResumeId, setSelectedResumeId] = useState<string>('');
+  const [loadingResumes, setLoadingResumes] = useState(false);
+  const [existingApplication, setExistingApplication] = useState<any>(null);
+  const [checkingApplication, setCheckingApplication] = useState(false);
   const [editFormData, setEditFormData] = useState({
     job_title: '',
     company_name: '',
@@ -77,6 +93,7 @@ export default function JobOpportunityDetailPage() {
   useEffect(() => {
     if (jobId) {
       fetchJobOpportunity();
+      checkExistingApplication();
     }
   }, [jobId]);
 
@@ -193,6 +210,133 @@ export default function JobOpportunityDetailPage() {
     }
   };
 
+  const checkExistingApplication = async () => {
+    try {
+      setCheckingApplication(true);
+      
+      console.log("Checking for existing application via API...");
+      
+      const response = await fetch(`/api/applications/check?jobDescriptionId=${jobId}`);
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log("Application check result:", data);
+        
+        if (data.application) {
+          console.log("Found existing application:", data.application);
+          setExistingApplication(data.application);
+        } else {
+          console.log("No existing application found");
+          if (data.documents && data.documents.length > 0) {
+            console.log("Found documents without application:", data.documents);
+          }
+        }
+      } else {
+        console.error("Error checking application:", data.error, data.details);
+      }
+    } catch (error) {
+      console.error("Error checking application:", error);
+    } finally {
+      setCheckingApplication(false);
+    }
+  };
+
+  const fetchUserResumes = async () => {
+    try {
+      setLoadingResumes(true);
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (userData && userData.user) {
+        const { data: resumeData, error: resumeError } = await supabase
+          .from("resumes")
+          .select("id, file_name, created_at, processing_status")
+          .eq("user_id", userData.user.id)
+          .eq("processing_status", "completed")
+          .order("created_at", { ascending: false });
+          
+        if (resumeError) throw resumeError;
+        
+        if (resumeData && resumeData.length > 0) {
+          setResumes(resumeData);
+          setSelectedResumeId(resumeData[0].id); // Select the most recent by default
+        } else {
+          toast({
+            title: "No Resumes Found",
+            description: "Please upload a resume before generating documents.",
+            variant: "destructive"
+          });
+          setResumeSelectionModal(false);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching resumes:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load resumes",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingResumes(false);
+    }
+  };
+
+  const handleGenerateButtonClick = async (type: 'resume' | 'coverLetter') => {
+    // Check if document already exists
+    const hasExistingDocument = type === 'resume' 
+      ? existingApplication?.resume_id 
+      : existingApplication?.cover_letter_id;
+    
+    setDocumentType(type);
+    
+    if (hasExistingDocument) {
+      // Show confirmation dialog for regeneration
+      setRegenerateConfirmModal(true);
+    } else {
+      // No existing document, proceed with generation
+      setResumeSelectionModal(true);
+      await fetchUserResumes();
+    }
+  };
+  
+  const handleConfirmRegenerate = async () => {
+    setRegenerateConfirmModal(false);
+    setResumeSelectionModal(true);
+    await fetchUserResumes();
+  };
+  
+  const handleCancelRegenerate = () => {
+    setRegenerateConfirmModal(false);
+    
+    // Navigate to applications page to see existing documents
+    toast({
+      title: "View Existing Documents",
+      description: "Redirecting to Applications page where you can download existing documents.",
+    });
+    
+    setTimeout(() => {
+      router.push('/dashboard/applications');
+    }, 1000);
+  };
+
+  const handleConfirmGenerate = async () => {
+    if (!selectedResumeId) {
+      toast({
+        title: "No Resume Selected",
+        description: "Please select a resume to continue",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setResumeSelectionModal(false);
+    
+    if (documentType === 'resume') {
+      await handleGenerateResume();
+    } else {
+      await handleGenerateCoverLetter();
+    }
+  };
+
   const handleGenerateResume = async () => {
     setGeneratingResume(true);
     try {
@@ -219,35 +363,138 @@ export default function JobOpportunityDetailPage() {
         userId = sessionUserId;
       }
 
-      const response = await fetch('/api/generate-resume', {
+      const response = await fetch('/api/generate-resume-async', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           jobId: jobId,
+          resumeId: selectedResumeId,
           sessionId: sessionId,
           userId: sessionId ? null : userId, // Use userId only for authenticated users
         }),
       });
 
       if (response.ok) {
-        // Download the PDF
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'resume.pdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        const result = await response.json();
+        const jobProcessingId = result.jobId;
         
         toast({
-          title: "Success",
-          description: "Resume generated and downloaded successfully!"
+          title: "Resume Generation Started",
+          description: "Your resume is being generated. You'll be notified when it's ready.",
         });
+        
+        // Poll for job status
+        const checkJobStatus = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`/api/job-status/${jobProcessingId}`);
+            const statusData = await statusResponse.json();
+            
+            if (statusData.status === 'completed') {
+              clearInterval(checkJobStatus);
+              
+              console.log('Job completed, status data:', statusData);
+              
+              // Get the generated document - check both result and results fields
+              const documentId = statusData.result?.documentId || statusData.results?.documentId;
+              const fileName = statusData.result?.fileName || statusData.results?.fileName || 'resume.pdf';
+              
+              console.log('Document ID:', documentId, 'File Name:', fileName);
+              
+              if (documentId) {
+                const sessionId = localStorage.getItem('sessionUserId');
+                const headers: any = {};
+                if (sessionId) {
+                  headers['x-session-id'] = sessionId;
+                }
+                const docResponse = await fetch(`/api/documents/${documentId}/download`, {
+                  headers
+                });
+                if (docResponse.ok) {
+                  const blob = await docResponse.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.style.display = 'none';
+                  a.href = url;
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  
+                  toast({
+                    title: "Success",
+                    description: "Resume generated and downloaded successfully!"
+                  });
+                  
+                  // Refresh application status after a short delay to ensure DB is updated
+                  setTimeout(async () => {
+                    console.log("Refreshing application status after resume generation...");
+                    await checkExistingApplication();
+                    
+                    // If still no application found, create one manually
+                    if (!existingApplication && documentId) {
+                      console.log("Creating application record manually for resume...");
+                      try {
+                        const response = await fetch('/api/applications/create', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            jobDescriptionId: jobId,
+                            resumeId: documentId,
+                            resetStatus: true  // Reset to 'to_apply' when generating new documents
+                          })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                          console.log("Application created/updated successfully:", data.application);
+                          setExistingApplication(data.application);
+                        } else {
+                          console.error("Error creating application:", data.error, data.details);
+                        }
+                      } catch (error) {
+                        console.error("Error calling create application API:", error);
+                      }
+                    }
+                  }, 2000);
+                } else {
+                  const errorText = await docResponse.text();
+                  console.error('Download failed:', docResponse.status, errorText);
+                  toast({
+                    title: "Download Failed",
+                    description: "Resume was generated but download failed. Please check the Applications page.",
+                    variant: "destructive"
+                  });
+                }
+              } else {
+                toast({
+                  title: "Success",
+                  description: "Resume generated successfully! Check the Applications page to download.",
+                });
+                
+                // Refresh application status
+                checkExistingApplication();
+              }
+            } else if (statusData.status === 'failed') {
+              clearInterval(checkJobStatus);
+              toast({
+                title: "Generation Failed",
+                description: statusData.error || 'Failed to generate resume. Please try again.',
+                variant: "destructive"
+              });
+            }
+          } catch (error) {
+            console.error('Error checking job status:', error);
+          }
+        }, 2000); // Check every 2 seconds
+        
+        // Stop checking after 2 minutes
+        setTimeout(() => clearInterval(checkJobStatus), 120000);
       } else {
         const errorData = await response.json();
         console.error('Failed to generate resume:', errorData.error);
@@ -295,35 +542,144 @@ export default function JobOpportunityDetailPage() {
         userId = sessionUserId;
       }
 
-      const response = await fetch('/api/generate-cover-letter', {
+      const response = await fetch('/api/generate-cover-letter-async', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           jobId: jobId,
+          resumeId: selectedResumeId,
           sessionId: sessionId,
           userId: sessionId ? null : userId, // Use userId only for authenticated users
         }),
       });
 
       if (response.ok) {
-        // Download the PDF
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'cover-letter.pdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        const result = await response.json();
+        const jobProcessingId = result.jobId;
         
         toast({
-          title: "Success",
-          description: "Cover letter generated and downloaded successfully!"
+          title: "Cover Letter Generation Started",
+          description: "Your cover letter is being generated. You'll be notified when it's ready.",
         });
+        
+        // Poll for job status
+        const checkJobStatus = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`/api/job-status/${jobProcessingId}`);
+            const statusData = await statusResponse.json();
+            
+            console.log('Cover Letter Job status check:', statusData);
+            
+            if (statusData.status === 'completed') {
+              clearInterval(checkJobStatus);
+              
+              console.log('Cover Letter Job completed, full status data:', statusData);
+              
+              // Get the generated document - check both result and results fields
+              const documentId = statusData.result?.documentId || statusData.results?.documentId;
+              const fileName = statusData.result?.fileName || statusData.results?.fileName || 'cover-letter.pdf';
+              
+              console.log('Cover Letter - Document ID:', documentId, 'File Name:', fileName);
+              
+              if (documentId) {
+                const sessionId = localStorage.getItem('sessionUserId');
+                const headers: any = {};
+                if (sessionId) {
+                  headers['x-session-id'] = sessionId;
+                }
+                const docResponse = await fetch(`/api/documents/${documentId}/download`, {
+                  headers
+                });
+                if (docResponse.ok) {
+                  const blob = await docResponse.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.style.display = 'none';
+                  a.href = url;
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  
+                  toast({
+                    title: "Success",
+                    description: "Cover letter generated and downloaded successfully!"
+                  });
+                  
+                  // Refresh application status after a short delay to ensure DB is updated
+                  setTimeout(async () => {
+                    console.log("Refreshing application status after cover letter generation...");
+                    await checkExistingApplication();
+                    
+                    // If still no application found, create one manually
+                    if (!existingApplication && documentId) {
+                      console.log("Creating application record manually for cover letter...");
+                      try {
+                        const response = await fetch('/api/applications/create', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            jobDescriptionId: jobId,
+                            coverLetterId: documentId,
+                            resetStatus: true  // Reset to 'to_apply' when generating new documents
+                          })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                          console.log("Application created/updated successfully:", data.application);
+                          setExistingApplication(data.application);
+                        } else {
+                          console.error("Error creating application:", data.error, data.details);
+                        }
+                      } catch (error) {
+                        console.error("Error calling create application API:", error);
+                      }
+                    }
+                  }, 2000);
+                } else {
+                  const errorText = await docResponse.text();
+                  console.error('Cover Letter Download failed:', docResponse.status, errorText);
+                  toast({
+                    title: "Download Failed",
+                    description: "Cover letter was generated but download failed. Please check the Applications page.",
+                    variant: "destructive"
+                  });
+                }
+              } else {
+                console.log("No document ID returned, but job completed successfully");
+                toast({
+                  title: "Success",
+                  description: "Cover letter generated successfully! Check the Applications page to download.",
+                });
+                
+                // Refresh application status with a delay
+                setTimeout(() => {
+                  console.log("Refreshing application status after document generation (no ID case)...");
+                  checkExistingApplication();
+                }, 2000);
+              }
+            } else if (statusData.status === 'failed') {
+              clearInterval(checkJobStatus);
+              toast({
+                title: "Generation Failed",
+                description: statusData.error || 'Failed to generate cover letter. Please try again.',
+                variant: "destructive"
+              });
+            }
+          } catch (error) {
+            console.error('Error checking job status:', error);
+          }
+        }, 2000); // Check every 2 seconds
+        
+        // Stop checking after 2 minutes
+        setTimeout(() => clearInterval(checkJobStatus), 120000);
       } else {
         const errorData = await response.json();
         console.error('Failed to generate cover letter:', errorData.error);
@@ -670,30 +1026,59 @@ export default function JobOpportunityDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Show existing documents info if available */}
+              {(existingApplication?.resume_id || existingApplication?.cover_letter_id) && (
+                <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-3">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                    Documents already generated:
+                  </p>
+                  <div className="space-y-1">
+                    {existingApplication?.resume_id && (
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        ✓ Tailored Resume
+                      </p>
+                    )}
+                    {existingApplication?.cover_letter_id && (
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        ✓ Cover Letter
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="px-0 h-auto mt-2 text-xs"
+                    onClick={() => router.push('/dashboard/applications')}
+                  >
+                    View in Applications →
+                  </Button>
+                </div>
+              )}
+              
               <Button 
                 className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                onClick={handleGenerateResume}
-                disabled={generatingResume}
+                onClick={() => handleGenerateButtonClick('resume')}
+                disabled={generatingResume || checkingApplication}
               >
                 {generatingResume ? (
                   <Loader className="h-5 w-5 mr-3 animate-spin" />
                 ) : (
                   <FileText className="h-5 w-5 mr-3" />
                 )}
-                Generate Tailored Resume
+                {existingApplication?.resume_id ? 'Regenerate' : 'Generate'} Tailored Resume
               </Button>
               <Button 
                 variant="outline" 
                 className="w-full h-12 text-base font-semibold border-2 hover:bg-blue-50 dark:hover:bg-blue-950"
-                onClick={handleGenerateCoverLetter}
-                disabled={generatingCoverLetter}
+                onClick={() => handleGenerateButtonClick('coverLetter')}
+                disabled={generatingCoverLetter || checkingApplication}
               >
                 {generatingCoverLetter ? (
                   <Loader className="h-5 w-5 mr-3 animate-spin" />
                 ) : (
                   <Download className="h-5 w-5 mr-3" />
                 )}
-                Generate Cover Letter
+                {existingApplication?.cover_letter_id ? 'Regenerate' : 'Generate'} Cover Letter
               </Button>
             </CardContent>
           </Card>
@@ -894,6 +1279,116 @@ export default function JobOpportunityDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Resume Selection Modal */}
+      <Dialog open={resumeSelectionModal} onOpenChange={setResumeSelectionModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Select Resume for {documentType === 'resume' ? 'Tailored Resume' : 'Cover Letter'}
+            </DialogTitle>
+            <DialogDescription>
+              Choose which resume to use as the base for generating your {documentType === 'resume' ? 'tailored resume' : 'cover letter'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {loadingResumes ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="h-6 w-6 animate-spin" />
+              </div>
+            ) : resumes.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">No resumes found</p>
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    setResumeSelectionModal(false);
+                    router.push("/dashboard/resume/new");
+                  }}
+                >
+                  Upload Resume
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="resume-select">Choose a resume to use as the base:</Label>
+                  <Select
+                    value={selectedResumeId}
+                    onValueChange={setSelectedResumeId}
+                  >
+                    <SelectTrigger id="resume-select">
+                      <SelectValue placeholder="Select a resume" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {resumes.map((resume) => (
+                        <SelectItem key={resume.id} value={resume.id}>
+                          {resume.file_name} - Uploaded {new Date(resume.created_at).toLocaleDateString()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  The selected resume will be used to generate a {documentType === 'resume' ? 'tailored resume' : 'customized cover letter'} for the {opportunity?.job_title} position at {opportunity?.company_name}.
+                </p>
+              </>
+            )}
+          </div>
+          {resumes.length > 0 && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setResumeSelectionModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmGenerate} disabled={!selectedResumeId}>
+                Generate {documentType === 'resume' ? 'Resume' : 'Cover Letter'}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Regeneration Confirmation Modal */}
+      <Dialog open={regenerateConfirmModal} onOpenChange={setRegenerateConfirmModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {documentType === 'resume' ? 'Resume' : 'Cover Letter'} Already Exists
+            </DialogTitle>
+            <DialogDescription>
+              You have already generated a {documentType} for this job opportunity.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              A {documentType === 'resume' ? 'resume' : 'cover letter'} has already been generated for this job opportunity.
+            </p>
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                Regenerating will create a new document and replace the existing one.
+              </p>
+            </div>
+            <p className="text-sm">
+              Would you like to:
+            </p>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleCancelRegenerate}
+              className="w-full sm:w-auto"
+            >
+              View Existing Document
+            </Button>
+            <Button 
+              onClick={handleConfirmRegenerate}
+              className="w-full sm:w-auto"
+            >
+              Regenerate {documentType === 'resume' ? 'Resume' : 'Cover Letter'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

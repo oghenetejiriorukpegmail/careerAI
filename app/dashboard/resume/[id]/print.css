@@ -1,0 +1,412 @@
+/* Print-specific styles for resume display */
+@media print {
+  /* Force color printing */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Remove background and set clean print layout */
+  body {
+    background: white !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Page setup - Remove headers and footers */
+  @page {
+    size: letter;
+    margin: 0.5in 0.6in;
+  }
+  
+  @page :first {
+    margin-top: 0.5in;
+  }
+
+  /* Remove browser print headers/footers */
+  @page {
+    @top-center {
+      content: none !important;
+    }
+    @bottom-center {
+      content: none !important;
+    }
+    @top-left {
+      content: none !important;
+    }
+    @top-right {
+      content: none !important;
+    }
+    @bottom-left {
+      content: none !important;
+    }
+    @bottom-right {
+      content: none !important;
+    }
+  }
+  
+  /* Force title to be empty during print */
+  html head title {
+    display: none !important;
+  }
+
+  /* Hide non-printable elements */
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  /* Remove backgrounds from main container */
+  .min-h-screen {
+    min-height: auto !important;
+    background: white !important;
+  }
+
+  /* Adjust container spacing */
+  .container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Card styling for print - preserve subtle backgrounds */
+  .backdrop-blur-sm {
+    background: white !important;
+    backdrop-filter: none !important;
+  }
+  
+  .shadow-xl,
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* Card styling for print with page breaks */
+  [class*="Card"] {
+    margin-bottom: 0.75rem !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+  
+  /* Major sections should avoid breaking if possible */
+  .shadow-lg {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Header adjustments */
+  .text-3xl {
+    font-size: 20pt !important;
+    color: black !important;
+  }
+
+  .text-xl {
+    font-size: 14pt !important;
+    color: black !important;
+  }
+
+  /* Remove gradient text effects */
+  .bg-gradient-to-r,
+  .bg-clip-text,
+  .text-transparent {
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    -webkit-text-fill-color: black !important;
+    color: black !important;
+  }
+
+  /* Section headers */
+  [class*="CardTitle"] {
+    font-size: 13pt !important;
+    font-weight: bold !important;
+    color: black !important;
+    margin-bottom: 0.3rem !important;
+  }
+  
+  [class*="CardHeader"] {
+    padding: 0.5rem 0 !important;
+  }
+  
+  [class*="CardContent"] {
+    padding: 0 !important;
+  }
+
+  /* Preserve light colored backgrounds */
+  .bg-blue-50 {
+    background-color: #eff6ff !important;
+  }
+  .bg-green-50 {
+    background-color: #f0fdf4 !important;
+  }
+  .bg-purple-50 {
+    background-color: #faf5ff !important;
+  }
+  .bg-orange-50 {
+    background-color: #fff7ed !important;
+  }
+  .bg-yellow-50 {
+    background-color: #fefce8 !important;
+  }
+  .bg-indigo-50 {
+    background-color: #eef2ff !important;
+  }
+  .bg-teal-50 {
+    background-color: #f0fdfa !important;
+  }
+  .bg-rose-50 {
+    background-color: #fff1f2 !important;
+  }
+  .bg-amber-50 {
+    background-color: #fffbeb !important;
+  }
+  .bg-cyan-50 {
+    background-color: #ecfeff !important;
+  }
+  
+  /* Gradient backgrounds - use solid colors */
+  .bg-gradient-to-r,
+  .bg-gradient-to-br {
+    background-image: none !important;
+  }
+  
+  .from-blue-50.to-blue-50,
+  .from-blue-100.to-blue-200 {
+    background-color: #eff6ff !important;
+  }
+  
+  .from-orange-50.to-red-50 {
+    background-color: #fff7ed !important;
+  }
+  
+  .from-indigo-50.to-purple-50 {
+    background-color: #eef2ff !important;
+  }
+  
+  .from-yellow-50.to-orange-50,
+  .from-yellow-50.to-amber-50 {
+    background-color: #fefce8 !important;
+  }
+  
+  .from-green-50.to-emerald-50 {
+    background-color: #f0fdf4 !important;
+  }
+  
+  .from-purple-50.to-pink-50 {
+    background-color: #faf5ff !important;
+  }
+  
+  .from-slate-50.to-blue-50,
+  .from-slate-50.to-gray-50 {
+    background-color: #f8fafc !important;
+  }
+  
+  .from-teal-50.to-cyan-50 {
+    background-color: #f0fdfa !important;
+  }
+  
+  .from-violet-50.to-purple-50 {
+    background-color: #f5f3ff !important;
+  }
+
+  /* Skill badges and tags - preserve colors */
+  .rounded-full {
+    padding: 0.25rem 0.75rem !important;
+    page-break-inside: avoid !important;
+  }
+  
+  /* Keep gradient colors for skill badges */
+  .from-blue-100.to-blue-200 {
+    background: linear-gradient(to right, #dbeafe, #bfdbfe) !important;
+    color: #1e40af !important;
+    border-color: #93c5fd !important;
+  }
+  
+  .from-green-100.to-green-200 {
+    background: linear-gradient(to right, #d1fae5, #a7f3d0) !important;
+    color: #166534 !important;
+    border-color: #86efac !important;
+  }
+  
+  .from-purple-100.to-purple-200 {
+    background: linear-gradient(to right, #e9d5ff, #d8b4fe) !important;
+    color: #6b21a8 !important;
+    border-color: #c084fc !important;
+  }
+
+  /* Icons */
+  svg {
+    display: none !important;
+  }
+
+  /* Links */
+  a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
+
+  /* Experience timeline */
+  .border-l-2 {
+    border-left: 1px solid #333 !important;
+  }
+
+  .absolute.-left-2 {
+    display: none !important;
+  }
+
+  /* Text sizing */
+  .text-sm {
+    font-size: 10pt !important;
+  }
+
+  .text-xs {
+    font-size: 9pt !important;
+  }
+
+  /* Spacing adjustments - Tighter for print */
+  .space-y-8 > * + * {
+    margin-top: 0.5rem !important;
+  }
+
+  .space-y-6 > * + * {
+    margin-top: 0.4rem !important;
+  }
+
+  .space-y-4 > * + * {
+    margin-top: 0.4rem !important;
+  }
+  
+  .space-y-3 > * + * {
+    margin-top: 0.3rem !important;
+  }
+  
+  .space-y-2 > * + * {
+    margin-top: 0.2rem !important;
+  }
+  
+  /* Reduce padding on sections */
+  .p-4 {
+    padding: 0.5rem !important;
+  }
+  
+  .p-3 {
+    padding: 0.4rem !important;
+  }
+  
+  .pb-6 {
+    padding-bottom: 0.5rem !important;
+  }
+
+  /* Grid adjustments */
+  .grid {
+    display: block !important;
+  }
+
+  .grid > * {
+    margin-bottom: 0.5rem !important;
+  }
+
+  /* Page breaks - Better control */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  p, li {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Each major section (Card) should avoid breaks */
+  .space-y-8 > div {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Experience entries should stay together */
+  .relative.pl-6.pb-6 {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Remove forced page breaks - sections should flow naturally */
+  /* Keep sections together when possible but don't force new pages */
+
+  /* Hide back to top button */
+  .fixed {
+    display: none !important;
+  }
+
+  /* Text colors - Keep semantic colors but darken for print */
+  .text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900 {
+    color: #1e40af !important;
+  }
+  
+  .text-green-600, .text-green-700, .text-green-800, .text-green-900 {
+    color: #166534 !important;
+  }
+  
+  .text-purple-600, .text-purple-700, .text-purple-800, .text-purple-900 {
+    color: #6b21a8 !important;
+  }
+  
+  .text-orange-600, .text-orange-700, .text-orange-800, .text-orange-900 {
+    color: #c2410c !important;
+  }
+  
+  .text-indigo-600, .text-indigo-700, .text-indigo-800, .text-indigo-900 {
+    color: #4338ca !important;
+  }
+  
+  .text-slate-600, .text-slate-700, .text-slate-800, .text-slate-900 {
+    color: #334155 !important;
+  }
+  
+  .text-muted-foreground, .text-slate-500 {
+    color: #64748b !important;
+  }
+
+  /* Remove hover effects */
+  [class*="hover\\:"]:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Ensure white background for all sections */
+  div, section, article {
+    background: white !important;
+  }
+
+  /* Personal info cards */
+  .p-3.rounded-lg {
+    border: 1px solid #ddd !important;
+    padding: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  /* Professional summary specific */
+  .p-4.bg-gradient-to-br.from-slate-50.to-blue-50.rounded-lg {
+    padding: 0.5rem !important;
+    margin-top: 0.5rem !important;
+  }
+  
+  /* Reduce margins in summary section */
+  .mt-6 {
+    margin-top: 0.5rem !important;
+  }
+  
+  .mb-3 {
+    margin-bottom: 0.3rem !important;
+  }
+
+  /* Remove animations and transitions */
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

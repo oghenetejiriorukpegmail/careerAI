@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '@/lib/supabase/client';
 import { createServerClient } from '@/lib/supabase/server-client';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Check authentication
@@ -283,8 +285,7 @@ export async function DELETE(request: NextRequest) {
     
     const userId = session.user.id;
     
-    const { searchParams } = new URL(request.url);
-    const applicationId = searchParams.get('applicationId');
+    const applicationId = request.nextUrl.searchParams.get('applicationId');
 
     if (!applicationId) {
       return NextResponse.json({ error: 'Application ID is required' }, { status: 400 });

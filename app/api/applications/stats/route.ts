@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApplicationStats } from '@/lib/utils/application-manager';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const sessionId = searchParams.get('sessionId');
+    const userId = request.nextUrl.searchParams.get('userId');
+    const sessionId = request.nextUrl.searchParams.get('sessionId');
 
     if (!userId && !sessionId) {
       return NextResponse.json({ error: 'User ID or Session ID is required' }, { status: 400 });
     }
 
-    const userIdentifier = userId || sessionId;
+    console.log('[STATS API] Fetching stats for user:', userId || sessionId);
     
-    const stats = await getApplicationStats(userIdentifier!, sessionId || undefined);
+    const stats = await getApplicationStats(userId || '', sessionId || undefined);
 
     return NextResponse.json({ stats });
 

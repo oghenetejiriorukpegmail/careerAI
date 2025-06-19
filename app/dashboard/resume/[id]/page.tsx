@@ -3,11 +3,31 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import "./print.css";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { ArrowLeft, Download, Edit, Trash2, User, Mail, Phone, Calendar, FileText, Briefcase, GraduationCap, Code, CheckCircle, Clock, AlertCircle, MapPin, Globe, Award, BookOpen, Wrench, Trophy, FileType, Users, Heart, Star, Zap } from "lucide-react";
+import { ArrowLeft, Download, Edit, Trash2, Calendar, FileText, CheckCircle, Clock, AlertCircle, Zap, ArrowUp, Printer } from "lucide-react";
+import { PrintPreviewDialog } from "@/components/ui/print-preview-dialog";
+import { RewriteDialog } from "@/components/ui/rewrite-dialog";
+import { ManualEditDialog } from "@/components/ui/manual-edit-dialog";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableSection } from "@/components/ui/sortable-section";
+import {
+  PersonalInfoSection,
+  ExperienceSection,
+  EducationSection,
+  SkillsSection,
+  CertificationsSection,
+  TrainingSection,
+  ProjectsSection,
+  LanguagesSection,
+  AwardsSection,
+  ReferencesSection,
+  AdditionalSectionsSection
+} from "./resume-sections";
 
 type Resume = {
   id: string;
@@ -30,8 +50,56 @@ export default function ResumeViewPage() {
   const [resume, setResume] = useState<Resume | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAttribution, setShowAttribution] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showRewriteDialog, setShowRewriteDialog] = useState(false);
+  const [rewriteSection, setRewriteSection] = useState<{
+    title: string;
+    content: string;
+    path: string[];
+  } | null>(null);
+  const [showManualEditDialog, setShowManualEditDialog] = useState(false);
+  const [manualEditSection, setManualEditSection] = useState<{
+    title: string;
+    content: any;
+    path: string[];
+    contentType: string;
+    fieldDefinitions?: any[];
+  } | null>(null);
+  const [sectionOrder, setSectionOrder] = useState<string[]>([
+    "personal-info",
+    "experience",
+    "education",
+    "skills",
+    "certifications",
+    "training",
+    "projects",
+    "languages",
+    "awards",
+    "references",
+    "additional-sections"
+  ]);
 
   const resumeId = params.id as string;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Check if print mode is requested
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('print') === 'true' && resume && resume.parsed_data) {
+      // Open print preview instead of direct print
+      setShowPrintPreview(true);
+      // Remove print parameter
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [resume]);
 
   // Load attribution setting
   useEffect(() => {
@@ -86,6 +154,162 @@ export default function ResumeViewPage() {
     }
   }, [resumeId, toast, router]);
 
+  // Scroll detection for back to top button
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY;
+      setShowBackToTop(scrollPosition > 400); // Show after scrolling 400px
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      setSectionOrder((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over?.id as string);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const handlePrint = () => {
+    // Store original title
+    const originalTitle = document.title;
+    
+    // Set empty title to remove filename from print
+    document.title = ' ';
+    
+    // Print
+    window.print();
+    
+    // Restore original title after a short delay
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 100);
+  };
+
+  const handleRewriteClick = (sectionTitle: string, content: string, path: string[]) => {
+    setRewriteSection({ title: sectionTitle, content, path });
+    setShowRewriteDialog(true);
+  };
+
+  const handleManualEditClick = (sectionTitle: string, content: any, path: string[], contentType: string, fieldDefinitions?: any[]) => {
+    setManualEditSection({ title: sectionTitle, content, path, contentType, fieldDefinitions });
+    setShowManualEditDialog(true);
+  };
+
+  const handleRewriteAccept = async (newContent: string) => {
+    if (!resume || !rewriteSection) return;
+
+    try {
+      // Deep clone the parsed_data to avoid mutations
+      const updatedParsedData = JSON.parse(JSON.stringify(resume.parsed_data));
+      
+      // Navigate to the correct section and update it
+      let current = updatedParsedData;
+      for (let i = 0; i < rewriteSection.path.length - 1; i++) {
+        current = current[rewriteSection.path[i]];
+      }
+      
+      // Handle array descriptions (like experience bullet points and skills)
+      const lastKey = rewriteSection.path[rewriteSection.path.length - 1];
+      if (Array.isArray(current[lastKey])) {
+        // Special handling for skills - split by comma
+        if (lastKey === 'skills') {
+          current[lastKey] = newContent.split(',').map(skill => skill.trim()).filter(skill => skill);
+        } else {
+          // For other arrays (like experience bullet points), split by newline
+          current[lastKey] = newContent.split('\n').filter(line => line.trim());
+        }
+      } else {
+        current[lastKey] = newContent;
+      }
+
+      // Update the resume in the database
+      const { error } = await supabase
+        .from("resumes")
+        .update({ parsed_data: updatedParsedData })
+        .eq("id", resume.id);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      setResume({ ...resume, parsed_data: updatedParsedData });
+      
+      toast({
+        title: "Success",
+        description: "Section updated successfully",
+      });
+    } catch (error: any) {
+      console.error("Error updating section:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update section",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleManualEditSave = async (newContent: any) => {
+    if (!resume || !manualEditSection) return;
+
+    try {
+      // Deep clone the parsed_data to avoid mutations
+      const updatedParsedData = JSON.parse(JSON.stringify(resume.parsed_data));
+      
+      // Navigate to the correct section and update it
+      let current = updatedParsedData;
+      const path = manualEditSection.path;
+      
+      for (let i = 0; i < path.length - 1; i++) {
+        current = current[path[i]];
+      }
+      
+      // Update the final value
+      const lastKey = path[path.length - 1];
+      current[lastKey] = newContent;
+
+      // Update the resume in the database
+      const { error } = await supabase
+        .from("resumes")
+        .update({ parsed_data: updatedParsedData })
+        .eq("id", resume.id);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      setResume({ ...resume, parsed_data: updatedParsedData });
+      
+      toast({
+        title: "Success",
+        description: "Your changes have been saved",
+      });
+    } catch (error: any) {
+      console.error("Error updating section:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save changes",
+        variant: "destructive",
+      });
+    }
+  };
+
   const deleteResume = async () => {
     if (!resume) return;
     
@@ -116,10 +340,16 @@ export default function ResumeViewPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[500px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading resume...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-center h-[500px]">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-blue-600"></div>
+              </div>
+              <p className="text-sm text-slate-600 font-medium">Loading resume...</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -156,11 +386,11 @@ export default function ResumeViewPage() {
     const status = resume?.processing_status || (resume?.parsed_data ? 'completed' : 'pending');
     
     if (status === 'completed') {
-      return <CheckCircle className="h-4 w-4 text-green-600" />;
+      return <CheckCircle className="h-3.5 w-3.5 text-green-600" />;
     } else if (status === 'processing') {
-      return <Clock className="h-4 w-4 text-yellow-600" />;
+      return <Clock className="h-3.5 w-3.5 text-yellow-600 animate-spin" />;
     } else {
-      return <AlertCircle className="h-4 w-4 text-orange-600" />;
+      return <AlertCircle className="h-3.5 w-3.5 text-orange-600" />;
     }
   };
 
@@ -178,443 +408,262 @@ export default function ResumeViewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto px-4 py-8 space-y-8">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 print:bg-white">
+      <div className="container mx-auto px-4 py-6 space-y-6 print:px-0 print:py-0">
+        {/* Modern Navigation Header */}
+        <div className="flex items-center justify-between print:hidden">
           <Link href="/dashboard/resume">
-            <Button variant="ghost" className="hover:bg-white/50">
+            <Button 
+              variant="ghost" 
+              className="-ml-2 hover:bg-white/60 transition-colors"
+            >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Resumes
             </Button>
           </Link>
-          <div className="flex gap-2">
-            <Button variant="outline" className="bg-white/50 hover:bg-white/70 border-red-200 text-red-700 hover:text-red-800" onClick={deleteResume}>
+          
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="bg-white/60 hover:bg-white/80 border-slate-200 shadow-sm transition-all hover:shadow-md" 
+              onClick={() => setShowPrintPreview(true)}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Print
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="bg-white/60 hover:bg-red-50 border-slate-200 text-slate-700 hover:text-red-600 hover:border-red-200 shadow-sm transition-all hover:shadow-md" 
+              onClick={deleteResume}
+            >
               <Trash2 className="mr-2 h-4 w-4" />
               Delete
             </Button>
           </div>
         </div>
 
-        {/* Header Card with Enhanced Design */}
-        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-          <CardHeader className="pb-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  {resume.file_name}
-                </CardTitle>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    {new Date(resume.created_at).toLocaleDateString()}
-                  </div>
-                  {resume.file_size && (
-                    <div className="flex items-center gap-1">
-                      <FileText className="h-4 w-4" />
-                      {(resume.file_size / 1024 / 1024).toFixed(2)} MB
+        {/* Modern Resume Header Card */}
+        <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-shadow print:shadow-none print:border print:border-gray-300 print:hidden">
+          <CardHeader className="p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start gap-4">
+                  {/* Icon Container */}
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center shadow-md">
+                      <FileText className="h-6 w-6 text-white" />
                     </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    {getStatusIcon()}
-                    <span className={resume?.processing_status === 'completed' || resume?.parsed_data ? 'text-green-600' : 'text-yellow-600'}>
-                      {getStatusText()}
-                    </span>
                   </div>
-                  {showAttribution && resume.ai_provider && resume.ai_model && (
-                    <div className="flex items-center gap-1 text-xs text-slate-500">
-                      <Zap className="h-3 w-3" />
-                      <span>Powered by: {resume.ai_provider}/{resume.ai_model}</span>
+                  
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-2xl font-semibold text-slate-900 truncate">
+                      {resume.file_name}
+                    </h1>
+                    
+                    {/* Metadata Row */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2">
+                      <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{new Date(resume.created_at).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        })}</span>
+                      </div>
+                      
+                      {resume.file_size && (
+                        <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>{(resume.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-1.5">
+                        {getStatusIcon()}
+                        <span className={`text-sm font-medium ${
+                          resume?.processing_status === 'completed' || resume?.parsed_data 
+                            ? 'text-green-600' 
+                            : 'text-yellow-600'
+                        }`}>
+                          {getStatusText()}
+                        </span>
+                      </div>
+                      
+                      {showAttribution && resume.ai_provider && resume.ai_model && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Zap className="h-3 w-3" />
+                          <span className="font-medium">AI: {resume.ai_provider}/{resume.ai_model}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-              <div className="px-4 py-2 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full">
-                <FileText className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardHeader>
         </Card>
 
         {resume.parsed_data && (
-          <>
-            {/* Personal Information Card */}
-            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <User className="h-5 w-5 text-blue-600" />
-                  Personal Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-6">
-                  <div className="grid gap-4">
-                    {resume.parsed_data.name && (
-                      <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                        <User className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-blue-900">Name</div>
-                          <div className="text-blue-700 break-words">{resume.parsed_data.name}</div>
-                        </div>
-                      </div>
-                    )}
-                    {resume.parsed_data.email && (
-                      <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                        <Mail className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-green-900">Email</div>
-                          <div className="text-green-700 break-all">{resume.parsed_data.email}</div>
-                        </div>
-                      </div>
-                    )}
-                    {resume.parsed_data.phone && (
-                      <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
-                        <Phone className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-purple-900">Phone</div>
-                          <div className="text-purple-700 break-words">{resume.parsed_data.phone}</div>
-                        </div>
-                      </div>
-                    )}
-                    {resume.parsed_data.address && (
-                      <div className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg">
-                        <MapPin className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-orange-900">Address</div>
-                          <div className="text-orange-700 break-words">{resume.parsed_data.address}</div>
-                        </div>
-                      </div>
-                    )}
-                    {resume.parsed_data.linkedin && (
-                      <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                        <Users className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-blue-900">LinkedIn</div>
-                          <a 
-                            href={resume.parsed_data.linkedin} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-blue-700 hover:underline break-all text-sm leading-relaxed"
-                            title={resume.parsed_data.linkedin}
-                          >
-                            {resume.parsed_data.linkedin}
-                          </a>
-                        </div>
-                      </div>
-                    )}
-                    {resume.parsed_data.website && (
-                      <div className="flex items-start gap-3 p-3 bg-teal-50 rounded-lg">
-                        <Globe className="h-4 w-4 text-teal-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-teal-900">Website</div>
-                          <a 
-                            href={resume.parsed_data.website} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-teal-700 hover:underline break-all text-sm leading-relaxed"
-                            title={resume.parsed_data.website}
-                          >
-                            {resume.parsed_data.website}
-                          </a>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-6">
-                    <div className="p-4 bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg">
-                      <h3 className="font-semibold mb-3 text-slate-800">Professional Summary</h3>
-                      {resume.parsed_data.summary ? (
-                        <p className="text-slate-600 leading-relaxed">{resume.parsed_data.summary}</p>
-                      ) : (
-                        <p className="text-slate-500 italic">No summary available</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Experience Card */}
-            {resume.parsed_data.experience && resume.parsed_data.experience.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Briefcase className="h-5 w-5 text-orange-600" />
-                    Experience ({resume.parsed_data.experience.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {resume.parsed_data.experience.map((exp: any, index: number) => (
-                      <div key={index} className="relative pl-6 pb-6 border-l-2 border-orange-200 last:border-l-0 last:pb-0">
-                        <div className="absolute -left-2 top-0 w-4 h-4 bg-orange-500 rounded-full border-2 border-white"></div>
-                        <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 rounded-lg">
-                          <div className="font-semibold text-lg text-orange-900">{exp.title}</div>
-                          <div className="text-orange-700 font-medium">{exp.company}</div>
-                          <div className="text-sm text-orange-600 mb-2">{exp.duration}</div>
-                          {exp.description && (
-                            <div className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
-                              {exp.description}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Education Card */}
-            {resume.parsed_data.education && resume.parsed_data.education.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <GraduationCap className="h-5 w-5 text-indigo-600" />
-                    Education ({resume.parsed_data.education.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {resume.parsed_data.education.map((edu: any, index: number) => (
-                      <div key={index} className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg border border-indigo-100">
-                        <div className="font-semibold text-indigo-900">{edu.degree}</div>
-                        {edu.school && <div className="text-indigo-700 font-medium">{edu.school}</div>}
-                        {edu.year && <div className="text-sm text-indigo-600">{edu.year}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Skills Card */}
-            {resume.parsed_data.skills && resume.parsed_data.skills.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Code className="h-5 w-5 text-emerald-600" />
-                    Skills ({resume.parsed_data.skills.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-3">
-                    {resume.parsed_data.skills.map((skill: string, index: number) => {
-                      const colors = [
-                        'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-200',
-                        'bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-200',
-                        'bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 border-purple-200',
-                        'bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border-orange-200',
-                        'bg-gradient-to-r from-pink-100 to-pink-200 text-pink-800 border-pink-200',
-                        'bg-gradient-to-r from-indigo-100 to-indigo-200 text-indigo-800 border-indigo-200',
-                        'bg-gradient-to-r from-teal-100 to-teal-200 text-teal-800 border-teal-200',
-                        'bg-gradient-to-r from-cyan-100 to-cyan-200 text-cyan-800 border-cyan-200',
-                        'bg-gradient-to-r from-rose-100 to-rose-200 text-rose-800 border-rose-200',
-                        'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800 border-amber-200'
-                      ];
-                      const colorClass = colors[index % colors.length];
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sectionOrder}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-4">
+                {sectionOrder.map((sectionId) => {
+                  switch (sectionId) {
+                    case "personal-info":
                       return (
-                        <span 
-                          key={index} 
-                          className={`px-3 py-2 rounded-full text-sm font-medium border transition-all hover:scale-105 hover:shadow-sm ${colorClass}`}
-                        >
-                          {skill}
-                        </span>
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <PersonalInfoSection data={resume.parsed_data} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
                       );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Certifications Card */}
-            {resume.parsed_data.certifications && resume.parsed_data.certifications.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Award className="h-5 w-5 text-yellow-600" />
-                    Certifications ({resume.parsed_data.certifications.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {resume.parsed_data.certifications.map((cert: any, index: number) => (
-                      <div key={index} className="p-4 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg border border-yellow-100">
-                        <div className="font-semibold text-yellow-900">{cert.name}</div>
-                        {cert.issuer && <div className="text-yellow-700 font-medium">{cert.issuer}</div>}
-                        <div className="text-sm text-yellow-600 space-y-1">
-                          {cert.date && <div>Obtained: {cert.date}</div>}
-                          {cert.expiry && <div>Expires: {cert.expiry}</div>}
-                          {cert.credential_id && <div>ID: {cert.credential_id}</div>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Training Card */}
-            {resume.parsed_data.training && resume.parsed_data.training.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <BookOpen className="h-5 w-5 text-green-600" />
-                    Training & Courses ({resume.parsed_data.training.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {resume.parsed_data.training.map((training: any, index: number) => (
-                      <div key={index} className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-100">
-                        <div className="font-semibold text-green-900">{training.name}</div>
-                        {training.provider && <div className="text-green-700 font-medium">{training.provider}</div>}
-                        <div className="text-sm text-green-600 space-y-1">
-                          {training.date && <div>Completed: {training.date}</div>}
-                          {training.duration && <div>Duration: {training.duration}</div>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* References Card */}
-            {resume.parsed_data.references && resume.parsed_data.references.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Users className="h-5 w-5 text-slate-600" />
-                    References ({resume.parsed_data.references.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {resume.parsed_data.references.map((ref: any, index: number) => (
-                      <div key={index} className="p-4 bg-gradient-to-r from-slate-50 to-gray-50 rounded-lg border border-slate-100">
-                        <div className="font-semibold text-slate-900">{ref.name}</div>
-                        {ref.title && <div className="text-slate-700 font-medium">{ref.title}</div>}
-                        {ref.company && <div className="text-slate-600">{ref.company}</div>}
-                        <div className="text-sm text-slate-600 space-y-1 mt-2">
-                          {ref.email && <div>Email: {ref.email}</div>}
-                          {ref.phone && <div>Phone: {ref.phone}</div>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Languages Card */}
-            {resume.parsed_data.languages && resume.parsed_data.languages.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Globe className="h-5 w-5 text-teal-600" />
-                    Languages ({resume.parsed_data.languages.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {resume.parsed_data.languages.map((lang: any, index: number) => (
-                      <div key={index} className="flex justify-between items-center p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg border border-teal-100">
-                        <span className="font-medium text-teal-900">{lang.language}</span>
-                        <span className="text-sm text-teal-700 bg-teal-100 px-2 py-1 rounded">{lang.proficiency}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Projects Card */}
-            {resume.parsed_data.projects && resume.parsed_data.projects.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Wrench className="h-5 w-5 text-purple-600" />
-                    Projects ({resume.parsed_data.projects.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {resume.parsed_data.projects.map((project: any, index: number) => (
-                      <div key={index} className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
-                        <div className="font-semibold text-purple-900">{project.name}</div>
-                        {project.description && <p className="text-purple-700 mt-2">{project.description}</p>}
-                        <div className="text-sm text-purple-600 mt-2 space-y-1">
-                          {project.date && <div>Date: {project.date}</div>}
-                          {project.url && (
-                            <div>
-                              URL: <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-purple-700 hover:underline">{project.url}</a>
-                            </div>
-                          )}
-                          {project.technologies && project.technologies.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {project.technologies.map((tech: string, techIndex: number) => (
-                                <span key={techIndex} className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs">
-                                  {tech}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Awards Card */}
-            {resume.parsed_data.awards && resume.parsed_data.awards.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Trophy className="h-5 w-5 text-yellow-600" />
-                    Awards & Honors ({resume.parsed_data.awards.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {resume.parsed_data.awards.map((award: any, index: number) => (
-                      <div key={index} className="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-100">
-                        <div className="font-semibold text-yellow-900">{award.name}</div>
-                        {award.issuer && <div className="text-yellow-700 font-medium">{award.issuer}</div>}
-                        {award.date && <div className="text-sm text-yellow-600">Date: {award.date}</div>}
-                        {award.description && <p className="text-yellow-700 mt-2 text-sm">{award.description}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Additional Sections Card */}
-            {resume.parsed_data.additional_sections && resume.parsed_data.additional_sections.length > 0 && (
-              <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Zap className="h-5 w-5 text-violet-600" />
-                    Additional Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {resume.parsed_data.additional_sections.map((section: any, index: number) => (
-                      <div key={index} className="p-4 bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg border border-violet-100">
-                        <div className="font-semibold text-violet-900 mb-2">{section.section_title}</div>
-                        <div className="text-violet-700 text-sm whitespace-pre-line">{section.content}</div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
+                    case "experience":
+                      return resume.parsed_data.experience && resume.parsed_data.experience.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <ExperienceSection data={resume.parsed_data.experience} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "education":
+                      return resume.parsed_data.education && resume.parsed_data.education.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <EducationSection data={resume.parsed_data.education} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "skills":
+                      return resume.parsed_data.skills && resume.parsed_data.skills.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <SkillsSection data={resume.parsed_data.skills} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "certifications":
+                      return resume.parsed_data.certifications && resume.parsed_data.certifications.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <CertificationsSection data={resume.parsed_data.certifications} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "training":
+                      return resume.parsed_data.training && resume.parsed_data.training.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <TrainingSection data={resume.parsed_data.training} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "projects":
+                      return resume.parsed_data.projects && resume.parsed_data.projects.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <ProjectsSection data={resume.parsed_data.projects} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "languages":
+                      return resume.parsed_data.languages && resume.parsed_data.languages.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <LanguagesSection data={resume.parsed_data.languages} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "awards":
+                      return resume.parsed_data.awards && resume.parsed_data.awards.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <AwardsSection data={resume.parsed_data.awards} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "references":
+                      return resume.parsed_data.references && resume.parsed_data.references.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <ReferencesSection data={resume.parsed_data.references} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    case "additional-sections":
+                      return resume.parsed_data.additional_sections && resume.parsed_data.additional_sections.length > 0 ? (
+                        <SortableSection key={sectionId} id={sectionId}>
+                          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                            <AdditionalSectionsSection data={resume.parsed_data.additional_sections} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
+                          </Card>
+                        </SortableSection>
+                      ) : null;
+                    default:
+                      return null;
+                  }
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
+
+      {/* Back to Top Button */}
+      {showBackToTop && (
+        <Button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 z-50 rounded-full w-12 h-12 p-0 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 print:hidden"
+          aria-label="Back to top"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      )}
+      
+      {/* Print Preview Dialog */}
+      {resume && resume.parsed_data && (
+        <PrintPreviewDialog
+          open={showPrintPreview}
+          onOpenChange={setShowPrintPreview}
+          resumeData={resume.parsed_data}
+          resumeName={resume.file_name}
+          sectionOrder={sectionOrder}
+          onSectionOrderChange={setSectionOrder}
+        />
+      )}
+      
+      {/* Rewrite Dialog */}
+      {rewriteSection && (
+        <RewriteDialog
+          open={showRewriteDialog}
+          onOpenChange={setShowRewriteDialog}
+          sectionTitle={rewriteSection.title}
+          currentContent={rewriteSection.content}
+          onAccept={handleRewriteAccept}
+          fullResumeData={resume?.parsed_data}
+        />
+      )}
+      
+      {/* Manual Edit Dialog */}
+      {manualEditSection && (
+        <ManualEditDialog
+          open={showManualEditDialog}
+          onOpenChange={setShowManualEditDialog}
+          sectionTitle={manualEditSection.title}
+          currentContent={manualEditSection.content}
+          onSave={handleManualEditSave}
+          contentType={manualEditSection.contentType as any}
+          fieldDefinitions={manualEditSection.fieldDefinitions}
+        />
+      )}
     </div>
   );
 }

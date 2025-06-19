@@ -6,6 +6,13 @@ export interface UserSettings {
   aiModel: string;
   documentAiOnly: boolean;
   enableLogging: boolean;
+  showAiAttribution?: boolean;
+  tokenLimits?: {
+    resumeParsing?: number;
+    coverLetter?: number;
+    jobMatching?: number;
+    general?: number;
+  };
   updatedAt?: number; // Timestamp for synchronization
 }
 
@@ -25,6 +32,13 @@ export const defaultSettings: UserSettings = {
   aiModel: 'qwen/qwen3-235b-a22b:free',  // Free tier Qwen model via OpenRouter
   documentAiOnly: true,
   enableLogging: true,
+  showAiAttribution: false,
+  tokenLimits: {
+    resumeParsing: 0, // 0 means use automatic
+    coverLetter: 0,
+    jobMatching: 0,
+    general: 0
+  },
   updatedAt: Date.now() // Current timestamp
 };
 
