@@ -18,6 +18,8 @@ export default function NewJobDescriptionPage() {
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [jobUrl, setJobUrl] = useState("");
+  const [manualJobUrl, setManualJobUrl] = useState("");
+  const [pasteJobUrl, setPasteJobUrl] = useState("");
   const [activeTab, setActiveTab] = useState("paste");
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -84,6 +86,10 @@ export default function NewJobDescriptionPage() {
       if (activeTab === 'paste') {
         // Use the pasted job description
         requestData.jobText = description;
+        // Include the URL if provided in paste method
+        if (pasteJobUrl) {
+          requestData.url = pasteJobUrl;
+        }
       } else if (activeTab === 'url') {
         // Process URL
         requestData.url = jobUrl;
@@ -97,6 +103,10 @@ Location: ${location}
 Job Description:
 ${description}`;
         requestData.jobText = manualJobText;
+        // Include the URL if provided in manual entry
+        if (manualJobUrl) {
+          requestData.url = manualJobUrl;
+        }
       }
 
       console.log('Sending job description for processing:', {
@@ -192,6 +202,18 @@ ${description}`;
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pasteJobUrl">Job Listing URL</Label>
+                  <Input
+                    id="pasteJobUrl"
+                    placeholder="https://example.com/careers/job-listing"
+                    value={pasteJobUrl}
+                    onChange={(e) => setPasteJobUrl(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Optional: Include the original job posting URL for reference
+                  </p>
+                </div>
               </TabsContent>
               <TabsContent value="url" className="space-y-4 pt-4">
                 <div className="space-y-2">
@@ -239,6 +261,18 @@ ${description}`;
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="manualJobUrl">Job Listing URL</Label>
+                    <Input
+                      id="manualJobUrl"
+                      placeholder="https://example.com/careers/job-listing"
+                      value={manualJobUrl}
+                      onChange={(e) => setManualJobUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional: Include the original job posting URL for reference
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="manualDescription">Job Description *</Label>
