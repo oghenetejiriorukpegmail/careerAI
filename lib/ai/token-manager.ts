@@ -43,6 +43,8 @@ export const USE_CASE_MULTIPLIERS: Record<string, number> = {
   'jobMatching': 1.2,         // Alternative key format
   'document_summary': 0.8,    // Summaries should be concise
   'profile_optimization': 1.8, // Profile optimization needs comprehensive output
+  'application_qa': 1.3,      // Q&A responses should be moderate length
+  'suggested_questions': 0.5, // Suggested questions list is short
   'general': 1.0,             // General operations
   'default': 1.0
 };
