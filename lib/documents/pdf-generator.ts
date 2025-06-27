@@ -73,14 +73,15 @@ export interface CoverLetterData {
   closing: string;
 }
 
-// Modern color palette
+// Modern color palette - Enhanced
 const colors = {
-  primary: rgb(0.2, 0.4, 0.7),      // Professional blue
-  secondary: rgb(0.4, 0.4, 0.4),    // Dark gray
-  light: rgb(0.95, 0.95, 0.95),    // Light gray for backgrounds
-  accent: rgb(0.8, 0.8, 0.8),      // Medium gray for lines
-  text: rgb(0.1, 0.1, 0.1),        // Near black for text
-  white: rgb(1, 1, 1)              // Pure white
+  primary: rgb(0.067, 0.333, 0.8),       // Modern professional blue
+  primaryLight: rgb(0.94, 0.96, 0.99),   // Very light blue for backgrounds
+  secondary: rgb(0.25, 0.25, 0.25),      // Darker gray for better contrast
+  light: rgb(0.97, 0.97, 0.97),         // Light gray for backgrounds
+  accent: rgb(0.75, 0.75, 0.75),        // Medium gray for lines
+  text: rgb(0.1, 0.1, 0.1),             // Near black for text
+  white: rgb(1, 1, 1)                    // Pure white
 };
 
 // Helper function to wrap text and calculate height
@@ -152,26 +153,25 @@ function drawSectionHeader(
   width: number,
   font: PDFFont
 ): number {
+  // Draw light background for section header
+  page.drawRectangle({
+    x: x - 10,
+    y: y - 5,
+    width: width + 20,
+    height: 20,
+    color: colors.primaryLight,
+  });
+  
   // Draw section title
   page.drawText(text.toUpperCase(), {
     x,
     y,
-    size: 11,
+    size: 13,
     font,
     color: colors.primary,
   });
   
-  // Draw accent line under the title
-  const titleWidth = font.widthOfTextAtSize(text.toUpperCase(), 11);
-  page.drawRectangle({
-    x,
-    y: y - 8,
-    width: titleWidth + 20,
-    height: 1.5,
-    color: colors.primary,
-  });
-  
-  return y - 25;
+  return y - 28;
 }
 
 // Helper function to draw contact icons (simplified)
@@ -194,12 +194,12 @@ function drawContactItem(
   page.drawText(text, {
     x: x + 12,
     y,
-    size: 9,
+    size: 10,
     font,
     color: colors.secondary,
   });
   
-  return font.widthOfTextAtSize(text, 9) + 20;
+  return font.widthOfTextAtSize(text, 10) + 25;
 }
 
 /**
@@ -216,7 +216,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   
   const { width, height } = currentPage.getSize();
-  const margins = { top: 40, bottom: 40, left: 50, right: 50 };
+  const margins = { top: 50, bottom: 50, left: 60, right: 60 };
   const contentWidth = width - margins.left - margins.right;
   let currentY = height - margins.top;
   
@@ -257,11 +257,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   currentPage.drawText(data.fullName, {
     x: margins.left,
     y: currentY,
-    size: 24,
+    size: 28,
     font: helveticaBold,
     color: colors.primary,
   });
-  currentY -= 35;
+  currentY -= 38;
   
   // Contact information in a clean, horizontal layout
   let contactX = margins.left;
@@ -300,8 +300,8 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   // SUMMARY SECTION
   currentY = drawSectionHeader(currentPage, 'Professional Summary', margins.left, currentY, contentWidth, helveticaBold);
-  currentY = drawWrappedText(data.summary, margins.left, 10, helvetica, colors.text, contentWidth, 1.4);
-  currentY -= 20;
+  currentY = drawWrappedText(data.summary, margins.left, 10.5, helvetica, colors.secondary, contentWidth, 1.6);
+  currentY -= 25;
   
   // EXPERIENCE SECTION
   const pageInfo1 = checkSectionStart(pdfDoc, currentPage, currentY, 80, margins);
@@ -315,7 +315,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     currentPage = pageInfo2.page;
     currentY = pageInfo2.y;
     
-    // Job title and company in modern layout
+    // Job title
     currentPage.drawText(job.title, {
       x: margins.left,
       y: currentY,
@@ -323,12 +323,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       font: helveticaBold,
       color: colors.primary,
     });
+    currentY -= 18;
     
-    // Company name on the same line, right-aligned
-    const companyText = job.company;
-    const companyWidth = helveticaBold.widthOfTextAtSize(companyText, 11);
-    currentPage.drawText(companyText, {
-      x: width - margins.right - companyWidth,
+    // Company name
+    currentPage.drawText(job.company, {
+      x: margins.left,
       y: currentY,
       size: 11,
       font: helveticaBold,
@@ -338,25 +337,16 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     
     // Date range and location
     const dateText = `${job.startDate} - ${job.endDate || 'Present'}`;
-    currentPage.drawText(dateText, {
+    const locationAndDate = job.location ? `${dateText} | ${job.location}` : dateText;
+    
+    currentPage.drawText(locationAndDate, {
       x: margins.left,
       y: currentY,
-      size: 9,
+      size: 10,
       font: helvetica,
       color: colors.secondary,
     });
-    
-    if (job.location) {
-      const locationWidth = helvetica.widthOfTextAtSize(job.location, 9);
-      currentPage.drawText(job.location, {
-        x: width - margins.right - locationWidth,
-        y: currentY,
-        size: 9,
-        font: helvetica,
-        color: colors.secondary,
-      });
-    }
-    currentY -= 18;
+    currentY -= 20;
     
     // Achievement bullets with modern styling
     for (const bullet of job.description) {
@@ -364,16 +354,16 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentPage = pageInfo3.page;
       currentY = pageInfo3.y;
       
-      // Modern bullet point
+      // Enhanced bullet point
       currentPage.drawCircle({
         x: margins.left + 5,
         y: currentY + 4,
-        size: 1.5,
+        size: 2,
         color: colors.primary,
       });
       
-      currentY = drawWrappedText(bullet, margins.left + 15, 9, helvetica, colors.text, contentWidth - 15, 1.3);
-      currentY -= 3;
+      currentY = drawWrappedText(bullet, margins.left + 15, 10, helvetica, colors.secondary, contentWidth - 15, 1.5);
+      currentY -= 5;
     }
     
     currentY -= 15;
@@ -432,11 +422,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   currentY = drawSectionHeader(currentPage, 'Core Competencies', margins.left, currentY, contentWidth, helveticaBold);
   
-  // Create skill pills layout
+  // Create skill pills layout with better organization
   let skillX = margins.left;
   let skillY = currentY;
-  const skillSpacing = 8;
-  const lineHeight = 20;
+  const skillSpacing = 10;
+  const lineHeight = 24;
   
   for (const skill of data.skills) {
     const skillWidth = helvetica.widthOfTextAtSize(skill, 9) + 16;
@@ -452,15 +442,15 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       if (pageInfo.y !== skillY) skillY = pageInfo.y;
     }
     
-    // Draw skill pill background
+    // Draw enhanced skill pill background
     currentPage.drawRectangle({
       x: skillX,
       y: skillY - 2,
       width: skillWidth,
-      height: 14,
-      color: colors.light,
-      borderColor: colors.accent,
-      borderWidth: 0.5,
+      height: 16,
+      color: colors.primaryLight,
+      borderColor: colors.primary,
+      borderWidth: 0.75,
     });
     
     // Draw skill text
@@ -469,7 +459,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       y: skillY + 3,
       size: 9,
       font: helvetica,
-      color: colors.secondary,
+      color: colors.primary,
     });
     
     skillX += skillWidth + skillSpacing;

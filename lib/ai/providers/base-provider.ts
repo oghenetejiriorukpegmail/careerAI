@@ -23,7 +23,7 @@ export abstract class BaseAIProvider {
     this.config = config;
   }
   
-  abstract query(prompt: string, systemPrompt?: string): Promise<AIResponse>;
+  abstract query(prompt: string, systemPrompt?: string, imageData?: string): Promise<AIResponse>;
   
   protected cleanJsonResponse(text: string): string {
     // Remove markdown code blocks

@@ -30,9 +30,11 @@ import {
   Trash2,
   Plus,
   Code,
-  X
+  X,
+  MessageSquare
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useQAChat } from "@/lib/hooks/use-qa-chat";
 
 type JobOpportunity = {
   id: string;
@@ -61,6 +63,7 @@ type Resume = {
 
 export default function JobOpportunityDetailPage() {
   const supabase = getSupabaseClient();
+  const { openChat, ChatWidget } = useQAChat();
   const [opportunity, setOpportunity] = useState<JobOpportunity | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -1080,6 +1083,14 @@ export default function JobOpportunityDetailPage() {
                 )}
                 {existingApplication?.cover_letter_id ? 'Regenerate' : 'Generate'} Cover Letter
               </Button>
+              <Button
+                variant="secondary"
+                className="w-full h-12 text-base font-semibold bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white"
+                onClick={() => openChat({ jobDescriptionId: jobId as string })}
+              >
+                <MessageSquare className="h-5 w-5 mr-3" />
+                Ask Career Advisor
+              </Button>
             </CardContent>
           </Card>
 
@@ -1389,6 +1400,9 @@ export default function JobOpportunityDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Q&A Chat Widget */}
+      {ChatWidget}
     </div>
   );
 }

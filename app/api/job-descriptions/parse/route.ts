@@ -257,7 +257,7 @@ async function tryAlternativeScraping(url: string, headers: any, userId?: string
 }
 
 // Enhanced URL scraping function with job board specific handling
-async function scrapeJobFromURL(url: string, userId?: string): Promise<string> {
+async function scrapeJobFromURL(url: string, userId?: string, visionModel?: string): Promise<string> {
   try {
     console.log(`[URL SCRAPING] Attempting to scrape job from URL: ${url}`);
     
@@ -268,6 +268,26 @@ async function scrapeJobFromURL(url: string, userId?: string): Promise<string> {
       console.log('[URL SCRAPING] Using cached content');
       return cachedContent;
     }
+    
+    // PRIMARY METHOD: Try direct Puppeteer screenshot-based extraction
+    console.log('[URL SCRAPING] Using direct Puppeteer as primary scraping method...');
+    try {
+      const { scrapeWithDirectPuppeteer } = await import('@/lib/scraping/puppeteer-direct');
+      const puppeteerResult = await scrapeWithDirectPuppeteer(url, visionModel);
+      
+      if (puppeteerResult.success && puppeteerResult.extractedContent && puppeteerResult.extractedContent.length > 100) {
+        console.log('[URL SCRAPING] Direct Puppeteer extraction successful (PRIMARY METHOD)');
+        scrapingCache.set(url, puppeteerResult.extractedContent);
+        return puppeteerResult.extractedContent;
+      } else if (puppeteerResult.error) {
+        console.log('[URL SCRAPING] Direct Puppeteer failed, will try fallback methods:', puppeteerResult.error);
+      }
+    } catch (puppeteerError) {
+      console.error('[URL SCRAPING] Direct Puppeteer error, continuing with fallback methods:', puppeteerError);
+    }
+    
+    // FALLBACK: Traditional HTML scraping methods
+    console.log('[URL SCRAPING] Falling back to traditional HTML scraping...');
     
     // Detect job board type for specialized handling
     const urlLower = url.toLowerCase();
@@ -606,7 +626,7 @@ async function scrapeJobFromURL(url: string, userId?: string): Promise<string> {
       
       // Try Bright Data as last resort if credentials are available
       if (process.env.BRIGHT_DATA_USERNAME && process.env.BRIGHT_DATA_PASSWORD) {
-        console.log('[URL SCRAPING] Attempting to use Bright Data scraper...');
+        console.log('[URL SCRAPING] Attempting Bright Data as last resort...');
         try {
           const { scrapeJobDescription } = await import('@/lib/scraping/bright-data');
           const brightDataContent = await scrapeJobDescription(url);
@@ -615,7 +635,9 @@ async function scrapeJobFromURL(url: string, userId?: string): Promise<string> {
             return brightDataContent;
           }
         } catch (brightDataError) {
-          console.error('[URL SCRAPING] Bright Data scraping failed:', brightDataError);
+          console.error('[URL SCRAPING] Bright Data last resort failed:', brightDataError);
+          
+          // Puppeteer MCP already tried as primary method, skip duplicate attempt
         }
       }
       
@@ -760,20 +782,21 @@ async function scrapeJobFromURL(url: string, userId?: string): Promise<string> {
               'The page may be dynamically loaded or require authentication. '
             }Please try copying and pasting the job description directly.`;
             
-            // Try Puppeteer as final fallback for JavaScript-heavy sites
-            console.log('[URL SCRAPING] Attempting Puppeteer for JavaScript-heavy site...');
+            // Puppeteer MCP already attempted as primary method
+            // Try legacy Puppeteer as additional fallback
+            console.log('[URL SCRAPING] Trying legacy Puppeteer as additional fallback...');
             try {
               const { scrapeWithPuppeteer } = await import('@/lib/scraping/puppeteer-scraper-safe');
               const puppeteerResult = await scrapeWithPuppeteer(url);
               
               if (puppeteerResult.success && puppeteerResult.extractedContent && puppeteerResult.extractedContent.length > 100) {
-                console.log('[URL SCRAPING] Puppeteer extraction successful as final fallback');
+                console.log('[URL SCRAPING] Legacy Puppeteer extraction successful');
                 scrapingCache.set(url, puppeteerResult.extractedContent);
                 return puppeteerResult.extractedContent;
               } else if (puppeteerResult.error) {
-                console.error('[URL SCRAPING] Puppeteer final fallback failed:', puppeteerResult.error);
+                console.error('[URL SCRAPING] Legacy Puppeteer also failed:', puppeteerResult.error);
                 
-                // Only throw specific guidance after Puppeteer also fails
+                // Provide specific guidance for known problematic sites
                 if (isEplus) {
                   throw new Error(
                     'ePlus careers site requires JavaScript to load job descriptions.\n\n' +
@@ -789,7 +812,7 @@ async function scrapeJobFromURL(url: string, userId?: string): Promise<string> {
                 }
               }
             } catch (puppeteerError) {
-              console.error('[URL SCRAPING] Puppeteer scraping error:', puppeteerError);
+              console.error('[URL SCRAPING] Legacy Puppeteer error:', puppeteerError);
             }
             
             // For ePlus and similar SPAs, provide specific guidance
@@ -1027,7 +1050,7 @@ function cleanExtractedText(html: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jobText, url, inputMethod, userId } = body;
+    const { jobText, url, inputMethod, userId, visionModel } = body;
     
     if (!userId) {
       return NextResponse.json({
@@ -1042,7 +1065,7 @@ export async function POST(request: NextRequest) {
     if (inputMethod === 'url' && url) {
       console.log('[JOB PROCESSING] Processing job description from URL');
       try {
-        contentToProcess = await scrapeJobFromURL(url, userId);
+        contentToProcess = await scrapeJobFromURL(url, userId, visionModel);
         processingMethod = 'url';
       } catch (scrapeError) {
         console.error('[JOB PROCESSING] URL scraping failed:', scrapeError);

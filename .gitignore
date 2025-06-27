@@ -90,6 +90,7 @@ DATABASE_*.md
 *.jpg
 *.jpeg
 Screenshot*.png
+public/screenshots/
 
 # shell scripts (development only)
 *.sh

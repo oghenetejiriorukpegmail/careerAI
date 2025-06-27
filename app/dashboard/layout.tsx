@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
+import { GlobalChatProvider } from "@/components/global-chat-provider";
 
 export default function DashboardLayout({
   children,
@@ -100,6 +101,9 @@ export default function DashboardLayout({
               <Link href="/dashboard/applications" className="transition-colors hover:text-foreground/80">
                 Applications
               </Link>
+              <Link href="/dashboard/interview-prep" className="transition-colors hover:text-foreground/80">
+                Interview Prep
+              </Link>
               <Link href="/dashboard/profile" className="transition-colors hover:text-foreground/80">
                 Profile
               </Link>
@@ -163,6 +167,13 @@ export default function DashboardLayout({
                 Applications
               </Link>
               <Link 
+                href="/dashboard/interview-prep" 
+                className="text-sm font-medium transition-colors hover:text-foreground/80"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Interview Prep
+              </Link>
+              <Link 
                 href="/dashboard/profile" 
                 className="text-sm font-medium transition-colors hover:text-foreground/80"
                 onClick={() => setMobileMenuOpen(false)}
@@ -188,6 +199,7 @@ export default function DashboardLayout({
       <main className="flex-1 container py-4 px-4 md:py-8">
         {children}
       </main>
+      <GlobalChatProvider />
       <footer className="border-t py-6">
         <div className="container flex flex-col items-center justify-between gap-4 md:flex-row">
           <p className="text-center text-sm leading-loose text-muted-foreground">

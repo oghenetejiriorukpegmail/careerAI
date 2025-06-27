@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Loader } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase/client';
+import { VISION_MODELS } from '@/components/ai-vision-selector';
 
 // Define available AI providers
 const AI_PROVIDERS = [
@@ -32,14 +33,31 @@ const AI_MODELS = {
     { id: 'mistral/mistral-large', name: 'Mistral Large' },
   ],
   openrouter: [
-    { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Recommended)' },
-    { id: 'google/gemini-2.5-pro-preview', name: 'Gemini 2.5 Pro Preview' },
+    // Free Models
+    { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Recommended - Free)' },
+    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash Experimental (Free)' },
+    { id: 'deepseek/deepseek-r1-0528:free', name: 'DeepSeek R1 (Free)' },
+    { id: 'mistralai/devstral-small:free', name: 'Mistral DevStral Small (Free)' },
+    { id: 'mistral/mistral-large-2407:free', name: 'Mistral Large (Free)' },
+    // Google Models
+    { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
     { id: 'google/gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash Preview (Latest)' },
     { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (April)' },
-    { id: 'anthropic/claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
+    { id: 'google/gemini-2.5-flash-preview-05-20:thinking', name: 'Gemini 2.5 Flash (Thinking Mode)' },
+    { id: 'google/gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+    { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+    // Anthropic Models
+    { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet' },
+    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (Fast)' },
+    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
+    // OpenAI Models
     { id: 'openai/gpt-4o', name: 'GPT-4o' },
+    { id: 'openai/gpt-4-vision-preview', name: 'GPT-4 Vision' },
+    // DeepSeek Models
+    { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Paid)' },
   ],
   anthropic: [
     { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' },
@@ -69,6 +87,7 @@ const AI_MODELS = {
 interface UserSettings {
   aiProvider: string;
   aiModel: string;
+  visionModel?: string;
   documentAiOnly: boolean;
   enableLogging: boolean;
   showAiAttribution: boolean;
@@ -79,6 +98,7 @@ interface UserSettings {
 const defaultSettings: UserSettings = {
   aiProvider: 'openrouter',
   aiModel: 'qwen/qwen3-235b-a22b:free',
+  visionModel: 'google/gemini-2.0-flash-exp:free',
   documentAiOnly: true,
   enableLogging: true,
   showAiAttribution: false,
@@ -92,6 +112,7 @@ export default function SettingsPage() {
   const [resettingCache, setResettingCache] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<string>('openrouter');
   const [selectedModel, setSelectedModel] = useState<string>('qwen/qwen3-235b-a22b:free');
+  const [selectedVisionModel, setSelectedVisionModel] = useState<string>('google/gemini-2.0-flash-exp:free');
   const [documentAiOnly, setDocumentAiOnly] = useState<boolean>(true);
   const [enableLogging, setEnableLogging] = useState<boolean>(true);
   const [showAiAttribution, setShowAiAttribution] = useState<boolean>(false);
@@ -137,6 +158,7 @@ export default function SettingsPage() {
             const settings = await response.json();
             setSelectedProvider(settings.aiProvider || defaultSettings.aiProvider);
             setSelectedModel(settings.aiModel || defaultSettings.aiModel);
+            setSelectedVisionModel(settings.visionModel || defaultSettings.visionModel);
             setDocumentAiOnly(settings.documentAiOnly !== undefined ? settings.documentAiOnly : defaultSettings.documentAiOnly);
             setEnableLogging(settings.enableLogging !== undefined ? settings.enableLogging : defaultSettings.enableLogging);
             setShowAiAttribution(settings.showAiAttribution !== undefined ? settings.showAiAttribution : defaultSettings.showAiAttribution);
@@ -350,6 +372,7 @@ export default function SettingsPage() {
       const settings: UserSettings = {
         aiProvider: selectedProvider,
         aiModel: selectedModel,
+        visionModel: selectedVisionModel,
         documentAiOnly,
         enableLogging,
         showAiAttribution,
@@ -558,6 +581,33 @@ export default function SettingsPage() {
                   </Select>
                   <p className="text-sm text-gray-500 mt-1">
                     Select the AI model to use for resume parsing and content generation.
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="vision-model">Vision AI Model (For URL Parsing)</Label>
+                  <Select 
+                    value={selectedVisionModel} 
+                    onValueChange={setSelectedVisionModel}
+                  >
+                    <SelectTrigger id="vision-model">
+                      <SelectValue placeholder="Select vision model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VISION_MODELS.map(model => (
+                        <SelectItem key={model.id} value={model.id}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{model.name}</span>
+                            {model.cost === 'free' && (
+                              <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">FREE</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Select the vision AI model to use for analyzing job listing screenshots when parsing URLs.
                   </p>
                 </div>
                 

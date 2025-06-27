@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { FileText, Loader, CheckCircle2 } from "lucide-react";
+import { FileText, Loader, CheckCircle2, MessageSquare } from "lucide-react";
+import ApplicationQAChat from "@/components/application-qa-chat";
 
 type Resume = {
   id: string;
@@ -35,6 +36,7 @@ export default function GenerateDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generationComplete, setGenerationComplete] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -465,6 +467,41 @@ export default function GenerateDocumentsPage() {
           </CardFooter>
         </Card>
       )}
+
+      {/* Career Advisor Chat Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                <CardTitle>Career Advisor</CardTitle>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowChat(!showChat)}
+              >
+                {showChat ? "Hide Chat" : "Show Chat"}
+              </Button>
+            </div>
+            <CardDescription>
+              Get help with your document generation, ask questions about tailoring your resume, or get career advice
+            </CardDescription>
+          </CardHeader>
+          {showChat && (
+            <CardContent className="h-[500px]">
+              <ApplicationQAChat
+                context={{
+                  documentType: generateResume ? 'resume' : 'cover_letter',
+                  jobDescriptionId: selectedJobDescription || undefined,
+                }}
+                className="h-full"
+              />
+            </CardContent>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

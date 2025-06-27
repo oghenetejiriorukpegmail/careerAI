@@ -1109,6 +1109,35 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
       });
     }
     
+    // Prepare request body
+    const requestBody: any = {
+      model: AI_CONFIG.openrouter.model,
+      messages: messages,
+      temperature: 0.2,
+      max_tokens: calculateOptimalTokens(
+        AI_CONFIG.openrouter.model,
+        prompt.length + (systemPrompt?.length || 0),
+        useCase,
+        tokenLimits?.[useCase] || tokenLimits?.general,
+        bypassLimits
+      ),
+      top_p: 0.1,  // Lower top_p for more deterministic output
+      top_k: 40,   // Adjust top_k for more focused output
+    };
+    
+    // Only add response_format for Claude models that support it
+    const claudeModels = [
+      'anthropic/claude-3.7-sonnet',
+      'anthropic/claude-3-haiku', 
+      'anthropic/claude-sonnet-4',
+      'claude-3-opus-20240229',
+      'claude-3-sonnet-20240229'
+    ];
+    
+    if (claudeModels.includes(AI_CONFIG.openrouter.model)) {
+      requestBody.response_format = { type: "json_object" };
+    }
+    
     // Make the request to OpenRouter API
     const response = await fetch(`${AI_CONFIG.openrouter.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -1118,21 +1147,7 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
         'HTTP-Referer': 'https://careeraisystem.com',
         'X-Title': 'CareerAI System'
       },
-      body: JSON.stringify({
-        model: AI_CONFIG.openrouter.model,
-        messages: messages,
-        temperature: 0.2,
-        max_tokens: calculateOptimalTokens(
-          AI_CONFIG.openrouter.model,
-          prompt.length + (systemPrompt?.length || 0),
-          useCase,
-          tokenLimits?.[useCase] || tokenLimits?.general,
-          bypassLimits
-        ),
-        response_format: { type: "json_object" }, // Explicitly request JSON to avoid code blocks
-        top_p: 0.1,                              // Lower top_p for more deterministic JSON output
-        top_k: 40,                               // Adjust top_k for more focused output
-      }),
+      body: JSON.stringify(requestBody),
       // No timeout - let the request complete
       // signal: AbortSignal.timeout(180000) // Removed timeout
     });

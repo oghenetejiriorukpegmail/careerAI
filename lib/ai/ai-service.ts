@@ -44,7 +44,7 @@ class AIService {
     }
   }
   
-  async query(prompt: string, systemPrompt?: string): Promise<AIResponse> {
+  async query(prompt: string, systemPrompt?: string, imageData?: string): Promise<AIResponse> {
     const settings = loadServerSettings();
     this.initializeProvider(settings);
     
@@ -53,7 +53,7 @@ class AIService {
     }
     
     try {
-      const response = await this.provider.query(prompt, systemPrompt);
+      const response = await this.provider.query(prompt, systemPrompt, imageData);
       
       // Log token usage if available
       if (response.usage) {

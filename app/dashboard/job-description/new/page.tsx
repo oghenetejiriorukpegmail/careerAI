@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader } from "lucide-react";
+import { Loader, Settings, Eye } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { AIVisionSelector, VISION_MODELS } from "@/components/ai-vision-selector";
 
 export default function NewJobDescriptionPage() {
   const [jobTitle, setJobTitle] = useState("");
@@ -24,8 +26,51 @@ export default function NewJobDescriptionPage() {
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAISelector, setShowAISelector] = useState(false);
+  const [selectedVisionModel, setSelectedVisionModel] = useState(VISION_MODELS[0].id);
+  const [userSettings, setUserSettings] = useState<any>(null);
   const router = useRouter();
   const { toast } = useToast();
+
+  // Load user settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        // Try to load from API first
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const settings = await response.json();
+          setUserSettings(settings);
+          if (settings.visionModel) {
+            setSelectedVisionModel(settings.visionModel);
+          }
+        } else {
+          // Fallback to localStorage
+          const localSettings = localStorage.getItem('userSettings');
+          if (localSettings) {
+            const settings = JSON.parse(localSettings);
+            setUserSettings(settings);
+            if (settings.visionModel) {
+              setSelectedVisionModel(settings.visionModel);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+        // Try localStorage as fallback
+        const localSettings = localStorage.getItem('userSettings');
+        if (localSettings) {
+          const settings = JSON.parse(localSettings);
+          setUserSettings(settings);
+          if (settings.visionModel) {
+            setSelectedVisionModel(settings.visionModel);
+          }
+        }
+      }
+    };
+    
+    loadSettings();
+  }, []);
 
   const validateForm = () => {
     if (activeTab === "paste" && !description) {
@@ -80,7 +125,8 @@ export default function NewJobDescriptionPage() {
       // Prepare data for the parsing API
       const requestData: any = {
         userId,
-        inputMethod: activeTab === 'url' ? 'url' : activeTab === 'manual' ? 'manual' : 'text_paste'
+        inputMethod: activeTab === 'url' ? 'url' : activeTab === 'manual' ? 'manual' : 'text_paste',
+        visionModel: selectedVisionModel // Include selected vision model for URL scraping
       };
 
       if (activeTab === 'paste') {
@@ -217,16 +263,53 @@ ${description}`;
               </TabsContent>
               <TabsContent value="url" className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="jobUrl">Job Listing URL</Label>
-                  <Input
-                    id="jobUrl"
-                    placeholder="https://example.com/job-listing"
-                    value={jobUrl}
-                    onChange={(e) => setJobUrl(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    We'll automatically extract the job details from the provided URL
-                  </p>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="jobUrl">Job Listing URL</Label>
+                      <Input
+                        id="jobUrl"
+                        placeholder="https://example.com/job-listing"
+                        value={jobUrl}
+                        onChange={(e) => setJobUrl(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="default"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        console.log('AI Model button clicked');
+                        setShowAISelector(true);
+                      }}
+                      title="Select AI Model for Screenshot Analysis"
+                      className="flex items-center gap-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span className="hidden sm:inline">AI Model</span>
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      We'll automatically extract the job details from the provided URL
+                    </p>
+                    <div 
+                      className="flex items-center gap-2 p-2 bg-muted rounded-md cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        console.log('Info box clicked');
+                        setShowAISelector(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm">
+                        AI Model: <span className="font-medium text-foreground">{VISION_MODELS.find(m => m.id === selectedVisionModel)?.name || 'Gemini 2.0 Flash'}</span>
+                      </p>
+                      <Badge variant="outline" className="ml-auto text-xs">
+                        {VISION_MODELS.find(m => m.id === selectedVisionModel)?.cost === 'free' ? 'FREE' : VISION_MODELS.find(m => m.id === selectedVisionModel)?.cost?.toUpperCase()}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
               <TabsContent value="manual" className="space-y-4 pt-4">
@@ -379,6 +462,47 @@ ${description}`;
           </CardFooter>
         </form>
       </Card>
+      
+      {/* AI Vision Model Selector Modal */}
+      {console.log('Modal state:', showAISelector)}
+      <AIVisionSelector
+        open={showAISelector}
+        onOpenChange={(open) => {
+          console.log('Modal onOpenChange called with:', open);
+          setShowAISelector(open);
+        }}
+        onSelect={async (modelId) => {
+          console.log('Model selected:', modelId);
+          setSelectedVisionModel(modelId);
+          
+          // Save vision model selection back to settings
+          if (userSettings) {
+            const updatedSettings = {
+              ...userSettings,
+              visionModel: modelId,
+              updatedAt: Date.now()
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
+            
+            // Try to save to API
+            try {
+              await fetch('/api/settings', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedSettings),
+                credentials: 'include'
+              });
+            } catch (error) {
+              console.error('Error saving vision model to settings:', error);
+            }
+          }
+        }}
+        defaultModel={selectedVisionModel}
+      />
     </div>
   );
 }

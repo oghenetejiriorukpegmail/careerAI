@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_ac02e5f28312837a4de6bae190ffaa31a0e97401"
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@browserbasehq/mcp-server-puppeteer"
+      ],
+      "env": {
+        "PUPPETEER_ARGS": "--no-sandbox --disable-setuid-sandbox"
+      }
+    }
+  }
+}

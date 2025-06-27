@@ -8,14 +8,24 @@ export class OpenAIProvider extends BaseAIProvider {
     });
   }
   
-  async query(prompt: string, systemPrompt?: string): Promise<AIResponse> {
+  async query(prompt: string, systemPrompt?: string, imageData?: string): Promise<AIResponse> {
     const messages = [];
     
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
     
-    messages.push({ role: 'user', content: prompt });
+    if (imageData) {
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: imageData.startsWith('data:') ? imageData : `data:image/png;base64,${imageData}` } }
+        ]
+      });
+    } else {
+      messages.push({ role: 'user', content: prompt });
+    }
     
     const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
       method: 'POST',

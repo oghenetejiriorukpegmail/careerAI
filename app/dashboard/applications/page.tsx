@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, FileText, ExternalLink, Eye } from "lucide-react";
+import { FileDown, FileText, ExternalLink, Eye, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import ApplicationQAIntegrated from "@/components/application-qa-integrated";
 
 type Application = {
   id: string;
@@ -34,6 +35,7 @@ export default function ApplicationsPage() {
   const [documents, setDocuments] = useState<Record<string, GeneratedDocument[]>>({});
   const [loading, setLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [expandedApplication, setExpandedApplication] = useState<string | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -66,6 +68,7 @@ export default function ApplicationsPage() {
             job_url: app.job_descriptions?.url || null,
           }));
           
+          console.log('Fetched applications:', transformedData.map(app => ({ id: app.id, company: app.company_name })));
           setApplications(transformedData);
           
           // Process documents from the API response
@@ -398,6 +401,23 @@ export default function ApplicationsPage() {
                             </Button>
                           </a>
                         )}
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center"
+                          onClick={() => setExpandedApplication(
+                            expandedApplication === application.id ? null : application.id
+                          )}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Q&A
+                          {expandedApplication === application.id ? (
+                            <ChevronUp className="h-4 w-4 ml-1" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 ml-1" />
+                          )}
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
@@ -425,6 +445,13 @@ export default function ApplicationsPage() {
                   </div>
                 </div>
               </div>
+              
+              {/* Q&A Section */}
+              {expandedApplication === application.id && (
+                <div className="border-t bg-muted/10 p-6">
+                  <ApplicationQAIntegrated applicationId={application.id} />
+                </div>
+              )}
             </Card>
           ))}
         </div>
