@@ -542,8 +542,8 @@ export async function generateAtsResume(
     // Generate the PDF
     const pdf = await generateResumePDF(tailoredResumeData);
     
-    // Generate the filename
-    const fileName = generateFileName(companyName, userName, 'Resume');
+    // Generate the filename with job title
+    const fileName = generateFileName(companyName, userName, 'Resume', jobDescription.jobTitle);
     
     return { pdf, fileName };
   } catch (error) {
@@ -763,8 +763,8 @@ export async function generateCoverLetter(
     // Generate the PDF
     const pdf = await generateCoverLetterPDF(coverLetterData);
     
-    // Generate the filename
-    const fileName = generateFileName(companyName, userName, 'CoverLetter');
+    // Generate the filename with job title
+    const fileName = generateFileName(companyName, userName, 'CoverLetter', jobDescription.jobTitle);
     
     return { pdf, fileName };
   } catch (error) {

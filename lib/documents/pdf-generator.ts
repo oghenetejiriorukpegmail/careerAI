@@ -860,14 +860,21 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
  * @param companyName Company name
  * @param userName User's full name
  * @param docType 'Resume' or 'CoverLetter'
- * @returns Formatted file name with company and user's first name
+ * @param jobTitle Optional job title to include in filename
+ * @returns Formatted file name with company, job title, and user's first name
  */
-export function generateFileName(companyName: string, userName: string, docType: 'Resume' | 'CoverLetter'): string {
-  const sanitizedCompany = companyName.replace(/\s+/g, '_');
+export function generateFileName(companyName: string, userName: string, docType: 'Resume' | 'CoverLetter', jobTitle?: string): string {
+  const sanitizedCompany = companyName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
   
   // Extract first name from full name
   const firstName = userName.split(' ')[0];
-  const sanitizedFirstName = firstName.replace(/\s+/g, '_');
+  const sanitizedFirstName = firstName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  
+  // Sanitize job title if provided
+  if (jobTitle) {
+    const sanitizedJobTitle = jobTitle.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    return `${sanitizedCompany}_${sanitizedJobTitle}_${sanitizedFirstName}_${docType}.pdf`;
+  }
   
   return `${sanitizedCompany}_${sanitizedFirstName}_${docType}.pdf`;
 }
