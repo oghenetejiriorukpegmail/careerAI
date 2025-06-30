@@ -237,6 +237,7 @@ export async function generateAtsResume(
       Return the result as a JSON object with this structure:
       {
         "fullName": "",
+        "jobTitle": "${jobDescription.jobTitle || ''}",
         "contactInfo": {
           "email": "",
           "phone": "",
@@ -494,6 +495,7 @@ export async function generateAtsResume(
         console.warn('Using fallback resume structure due to parsing errors');
         tailoredResumeData = {
           fullName: userName || 'Applicant',
+          jobTitle: jobDescription.jobTitle || '',
           contactInfo: {
             email: resume.contactInfo?.email || '',
             phone: resume.contactInfo?.phone || '',

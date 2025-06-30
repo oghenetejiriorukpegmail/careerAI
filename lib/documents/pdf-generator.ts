@@ -3,6 +3,7 @@ import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont } from 'pdf-lib';
 // Interface for resume data
 export interface ResumeData {
   fullName: string;
+  jobTitle?: string; // Target job title for this tailored resume
   contactInfo: {
     email: string;
     phone?: string;
@@ -261,7 +262,21 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     font: helveticaBold,
     color: colors.primary,
   });
-  currentY -= 38;
+  currentY -= 32;
+  
+  // Job title (if provided for this tailored resume)
+  if (data.jobTitle) {
+    currentPage.drawText(data.jobTitle, {
+      x: margins.left,
+      y: currentY,
+      size: 16,
+      font: helvetica,
+      color: colors.secondary,
+    });
+    currentY -= 24;
+  } else {
+    currentY -= 6; // Less spacing if no job title
+  }
   
   // Contact information in a clean, horizontal layout
   let contactX = margins.left;
