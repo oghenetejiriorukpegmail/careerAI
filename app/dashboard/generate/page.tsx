@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { FileText, Loader, CheckCircle2, MessageSquare } from "lucide-react";
-import ApplicationQAChat from "@/components/application-qa-chat";
+// import ApplicationQAChat from "@/components/application-qa-chat";
 
 type Resume = {
   id: string;
@@ -491,13 +491,16 @@ export default function GenerateDocumentsPage() {
           </CardHeader>
           {showChat && (
             <CardContent className="h-[500px]">
-              <ApplicationQAChat
+              {/* <ApplicationQAChat
                 context={{
                   documentType: generateResume ? 'resume' : 'cover_letter',
                   jobDescriptionId: selectedJobDescription || undefined,
                 }}
                 className="h-full"
-              />
+              /> */}
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Career Advisor Chat is temporarily unavailable
+              </div>
             </CardContent>
           )}
         </Card>

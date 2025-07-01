@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
     const aiSettingsSchema = z.object({
       aiProvider: z.enum(['openai', 'gemini', 'openrouter', 'requesty']),
       aiModel: z.string().min(1),
+      visionModel: z.string().optional(),
       documentAiOnly: z.boolean().optional(),
       enableLogging: z.boolean().optional(),
       showAiAttribution: z.boolean().optional(),

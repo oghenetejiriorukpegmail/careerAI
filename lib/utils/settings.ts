@@ -4,6 +4,7 @@
 export interface UserSettings {
   aiProvider: string;
   aiModel: string;
+  visionModel?: string;
   documentAiOnly: boolean;
   enableLogging: boolean;
   showAiAttribution?: boolean;
@@ -30,6 +31,7 @@ declare global {
 export const defaultSettings: UserSettings = {
   aiProvider: 'openrouter',
   aiModel: 'qwen/qwen3-235b-a22b:free',  // Free tier Qwen model via OpenRouter
+  visionModel: 'google/gemini-2.0-flash-exp:free', // Default vision model
   documentAiOnly: true,
   enableLogging: true,
   showAiAttribution: false,

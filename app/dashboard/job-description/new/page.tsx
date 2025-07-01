@@ -476,29 +476,38 @@ ${description}`;
           setSelectedVisionModel(modelId);
           
           // Save vision model selection back to settings
-          if (userSettings) {
-            const updatedSettings = {
-              ...userSettings,
-              visionModel: modelId,
-              updatedAt: Date.now()
-            };
-            
-            // Save to localStorage
-            localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
-            
-            // Try to save to API
-            try {
-              await fetch('/api/settings', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(updatedSettings),
-                credentials: 'include'
-              });
-            } catch (error) {
-              console.error('Error saving vision model to settings:', error);
-            }
+          const currentSettings = userSettings || {
+            aiProvider: 'openrouter',
+            aiModel: 'qwen/qwen3-235b-a22b:free',
+            documentAiOnly: true,
+            enableLogging: true,
+            showAiAttribution: false
+          };
+          
+          const updatedSettings = {
+            ...currentSettings,
+            visionModel: modelId,
+            updatedAt: Date.now()
+          };
+          
+          // Update state
+          setUserSettings(updatedSettings);
+          
+          // Save to localStorage
+          localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
+          
+          // Try to save to API
+          try {
+            await fetch('/api/settings', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(updatedSettings),
+              credentials: 'include'
+            });
+          } catch (error) {
+            console.error('Error saving vision model to settings:', error);
           }
         }}
         defaultModel={selectedVisionModel}
