@@ -279,30 +279,33 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     currentY -= 6; // Less spacing if no job title
   }
   
-  // Contact information in a clean, horizontal layout
+  // Contact information - first line with email, phone, location
   let contactX = margins.left;
   const contactY = currentY;
+  const maxFirstLineWidth = contentWidth * 0.75; // Reserve space to avoid cutoff
+  let currentContactX = contactX;
   
   if (data.contactInfo.email) {
-    const width = drawContactItem(currentPage, data.contactInfo.email, contactX, contactY, helvetica, true);
-    contactX += width;
+    const width = drawContactItem(currentPage, data.contactInfo.email, currentContactX, contactY, helvetica, true);
+    currentContactX += width;
   }
   
-  if (data.contactInfo.phone) {
-    const width = drawContactItem(currentPage, data.contactInfo.phone, contactX, contactY, helvetica);
-    contactX += width;
+  if (data.contactInfo.phone && currentContactX + 120 < margins.left + maxFirstLineWidth) {
+    const width = drawContactItem(currentPage, data.contactInfo.phone, currentContactX, contactY, helvetica);
+    currentContactX += width;
   }
   
-  if (data.contactInfo.location) {
-    const width = drawContactItem(currentPage, data.contactInfo.location, contactX, contactY, helvetica);
-    contactX += width;
+  if (data.contactInfo.location && currentContactX + 120 < margins.left + maxFirstLineWidth) {
+    drawContactItem(currentPage, data.contactInfo.location, currentContactX, contactY, helvetica);
   }
   
+  // LinkedIn on a new line if provided
   if (data.contactInfo.linkedin) {
-    drawContactItem(currentPage, data.contactInfo.linkedin, contactX, contactY, helvetica);
+    currentY -= 15;
+    drawContactItem(currentPage, data.contactInfo.linkedin, margins.left, currentY, helvetica);
   }
   
-  currentY -= 20;
+  currentY -= 15;
   
   // Work Authorization (if provided)
   if (data.workAuthorization) {
@@ -322,9 +325,9 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       font: helvetica,
       color: colors.text,
     });
-    currentY -= 15;
+    currentY -= 20;
   } else {
-    currentY -= 15;
+    currentY -= 20;
   }
   
   // Subtle separator line
