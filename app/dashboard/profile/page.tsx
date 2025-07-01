@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader, User, Github, Linkedin, Mail, Phone, MapPin } from "lucide-react";
+import { Loader, User, Github, Linkedin, Mail, Phone, MapPin, Briefcase } from "lucide-react";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
@@ -19,6 +20,7 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
+  const [workAuthorization, setWorkAuthorization] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function ProfilePage() {
           setEmail(data.email || userData.user.email || "");
           setPhone(data.phone || "");
           setLocation(data.location || "");
+          setWorkAuthorization(data.work_authorization || "");
         }
       } catch (error: any) {
         toast({
@@ -73,6 +76,7 @@ export default function ProfilePage() {
           email,
           phone,
           location,
+          work_authorization: workAuthorization,
           updated_at: new Date().toISOString(),
         })
         .eq("id", userData.user.id);
@@ -172,6 +176,33 @@ export default function ProfilePage() {
                     disabled={saving}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="workAuth">Work Authorization Status (Optional)</Label>
+                  <Select
+                    value={workAuthorization}
+                    onValueChange={setWorkAuthorization}
+                    disabled={saving}
+                  >
+                    <SelectTrigger id="workAuth">
+                      <SelectValue placeholder="Select work authorization status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="US Citizen">US Citizen</SelectItem>
+                      <SelectItem value="Green Card">Green Card (Permanent Resident)</SelectItem>
+                      <SelectItem value="H1B">H1B Visa</SelectItem>
+                      <SelectItem value="H4 EAD">H4 EAD</SelectItem>
+                      <SelectItem value="F1 OPT">F1 OPT</SelectItem>
+                      <SelectItem value="F1 CPT">F1 CPT</SelectItem>
+                      <SelectItem value="TN">TN Visa</SelectItem>
+                      <SelectItem value="L1">L1 Visa</SelectItem>
+                      <SelectItem value="L2 EAD">L2 EAD</SelectItem>
+                      <SelectItem value="Other">Other Work Authorization</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    This information will be included in your generated resumes if provided
+                  </p>
+                </div>
               </CardContent>
               <CardFooter>
                 <Button
@@ -269,6 +300,16 @@ export default function ProfilePage() {
                     <span className="font-medium">Location</span>
                   </div>
                   <span>{location}</span>
+                </div>
+              )}
+              
+              {workAuthorization && (
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center space-x-2">
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Work Authorization</span>
+                  </div>
+                  <span>{workAuthorization}</span>
                 </div>
               )}
               

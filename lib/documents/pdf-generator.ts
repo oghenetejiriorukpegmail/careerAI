@@ -52,6 +52,7 @@ export interface ResumeData {
     email?: string;
     relationship?: string;
   }>;
+  workAuthorization?: string;
 }
 
 // Interface for cover letter data
@@ -301,7 +302,30 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     drawContactItem(currentPage, data.contactInfo.linkedin, contactX, contactY, helvetica);
   }
   
-  currentY -= 35;
+  currentY -= 20;
+  
+  // Work Authorization (if provided)
+  if (data.workAuthorization) {
+    currentPage.drawText('Work Authorization: ', {
+      x: margins.left,
+      y: currentY,
+      size: 10,
+      font: helveticaBold,
+      color: colors.secondary,
+    });
+    
+    const authTextWidth = helveticaBold.widthOfTextAtSize('Work Authorization: ', 10);
+    currentPage.drawText(data.workAuthorization, {
+      x: margins.left + authTextWidth,
+      y: currentY,
+      size: 10,
+      font: helvetica,
+      color: colors.text,
+    });
+    currentY -= 15;
+  } else {
+    currentY -= 15;
+  }
   
   // Subtle separator line
   currentPage.drawRectangle({
@@ -311,22 +335,22 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     height: 0.5,
     color: colors.accent,
   });
-  currentY -= 25;
+  currentY -= 20;
   
   // SUMMARY SECTION
   currentY = drawSectionHeader(currentPage, 'Professional Summary', margins.left, currentY, contentWidth, helveticaBold);
-  currentY = drawWrappedText(data.summary, margins.left, 10.5, helvetica, colors.secondary, contentWidth, 1.6);
-  currentY -= 25;
+  currentY = drawWrappedText(data.summary, margins.left, 10.5, helvetica, colors.secondary, contentWidth, 1.5);
+  currentY -= 20;
   
   // EXPERIENCE SECTION
-  const pageInfo1 = checkSectionStart(pdfDoc, currentPage, currentY, 80, margins);
+  const pageInfo1 = checkSectionStart(pdfDoc, currentPage, currentY, 60, margins);
   currentPage = pageInfo1.page;
   currentY = pageInfo1.y;
   
   currentY = drawSectionHeader(currentPage, 'Professional Experience', margins.left, currentY, contentWidth, helveticaBold);
   
   for (const job of data.experience) {
-    const pageInfo2 = checkAndAddPage(pdfDoc, currentPage, currentY, 70, margins);
+    const pageInfo2 = checkAndAddPage(pdfDoc, currentPage, currentY, 50, margins);
     currentPage = pageInfo2.page;
     currentY = pageInfo2.y;
     
@@ -338,7 +362,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       font: helveticaBold,
       color: colors.primary,
     });
-    currentY -= 18;
+    currentY -= 16;
     
     // Company name
     currentPage.drawText(job.company, {
@@ -361,11 +385,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       font: helvetica,
       color: colors.secondary,
     });
-    currentY -= 20;
+    currentY -= 15;
     
     // Achievement bullets with modern styling
     for (const bullet of job.description) {
-      const pageInfo3 = checkAndAddPage(pdfDoc, currentPage, currentY, 15, margins);
+      const pageInfo3 = checkAndAddPage(pdfDoc, currentPage, currentY, 12, margins);
       currentPage = pageInfo3.page;
       currentY = pageInfo3.y;
       
@@ -377,11 +401,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         color: colors.primary,
       });
       
-      currentY = drawWrappedText(bullet, margins.left + 15, 10, helvetica, colors.secondary, contentWidth - 15, 1.5);
-      currentY -= 5;
+      currentY = drawWrappedText(bullet, margins.left + 15, 10, helvetica, colors.secondary, contentWidth - 15, 1.4);
+      currentY -= 3;
     }
     
-    currentY -= 15;
+    currentY -= 10;
   }
   
   // EDUCATION SECTION

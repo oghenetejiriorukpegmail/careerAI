@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       resumeQuery,
       supabase
         .from('profiles')
-        .select('full_name, email')
+        .select('full_name, email, location, work_authorization')
         .eq('id', jobUserId)
         .single()
     ]);
@@ -140,11 +140,27 @@ export async function POST(request: NextRequest) {
     
     // Extract the actual parsed resume data from the database
     const parsedResumeData = resumeData.parsed_data || resumeData;
+    
+    // Merge profile data (location and work authorization) into the resume data
+    if (profileData) {
+      // Update contact info with profile location if available
+      if (profileData.location && parsedResumeData.contactInfo) {
+        parsedResumeData.contactInfo.location = profileData.location;
+      }
+      
+      // Add work authorization to the parsed resume data
+      if (profileData.work_authorization) {
+        parsedResumeData.workAuthorization = profileData.work_authorization;
+      }
+    }
+    
     console.log('Resume data structure:', {
       hasResumeData: !!resumeData,
       hasParsedData: !!resumeData.parsed_data,
       parsedDataKeys: resumeData.parsed_data ? Object.keys(resumeData.parsed_data) : [],
-      directKeys: Object.keys(resumeData)
+      directKeys: Object.keys(resumeData),
+      hasWorkAuth: !!parsedResumeData.workAuthorization,
+      profileLocation: profileData?.location
     });
 
     // Generate the ATS-optimized resume with user's AI settings

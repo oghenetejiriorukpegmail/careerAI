@@ -298,11 +298,18 @@ export async function generateAtsResume(
             "email": "",
             "relationship": ""
           }
-        ]
+        ],
+        "workAuthorization": ""
       }
 
       Include certifications, training, and projects ONLY if they are available in the candidate's resume data.
       If these sections are not present in the original data, omit them from the output or leave them as empty arrays.
+      
+      For work authorization:
+      - Include ONLY if provided in the candidate's data (look for workAuthorization field)
+      - Common values: 'US Citizen', 'Green Card', 'H1B', 'H4 EAD', 'F1 OPT', 'TN', 'L1', 'L2 EAD'
+      - If not provided, leave as empty string
+      - DO NOT invent or assume work authorization status
       
       For references:
       - If the candidate has provided specific references in their data, include them
@@ -546,7 +553,8 @@ export async function generateAtsResume(
             phone: '',
             email: '',
             relationship: ''
-          }]
+          }],
+          workAuthorization: resume.workAuthorization || ''
         };
       }
     }
