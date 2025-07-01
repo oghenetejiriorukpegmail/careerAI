@@ -237,7 +237,7 @@ export async function generateAtsResume(
       Return the result as a JSON object with this structure:
       {
         "fullName": "",
-        "jobTitle": "${jobDescription.jobTitle || ''}",
+        "jobTitle": "",
         "contactInfo": {
           "email": "",
           "phone": "",
@@ -310,6 +310,12 @@ export async function generateAtsResume(
         [{"name": "References available upon request", "title": "", "company": "", "phone": "", "email": "", "relationship": ""}]
       - Always include the references section unless specifically inappropriate for the role
       
+      For the jobTitle field:
+      - For senior roles (10+ years experience), leave it empty ("") to avoid limiting the candidate
+      - For mid-level roles, you may include a relevant title that matches their experience level
+      - NEVER just copy the job posting title - the candidate's actual title should reflect their experience
+      - If including a title, make it broad and senior (e.g., "Senior Technology Executive", "Engineering Leader")
+      
       IMPORTANT for experience section:
       - Each job should include BOTH a "summary" field AND a "description" array
       - The "summary" field should be a 1-2 sentence overview of the role, responsibilities, and scope
@@ -319,7 +325,8 @@ export async function generateAtsResume(
       - Start each bullet with an action verb (e.g., "Managed", "Developed", "Led", "Implemented")
       - Make descriptions achievement-oriented and quantifiable where possible
       - Include metrics and results when available (e.g., "Increased sales by 25%", "Managed team of 10")
-      - Each bullet point should be 1-2 lines long for optimal ATS scanning
+      - For senior roles (400K-1M positions), include 8-12 detailed bullet points per role
+      - Each bullet should demonstrate leadership, strategic thinking, and significant business impact
       - DO NOT combine multiple achievements into a single array element
       - Example format:
         {
@@ -339,8 +346,8 @@ export async function generateAtsResume(
     `;
 
     const systemPrompt = `
-      You are an expert resume writer who specializes in creating ATS-optimized resumes.
-      Your goal is to tailor the candidate's resume to match the job description WITHOUT fabricating ANY information.
+      You are an expert executive resume writer who specializes in creating powerful, comprehensive resumes for senior-level positions ($400K-$1M+ roles).
+      Your goal is to create a detailed, impressive resume that showcases the full depth of the candidate's experience and achievements.
       
       ABSOLUTE REQUIREMENTS - NEVER VIOLATE THESE RULES:
       1. USE ONLY information that exists in the candidate's uploaded resume
@@ -361,14 +368,15 @@ export async function generateAtsResume(
          - Instead, emphasize their related/transferable skills
          - Focus on what they DO have that's relevant
       
-      CRITICAL for ATS optimization:
-      - Experience descriptions MUST be formatted as arrays of individual bullet points
-      - Each bullet point should be a separate string in the description array
-      - This allows ATS systems to properly parse and score individual achievements
-      - Bullet points are MORE ATS-friendly than paragraph format because:
-        * ATS can identify and score individual achievements
-        * Keywords are easier to extract from structured bullet points
-        * Action verbs at the start of bullets are weighted higher by ATS algorithms
+      CRITICAL for senior/executive resumes:
+      - Experience descriptions MUST be comprehensive and detailed
+      - Include 8-12 bullet points per role for recent positions (last 10 years)
+      - Each bullet should demonstrate significant business impact, leadership, and strategic thinking
+      - Quantify achievements with metrics, budgets, team sizes, and business outcomes
+      - Highlight P&L responsibility, cost savings, revenue generation, and transformation initiatives
+      - Show progression of responsibility and expanding scope across roles
+      - For $400K-$1M positions, the resume should be detailed enough to "win the role before the interview"
+      - Length is NOT a concern for executive roles - thoroughness and impact are what matter
       
       REMEMBER: The candidate must be able to defend every single item in an interview.
       If it's not in their original resume, it CANNOT be in the tailored version.
@@ -495,7 +503,7 @@ export async function generateAtsResume(
         console.warn('Using fallback resume structure due to parsing errors');
         tailoredResumeData = {
           fullName: userName || 'Applicant',
-          jobTitle: jobDescription.jobTitle || '',
+          jobTitle: '', // Leave empty for senior roles
           contactInfo: {
             email: resume.contactInfo?.email || '',
             phone: resume.contactInfo?.phone || '',
