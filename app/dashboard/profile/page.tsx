@@ -26,21 +26,21 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError) throw userError;
         
-        if (userData && userData.user) {
+        if (user) {
           const { data, error } = await supabase
             .from("profiles")
             .select("*")
-            .eq("id", userData.user.id)
+            .eq("id", user.id)
             .single();
             
           if (error) throw error;
           
           setProfile(data);
           setFullName(data.full_name || "");
-          setEmail(data.email || userData.user.email || "");
+          setEmail(data.email || user.email || "");
           setPhone(data.phone || "");
           setLocation(data.location || "");
           setWorkAuthorization(data.work_authorization || "");
@@ -65,23 +65,50 @@ export default function ProfilePage() {
     try {
       setSaving(true);
       
-      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
-      if (!userData.user) throw new Error("User not found");
+      if (!user) throw new Error("User not found");
+      
+      // First try to update with work_authorization
+      let updateData: any = {
+        full_name: fullName,
+        email,
+        phone,
+        location,
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Only include work_authorization if it has a value
+      if (workAuthorization) {
+        updateData.work_authorization = workAuthorization;
+      }
       
       const { error } = await supabase
         .from("profiles")
-        .update({
-          full_name: fullName,
-          email,
-          phone,
-          location,
-          work_authorization: workAuthorization,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userData.user.id);
+        .update(updateData)
+        .eq("id", user.id);
         
-      if (error) throw error;
+      if (error) {
+        // If error is about work_authorization column, try without it
+        if (error.message && error.message.includes('work_authorization')) {
+          console.warn('Work authorization column not available, updating without it');
+          delete updateData.work_authorization;
+          
+          const { error: retryError } = await supabase
+            .from("profiles")
+            .update(updateData)
+            .eq("id", user.id);
+            
+          if (retryError) throw retryError;
+          
+          toast({
+            title: "Profile Updated",
+            description: "Your profile has been updated (work authorization not available yet)",
+          });
+          return;
+        }
+        throw error;
+      }
       
       toast({
         title: "Profile Updated",
