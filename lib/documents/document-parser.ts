@@ -197,7 +197,7 @@ async function extractResumeSection(
       Extract structured information and return ONLY a JSON object with the following structure - no explanations, no preamble, no markdown formatting:
       {
         "contactInfo": {
-          "fullName": "Full name of the person",
+          "fullName": "Full name in First Middle Last format (e.g., 'John Michael Smith' NOT 'Smith, John Michael')",
           "email": "Email address",
           "phone": "Phone number",
           "location": "City, State/Country",
@@ -303,7 +303,7 @@ async function extractResumeSection(
       YOUR RESPONSE MUST START WITH { AND END WITH } WITH NO OTHER TEXT BEFORE OR AFTER.
     `;
     
-    const systemPrompt = "You are an expert resume parser API that processes text extracted from PDFs by Google Document AI and returns pure JSON data with no formatting. CRITICAL: Your entire response must be a valid JSON object starting with { and ending with }, containing no markdown formatting, no code blocks, and no other text. Your response must be directly parseable by JSON.parse() with no preprocessing. NEVER FORMAT YOUR RESPONSE AS A CODE BLOCK. NEVER USE ``` MARKERS ANYWHERE. DO NOT WRAP YOUR RESPONSE WITH ```json or ``` TAGS.";
+    const systemPrompt = "You are an expert resume parser API that processes text extracted from PDFs by Google Document AI and returns pure JSON data with no formatting. CRITICAL: Your entire response must be a valid JSON object starting with { and ending with }, containing no markdown formatting, no code blocks, and no other text. Your response must be directly parseable by JSON.parse() with no preprocessing. NEVER FORMAT YOUR RESPONSE AS A CODE BLOCK. NEVER USE ``` MARKERS ANYWHERE. DO NOT WRAP YOUR RESPONSE WITH ```json or ``` TAGS. IMPORTANT: Always format names as First Middle Last (e.g., 'John Michael Smith'), never as Last, First Middle (e.g., 'Smith, John Michael').";
     
     // Call the AI service
     const response = await queryAI(prompt, systemPrompt);

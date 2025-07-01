@@ -236,7 +236,7 @@ export async function generateAtsResume(
       Focus on incorporating the keywords from the job description naturally while maintaining truthfulness.
       Return the result as a JSON object with this structure:
       {
-        "fullName": "",
+        "fullName": "[First Middle Last format - e.g., 'John Michael Smith' NOT 'Smith, John Michael']",
         "jobTitle": "",
         "contactInfo": {
           "email": "",
@@ -367,6 +367,10 @@ export async function generateAtsResume(
          - DO NOT add them
          - Instead, emphasize their related/transferable skills
          - Focus on what they DO have that's relevant
+      5. NAME FORMAT: Always use First Middle Last format
+         - Correct: "John Michael Smith" or "Jane Doe"
+         - WRONG: "Smith, John Michael" or "Doe, Jane"
+         - If the source has Last, First format, convert it to First Last
       
       CRITICAL for senior/executive resumes:
       - Experience descriptions MUST be comprehensive and detailed
