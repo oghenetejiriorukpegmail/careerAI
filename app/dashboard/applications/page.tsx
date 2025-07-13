@@ -6,8 +6,9 @@ import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, FileText, ExternalLink, Eye, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { FileDown, FileText, ExternalLink, Eye, MessageSquare, ChevronDown, ChevronUp, Search, Filter, SortAsc, X } from "lucide-react";
 import ApplicationQAIntegrated from "@/components/application-qa-integrated";
 
 type Application = {
@@ -36,6 +37,30 @@ export default function ApplicationsPage() {
   const [loading, setLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const [expandedApplication, setExpandedApplication] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("created_at");
+  
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Focus search on Ctrl/Cmd + K
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }
+      // Clear search on Escape
+      if (e.key === 'Escape' && searchTerm) {
+        setSearchTerm("");
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchTerm]);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -68,7 +93,7 @@ export default function ApplicationsPage() {
             job_url: app.job_descriptions?.url || null,
           }));
           
-          console.log('Fetched applications:', transformedData.map(app => ({ id: app.id, company: app.company_name })));
+          console.log('Fetched applications:', transformedData.map((app: any) => ({ id: app.id, company: app.company_name })));
           setApplications(transformedData);
           
           // Process documents from the API response
@@ -242,25 +267,11 @@ export default function ApplicationsPage() {
       if (urlError || !urlData?.signedUrl) {
         console.error('Signed URL error:', urlError);
         
-        // Fallback: Try to download and open as blob
-        const { data, error } = await supabase.storage
-          .from('user_files')
-          .download(doc.file_path);
+        // Fallback: Use view API endpoint
+        const viewUrl = `/api/documents/${doc.id}/view`;
+        const newWindow = window.open(viewUrl, '_blank');
         
-        if (error) {
-          throw new Error('Unable to access document. It may have been moved or deleted.');
-        }
-        
-        // Create blob URL and open in new tab
-        const blob = new Blob([data], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const newWindow = window.open(url, '_blank');
-        
-        // Clean up blob URL after a delay
-        if (newWindow) {
-          setTimeout(() => window.URL.revokeObjectURL(url), 60000); // 1 minute
-        } else {
-          window.URL.revokeObjectURL(url);
+        if (!newWindow) {
           throw new Error('Pop-up blocked. Please allow pop-ups for this site.');
         }
       } else {
@@ -302,6 +313,43 @@ export default function ApplicationsPage() {
     }
   };
 
+  // Filter and sort applications
+  const filteredApplications = applications.filter(app => {
+    const matchesStatus = filterStatus === "all" || app.status === filterStatus;
+    
+    if (searchTerm === "") return matchesStatus;
+    
+    const searchTermLower = searchTerm.toLowerCase();
+    const matchesSearch = 
+      app.job_title.toLowerCase().includes(searchTermLower) ||
+      app.company_name.toLowerCase().includes(searchTermLower) ||
+      app.location.toLowerCase().includes(searchTermLower) ||
+      app.status.toLowerCase().replace('_', ' ').includes(searchTermLower) ||
+      // Also search by date strings
+      (app.applied_date && new Date(app.applied_date).toLocaleDateString().includes(searchTermLower)) ||
+      new Date(app.created_at).toLocaleDateString().includes(searchTermLower);
+    
+    return matchesStatus && matchesSearch;
+  });
+
+  const sortedApplications = [...filteredApplications].sort((a, b) => {
+    switch (sortBy) {
+      case "job_title":
+        return a.job_title.localeCompare(b.job_title);
+      case "company_name":
+        return a.company_name.localeCompare(b.company_name);
+      case "status":
+        return a.status.localeCompare(b.status);
+      case "applied_date":
+        const dateA = a.applied_date ? new Date(a.applied_date).getTime() : 0;
+        const dateB = b.applied_date ? new Date(b.applied_date).getTime() : 0;
+        return dateB - dateA;
+      case "created_at":
+      default:
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[500px]">
@@ -315,11 +363,23 @@ export default function ApplicationsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Job Applications</h1>
-        <p className="text-muted-foreground">
-          Track the status of your job applications
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Job Applications</h1>
+          <p className="text-muted-foreground">
+            Track the status of your job applications
+          </p>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {sortedApplications.length} of {applications.length} applications
+          {(searchTerm || filterStatus !== "all") && (
+            <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
+              {searchTerm && `"${searchTerm}"`}
+              {searchTerm && filterStatus !== "all" && " • "}
+              {filterStatus !== "all" && `${filterStatus.replace('_', ' ')}`}
+            </span>
+          )}
+        </div>
       </div>
 
       {applications.length === 0 ? (
@@ -336,7 +396,81 @@ export default function ApplicationsPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {applications.map((application) => (
+          {/* Search and Filter Controls */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by job title, company, or location... (Ctrl+K)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-10"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="sm:max-w-[180px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="to_apply">To Apply</SelectItem>
+                <SelectItem value="applied">Applied</SelectItem>
+                <SelectItem value="interviewing">Interviewing</SelectItem>
+                <SelectItem value="offered">Offered</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="sm:max-w-[180px]">
+                <SortAsc className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_at">Date Created</SelectItem>
+                <SelectItem value="applied_date">Date Applied</SelectItem>
+                <SelectItem value="job_title">Job Title</SelectItem>
+                <SelectItem value="company_name">Company</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Applications List */}
+          {sortedApplications.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center h-40 text-center p-6">
+                <Search className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No applications found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchTerm || filterStatus !== "all" 
+                    ? "Try adjusting your search or filters" 
+                    : "No applications match your criteria"}
+                </p>
+                {(searchTerm || filterStatus !== "all") && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setSearchTerm("");
+                      setFilterStatus("all");
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {sortedApplications.map((application) => (
             <Card key={application.id}>
               <div className="flex flex-col sm:flex-row">
                 <div className="flex-1">
@@ -453,7 +587,9 @@ export default function ApplicationsPage() {
                 </div>
               )}
             </Card>
-          ))}
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
