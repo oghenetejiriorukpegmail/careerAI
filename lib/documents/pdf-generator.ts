@@ -210,6 +210,15 @@ function drawContactItem(
  * @returns PDF document as Uint8Array
  */
 export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
+  console.log('[PDF Generator] Generating PDF with data:', {
+    fullName: data.fullName,
+    hasWorkAuth: !!data.workAuthorization,
+    workAuthValue: data.workAuthorization,
+    contactLocation: data.contactInfo?.location,
+    contactEmail: data.contactInfo?.email,
+    hasContactInfo: !!data.contactInfo
+  });
+
   const pdfDoc = await PDFDocument.create();
   let currentPage = pdfDoc.addPage([612, 792]); // US Letter
   
@@ -309,6 +318,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   
   // Work Authorization (if provided)
   if (data.workAuthorization) {
+    console.log('[PDF] Drawing work authorization:', data.workAuthorization);
     currentPage.drawText('Work Authorization: ', {
       x: margins.left,
       y: currentY,
@@ -327,6 +337,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     });
     currentY -= 20;
   } else {
+    console.log('[PDF] No work authorization provided in data');
     currentY -= 20;
   }
   
@@ -837,7 +848,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   currentY -= 30;
   
   // Greeting - use recipient name if available, otherwise default to Hiring Manager
-  const greeting = data.recipient?.name && data.recipient.name !== 'Hiring Manager' 
+  const greeting = data.recipient?.name && data.recipient.name.trim() !== '' && data.recipient.name !== 'Hiring Manager' 
     ? `Dear ${data.recipient.name},` 
     : 'Dear Hiring Manager,';
   
@@ -884,13 +895,16 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
 
 /**
  * Generates file name according to PRD requirements
+ * Format: companyName_userFirstname_jobTitle_resume.pdf|docx
+ * Example: openAI_Oghenetejiri_Senior_Network_Engineer_resume.pdf
  * @param companyName Company name
  * @param userName User's full name
  * @param docType 'Resume' or 'CoverLetter'
  * @param jobTitle Optional job title to include in filename
- * @returns Formatted file name with company, job title, and user's first name
+ * @param format File format ('pdf' or 'docx')
+ * @returns Formatted file name with company, first name, job title, document type, and format
  */
-export function generateFileName(companyName: string, userName: string, docType: 'Resume' | 'CoverLetter', jobTitle?: string): string {
+export function generateFileName(companyName: string, userName: string, docType: 'Resume' | 'CoverLetter', jobTitle?: string, format: 'pdf' | 'docx' = 'pdf'): string {
   const sanitizedCompany = companyName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
   
   // Extract first name from full name
@@ -900,8 +914,8 @@ export function generateFileName(companyName: string, userName: string, docType:
   // Sanitize job title if provided
   if (jobTitle) {
     const sanitizedJobTitle = jobTitle.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-    return `${sanitizedCompany}_${sanitizedJobTitle}_${sanitizedFirstName}_${docType}.pdf`;
+    return `${sanitizedCompany}_${sanitizedFirstName}_${sanitizedJobTitle}_${docType.toLowerCase()}.${format}`;
   }
   
-  return `${sanitizedCompany}_${sanitizedFirstName}_${docType}.pdf`;
+  return `${sanitizedCompany}_${sanitizedFirstName}_${docType.toLowerCase()}.${format}`;
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '@/lib/supabase/client';
 import { createServerClient } from '@/lib/supabase/server-client';
-import { generateAtsResume } from '@/lib/ai/document-generator';
+import { generateAtsResumeWithFormat } from '@/lib/ai/document-generator';
 import { ParsedJobDescription } from '@/lib/documents/document-parser';
 import { createOrUpdateApplication, saveGeneratedDocument } from '@/lib/utils/application-manager';
 import { rateLimitPresets } from '@/lib/middleware/rate-limit';
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id;
     
     const body = await request.json();
-    const { jobId, resumeId, bypassTokenLimits = false } = body;
+    const { jobId, resumeId, bypassTokenLimits = false, format = 'pdf' } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       resumeQuery,
       supabase
         .from('profiles')
-        .select('full_name, email, location, work_authorization')
+        .select('full_name, email, location, city, state, country, work_authorization')
         .eq('id', jobUserId)
         .single()
     ]);
@@ -141,17 +141,71 @@ export async function POST(request: NextRequest) {
     // Extract the actual parsed resume data from the database
     const parsedResumeData = resumeData.parsed_data || resumeData;
     
+    // Ensure contactInfo exists - handle both possible structures
+    if (!parsedResumeData.contactInfo) {
+      // If the resume uses individual fields instead of contactInfo object
+      if (parsedResumeData.email || parsedResumeData.phone || parsedResumeData.linkedin) {
+        parsedResumeData.contactInfo = {
+          email: parsedResumeData.email || '',
+          phone: parsedResumeData.phone || '',
+          linkedin: parsedResumeData.linkedin || '',
+          location: parsedResumeData.location || ''
+        };
+      } else {
+        parsedResumeData.contactInfo = {};
+      }
+    }
+    
     // Merge profile data (location and work authorization) into the resume data
     if (profileData) {
+      console.log('Profile data loaded:', {
+        hasCity: !!profileData.city,
+        hasState: !!profileData.state,
+        hasCountry: !!profileData.country,
+        hasLocation: !!profileData.location,
+        hasWorkAuth: !!profileData.work_authorization,
+        workAuthValue: profileData.work_authorization
+      });
+      
       // Update contact info with profile location if available
-      if (profileData.location && parsedResumeData.contactInfo) {
-        parsedResumeData.contactInfo.location = profileData.location;
+      if (parsedResumeData.contactInfo) {
+        console.log('Original resume location:', parsedResumeData.contactInfo.location);
+        
+        // Construct location from city, state, country if available
+        if (profileData.city || profileData.state || profileData.country) {
+          const locationParts = [];
+          if (profileData.city) locationParts.push(profileData.city);
+          if (profileData.state) locationParts.push(profileData.state);
+          if (profileData.country) locationParts.push(profileData.country);
+          const newLocation = locationParts.join(', ');
+          console.log('Setting location from profile fields:', newLocation);
+          parsedResumeData.contactInfo.location = newLocation;
+        } else if (profileData.location) {
+          // Fallback to old location field if new fields aren't populated
+          console.log('Setting location from profile.location:', profileData.location);
+          parsedResumeData.contactInfo.location = profileData.location;
+        } else {
+          // If no location data in profile, remove it to avoid showing incorrect data
+          console.log('No profile location data, removing location');
+          delete parsedResumeData.contactInfo.location;
+        }
+        
+        console.log('Final location after profile merge:', parsedResumeData.contactInfo.location);
       }
       
       // Add work authorization to the parsed resume data
       if (profileData.work_authorization) {
         parsedResumeData.workAuthorization = profileData.work_authorization;
+        console.log('Added work authorization to resume data:', parsedResumeData.workAuthorization);
       }
+    }
+    
+    // Also ensure the individual fields are updated if they exist
+    if (parsedResumeData.email !== undefined && profileData.email) {
+      parsedResumeData.email = profileData.email;
+    }
+    if (parsedResumeData.phone !== undefined && profileData.phone) {
+      parsedResumeData.phone = profileData.phone;
     }
     
     console.log('Resume data structure:', {
@@ -160,15 +214,18 @@ export async function POST(request: NextRequest) {
       parsedDataKeys: resumeData.parsed_data ? Object.keys(resumeData.parsed_data) : [],
       directKeys: Object.keys(resumeData),
       hasWorkAuth: !!parsedResumeData.workAuthorization,
-      profileLocation: profileData?.location
+      workAuthValue: parsedResumeData.workAuthorization,
+      profileLocation: profileData?.location,
+      finalLocation: parsedResumeData.contactInfo?.location
     });
 
     // Generate the ATS-optimized resume with user's AI settings
-    const { pdf, fileName } = await generateAtsResume(
+    const { document, fileName, contentType } = await generateAtsResumeWithFormat(
       parsedResumeData,
       parsedJobDescription,
       userName,
       companyName,
+      format as 'pdf' | 'docx',
       session.user.id,
       bypassTokenLimits
     );
@@ -212,9 +269,9 @@ export async function POST(request: NextRequest) {
       console.error('Warning: Failed to create/update application:', appError);
     }
 
-    // Return the PDF file with application info in headers
+    // Return the document file with application info in headers
     const responseHeaders: Record<string, string> = {
-      'Content-Type': 'application/pdf',
+      'Content-Type': contentType,
       'Content-Disposition': `attachment; filename="${fileName}"`,
     };
 
@@ -227,7 +284,7 @@ export async function POST(request: NextRequest) {
       responseHeaders['X-Document-Id'] = resumeDocumentId;
     }
 
-    return new NextResponse(pdf, {
+    return new NextResponse(document, {
       status: 200,
       headers: responseHeaders,
     });

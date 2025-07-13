@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { safeRender } from "@/lib/utils/safe-render";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,6 +77,7 @@ export default function JobOpportunityDetailPage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState<string>('');
   const [loadingResumes, setLoadingResumes] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'docx'>('pdf');
   const [existingApplication, setExistingApplication] = useState<any>(null);
   const [checkingApplication, setCheckingApplication] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -376,6 +378,7 @@ export default function JobOpportunityDetailPage() {
           resumeId: selectedResumeId,
           sessionId: sessionId,
           userId: sessionId ? null : userId, // Use userId only for authenticated users
+          format: selectedFormat,
         }),
       });
 
@@ -847,7 +850,7 @@ export default function JobOpportunityDetailPage() {
             {parsedData.salary_range && (
               <div className="flex items-center gap-2 text-green-600 dark:text-green-400 font-semibold">
                 <DollarSign className="h-4 w-4" />
-                <span>{parsedData.salary_range}</span>
+                <span>{safeRender(parsedData.salary_range)}</span>
               </div>
             )}
           </div>
@@ -908,7 +911,7 @@ export default function JobOpportunityDetailPage() {
                     {parsedData.salary_range && (
                       <div className="flex items-center gap-3">
                         <DollarSign className="h-4 w-4 text-green-600" />
-                        <span className="font-semibold text-green-700 dark:text-green-400">{parsedData.salary_range}</span>
+                        <span className="font-semibold text-green-700 dark:text-green-400">{safeRender(parsedData.salary_range)}</span>
                       </div>
                     )}
                   </div>
@@ -1188,13 +1191,14 @@ export default function JobOpportunityDetailPage() {
       </div>
 
       {/* Edit Job Modal */}
-      {editModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div 
-            className="fixed inset-0 bg-black/50" 
-            onClick={() => setEditModalOpen(false)}
-          />
-          <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4 p-6">
+      {editModalOpen ? (
+        <>
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div 
+              className="fixed inset-0 bg-black/50" 
+              onClick={() => setEditModalOpen(false)}
+            />
+            <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Edit Job Details</h2>
               <Button 
@@ -1288,8 +1292,9 @@ export default function JobOpportunityDetailPage() {
               </Button>
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        </>
+      ) : null}
 
       {/* Resume Selection Modal */}
       <Dialog open={resumeSelectionModal} onOpenChange={setResumeSelectionModal}>
@@ -1340,6 +1345,26 @@ export default function JobOpportunityDetailPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {documentType === 'resume' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="format-select">Choose document format:</Label>
+                    <Select
+                      value={selectedFormat}
+                      onValueChange={(value: 'pdf' | 'docx') => setSelectedFormat(value)}
+                    >
+                      <SelectTrigger id="format-select">
+                        <SelectValue placeholder="Select format" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pdf">PDF - Portable Document Format</SelectItem>
+                        <SelectItem value="docx">DOCX - Microsoft Word Document</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      PDF is recommended for most applications. DOCX allows further editing in Microsoft Word.
+                    </p>
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground">
                   The selected resume will be used to generate a {documentType === 'resume' ? 'tailored resume' : 'customized cover letter'} for the {opportunity?.job_title} position at {opportunity?.company_name}.
                 </p>
@@ -1402,7 +1427,7 @@ export default function JobOpportunityDetailPage() {
       </Dialog>
 
       {/* Q&A Chat Widget */}
-      {ChatWidget}
+      {ChatWidget()}
     </div>
   );
 }

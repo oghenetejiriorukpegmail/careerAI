@@ -1,6 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/server-client';
 import { extractDocumentText } from '@/lib/documents/pdf-parser';
-import { generateAtsResume, generateCoverLetter } from '@/lib/ai/document-generator';
+import { generateAtsResumeWithFormat, generateCoverLetter } from '@/lib/ai/document-generator';
 import { ParsedJobDescription } from '@/lib/documents/document-parser';
 import { queryAI } from '@/lib/ai/config';
 import { loadServerSettings } from '@/lib/ai/settings-loader';
@@ -412,26 +412,84 @@ export class JobProcessor {
     try {
       await this.updateJobStatus(job.id, 'processing');
       
-      const { resumeData, jobDescription, userName, companyName, userId, jobDescriptionId, bypassTokenLimits } = job.input_data;
+      const { resumeData, jobDescription, userName, companyName, userId, jobDescriptionId, bypassTokenLimits, format = 'pdf' } = job.input_data;
       
-      // Generate the resume
-      const { pdf, fileName } = await generateAtsResume(
-        resumeData,
+      // Load profile data to merge location and work authorization
+      const supabase = createServiceRoleClient();
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('full_name, email, location, city, state, country, work_authorization')
+        .eq('id', userId)
+        .single();
+      
+      // Merge profile data into resume data
+      const mergedResumeData = { ...resumeData };
+      
+      // Ensure contactInfo exists - handle both possible structures
+      if (!mergedResumeData.contactInfo) {
+        if (mergedResumeData.email || mergedResumeData.phone || mergedResumeData.linkedin) {
+          mergedResumeData.contactInfo = {
+            email: mergedResumeData.email || '',
+            phone: mergedResumeData.phone || '',
+            linkedin: mergedResumeData.linkedin || '',
+            location: mergedResumeData.location || ''
+          };
+        } else {
+          mergedResumeData.contactInfo = {};
+        }
+      }
+      
+      if (profileData) {
+        // Update contact info with profile location if available
+        if (mergedResumeData.contactInfo) {
+          // Construct location from city, state, country if available
+          if (profileData.city || profileData.state || profileData.country) {
+            const locationParts = [];
+            if (profileData.city) locationParts.push(profileData.city);
+            if (profileData.state) locationParts.push(profileData.state);
+            if (profileData.country) locationParts.push(profileData.country);
+            mergedResumeData.contactInfo.location = locationParts.join(', ');
+          } else if (profileData.location) {
+            // Fallback to old location field if new fields aren't populated
+            mergedResumeData.contactInfo.location = profileData.location;
+          } else {
+            // If no location data in profile, set to empty string to prevent AI from making it up
+            mergedResumeData.contactInfo.location = '';
+          }
+        }
+        
+        // Add work authorization to the parsed resume data
+        if (profileData.work_authorization) {
+          mergedResumeData.workAuthorization = profileData.work_authorization;
+        }
+        
+        // Also ensure the individual fields are updated if they exist
+        if (mergedResumeData.contactInfo && profileData.email) {
+          mergedResumeData.contactInfo.email = profileData.email;
+        }
+        if (mergedResumeData.contactInfo && profileData.full_name) {
+          mergedResumeData.contactInfo.fullName = profileData.full_name;
+        }
+      }
+      
+      // Generate the resume with merged data
+      const { document, fileName, contentType } = await generateAtsResumeWithFormat(
+        mergedResumeData,
         jobDescription as ParsedJobDescription,
         userName,
         companyName,
+        format as 'pdf' | 'docx',
         userId,
         bypassTokenLimits || false
       );
       
-      // Save to storage
-      const supabase = createServiceRoleClient();
+      // Save to storage (reuse existing supabase client)
       const filePath = `resumes/${userId}/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
         .from('user_files')
-        .upload(filePath, Buffer.from(pdf), {
-          contentType: 'application/pdf',
+        .upload(filePath, Buffer.from(document), {
+          contentType: contentType,
           upsert: true  // Allow overwriting for retries
         });
       
