@@ -415,8 +415,8 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         color: colors.primary,
       });
       
-      currentY = drawWrappedText(bullet, margins.left + 15, 10, helvetica, colors.secondary, contentWidth - 15, 1.4);
-      currentY -= 3;
+      currentY = drawWrappedText(bullet, margins.left + 15, 10, helvetica, colors.secondary, contentWidth - 15, 1.5);
+      currentY -= 5;
     }
     
     currentY -= 10;
@@ -617,9 +617,9 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       }
       
       if (training.description) {
-        currentY = drawWrappedText(training.description, margins.left, 9, helvetica, colors.text, contentWidth, 1.3);
+        currentY = drawWrappedText(training.description, margins.left, 10, helvetica, colors.text, contentWidth, 1.6);
       }
-      currentY -= 15;
+      currentY -= 20;
     }
   }
   
@@ -645,8 +645,8 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       });
       currentY -= 16;
       
-      currentY = drawWrappedText(project.description, margins.left, 9, helvetica, colors.text, contentWidth, 1.3);
-      currentY -= 15;
+      currentY = drawWrappedText(project.description, margins.left, 10, helvetica, colors.text, contentWidth, 1.6);
+      currentY -= 20;
     }
   }
   
@@ -704,13 +704,13 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         ].filter(Boolean).join(' | ');
         
         if (contactInfo) {
-          currentY = drawWrappedText(contactInfo, margins.left, 9, helvetica, colors.secondary, contentWidth, 1.3);
+          currentY = drawWrappedText(contactInfo, margins.left, 9, helvetica, colors.secondary, contentWidth, 1.5);
           currentY -= 5;
         }
         
         // Relationship
         if (ref.relationship) {
-          currentY = drawWrappedText(`Relationship: ${ref.relationship}`, margins.left, 9, helvetica, colors.text, contentWidth, 1.3);
+          currentY = drawWrappedText(`Relationship: ${ref.relationship}`, margins.left, 9, helvetica, colors.text, contentWidth, 1.5);
         }
         
         currentY -= 15; // Space between references
