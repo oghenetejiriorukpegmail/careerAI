@@ -403,6 +403,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     
     // Achievement bullets with modern styling
     for (const bullet of job.description) {
+      // Skip empty or whitespace-only bullets
+      if (!bullet || bullet.trim() === '') {
+        continue;
+      }
+      
       const pageInfo3 = checkAndAddPage(pdfDoc, currentPage, currentY, 12, margins);
       currentPage = pageInfo3.page;
       currentY = pageInfo3.y;
