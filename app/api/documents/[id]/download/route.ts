@@ -11,12 +11,12 @@ export async function GET(
     
     // Check authentication
     const supabase = createServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     let userId: string | null = null;
     
-    if (session?.user) {
-      userId = session.user.id;
+    if (!authError && user) {
+      userId = user.id;
     } else {
       // Check for session-based user
       const sessionUserId = request.headers.get('x-session-id');

@@ -98,15 +98,15 @@ Benefits:
     }
     
     console.log('[PUPPETEER SCREENSHOT] Successfully extracted content from screenshot');
-    return extractedContent;
+    return '';  // This line should not be reached
     
   } catch (error) {
     console.error('[PUPPETEER SCREENSHOT] Error during screenshot-based extraction:', error);
-    throw new Error(`Screenshot-based extraction failed: ${error.message}`);
+    throw new Error(`Screenshot-based extraction failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-export async function isScreenshotExtractionNeeded(html: string): boolean {
+export async function isScreenshotExtractionNeeded(html: string): Promise<boolean> {
   // Check if the page likely requires JavaScript rendering
   const indicators = [
     'vue',

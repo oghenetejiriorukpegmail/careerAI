@@ -199,10 +199,11 @@ export async function updateApplicationStatus(params: UpdateApplicationParams) {
  */
 export async function saveGeneratedDocument(
   userId: string,
-  jobDescriptionId: string,
+  jobDescriptionId: string | null,
   docType: 'resume' | 'cover_letter',
   fileName: string,
-  filePath: string
+  filePath: string,
+  txtFilePath?: string // Optional TXT file path
 ): Promise<string> {
   try {
     console.log('saveGeneratedDocument called with:', { userId, jobDescriptionId, docType, fileName, filePath });
@@ -213,14 +214,21 @@ export async function saveGeneratedDocument(
     }
 
     // Check if document already exists
-    const { data: existingDoc, error: checkError } = await supabase
+    let existingDocQuery = supabase
       .from('generated_documents')
       .select('id')
       .eq('user_id', userId)
-      .eq('job_description_id', jobDescriptionId)
       .eq('doc_type', docType)
-      .eq('file_path', filePath)
-      .single();
+      .eq('file_path', filePath);
+    
+    // Add job_description_id condition only if it's not null
+    if (jobDescriptionId) {
+      existingDocQuery = existingDocQuery.eq('job_description_id', jobDescriptionId);
+    } else {
+      existingDocQuery = existingDocQuery.is('job_description_id', null);
+    }
+    
+    const { data: existingDoc, error: checkError } = await existingDocQuery.single();
 
     if (existingDoc && !checkError) {
       // Document already exists, return its ID
@@ -229,14 +237,23 @@ export async function saveGeneratedDocument(
     }
 
     // Create new document
-    const documentData = {
+    const documentData: any = {
       user_id: userId,
-      job_description_id: jobDescriptionId,
       doc_type: docType,
       file_name: fileName,
       file_path: filePath,
       created_at: new Date().toISOString()
     };
+    
+    // Only include job_description_id if it's not null
+    if (jobDescriptionId) {
+      documentData.job_description_id = jobDescriptionId;
+    }
+    
+    // Add TXT file path if provided
+    if (txtFilePath) {
+      documentData.txt_file_path = txtFilePath;
+    }
 
     const { data: newDoc, error } = await supabase
       .from('generated_documents')
@@ -248,15 +265,22 @@ export async function saveGeneratedDocument(
       // If it's a duplicate key error, try to fetch the existing document
       if (error.code === '23505' || error.message?.includes('duplicate')) {
         console.warn('Duplicate document detected, fetching existing document');
-        const { data: existingDoc2, error: fetchError } = await supabase
+        let recoveryQuery = supabase
           .from('generated_documents')
           .select('id')
           .eq('user_id', userId)
-          .eq('job_description_id', jobDescriptionId)
           .eq('doc_type', docType)
           .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+          .limit(1);
+        
+        // Add job_description_id condition only if it's not null
+        if (jobDescriptionId) {
+          recoveryQuery = recoveryQuery.eq('job_description_id', jobDescriptionId);
+        } else {
+          recoveryQuery = recoveryQuery.is('job_description_id', null);
+        }
+        
+        const { data: existingDoc2, error: fetchError } = await recoveryQuery.single();
 
         if (!fetchError && existingDoc2) {
           return existingDoc2.id;

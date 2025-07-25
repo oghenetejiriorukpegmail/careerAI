@@ -11,7 +11,7 @@ export function GlobalChatProvider() {
   const [context, setContext] = useState<{
     jobDescriptionId?: string;
     applicationId?: string;
-    documentType?: 'resume' | 'cover-letter';
+    documentType?: 'resume' | 'cover_letter';
   }>({});
 
   // Update context based on current route
@@ -29,18 +29,14 @@ export function GlobalChatProvider() {
     }
   }, [pathname]);
 
-  const { ChatWidget, openChat } = useQAChat({
-    title: "Career Advisor",
-    subtitle: "Ask me anything about your job search!",
-    ...context,
-  });
+  const { ChatWidget, openChat } = useQAChat();
 
   return (
     <>
-      {ChatWidget}
+      {ChatWidget()}
       {/* Floating button that appears on all pages */}
       <Button
-        onClick={openChat}
+        onClick={() => openChat(context)}
         className="fixed bottom-6 right-6 z-50 rounded-full w-14 h-14 p-0 shadow-lg hover:scale-110 transition-transform bg-primary hover:bg-primary/90"
         title="Ask Career Advisor"
       >

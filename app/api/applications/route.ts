@@ -8,16 +8,16 @@ export async function GET(request: NextRequest) {
   try {
     // Check authentication
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required',
         message: 'You must be logged in to view applications.'
       }, { status: 401 });
     }
     
-    const userId = session.user.id;
+    const userId = user.id;
 
     const supabase = getSupabaseAdminClient();
     if (!supabase) {
@@ -78,16 +78,16 @@ export async function POST(request: NextRequest) {
   try {
     // Check authentication
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required',
         message: 'You must be logged in to create applications.'
       }, { status: 401 });
     }
     
-    const userId = session.user.id;
+    const userId = user.id;
     
     const body = await request.json();
     const { 
@@ -197,16 +197,16 @@ export async function PUT(request: NextRequest) {
   try {
     // Check authentication
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required',
         message: 'You must be logged in to update applications.'
       }, { status: 401 });
     }
     
-    const userId = session.user.id;
+    const userId = user.id;
     
     const body = await request.json();
     const { 
@@ -274,16 +274,16 @@ export async function DELETE(request: NextRequest) {
   try {
     // Check authentication
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required',
         message: 'You must be logged in to delete applications.'
       }, { status: 401 });
     }
     
-    const userId = session.user.id;
+    const userId = user.id;
     
     const applicationId = request.nextUrl.searchParams.get('applicationId');
 

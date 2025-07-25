@@ -9,16 +9,16 @@ export async function GET(
   try {
     // Check authentication
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required',
         message: 'You must be logged in to view documents.'
       }, { status: 401 });
     }
     
-    const userId = session.user.id;
+    const userId = user.id;
     const documentId = params.id;
     
     const supabase = getSupabaseAdminClient();

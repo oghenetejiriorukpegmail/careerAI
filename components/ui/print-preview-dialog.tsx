@@ -21,6 +21,21 @@ interface PrintPreviewDialogProps {
   onSectionOrderChange: (newOrder: string[]) => void;
 }
 
+// Helper function to safely render address data in print
+function safeRenderAddress(address: any): string {
+  if (typeof address === 'string') {
+    return address;
+  }
+  
+  if (typeof address === 'object' && address !== null) {
+    // If it's an object with zone keys, extract and join the values
+    const values = Object.values(address).filter(Boolean);
+    return values.join(', ');
+  }
+  
+  return '';
+}
+
 // Sortable section item component for the order list
 function SortableItem({ id, label }: { id: string; label: string }) {
   const {
@@ -765,7 +780,8 @@ export function PrintPreviewDialog({
                 ${[
                   resumeData.email,
                   resumeData.phone,
-                  resumeData.address,
+                  safeRenderAddress(resumeData.address),
+                  resumeData.workAuthorization ? `Work Authorization: ${resumeData.workAuthorization}` : null,
                   resumeData.linkedin ? `LinkedIn: ${resumeData.linkedin}` : null,
                   resumeData.website
                 ].filter(Boolean).map((item, index) => 

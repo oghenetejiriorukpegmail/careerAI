@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
+import { safeRender } from "@/lib/utils/safe-render";
 import { 
   Building2, 
   MapPin, 
@@ -308,7 +309,7 @@ export default function JobOpportunitiesPage() {
                     {opportunity.salary_range && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                        <span className="truncate">{opportunity.salary_range}</span>
+                        <span className="truncate">{safeRender(opportunity.salary_range)}</span>
                       </div>
                     )}
                   </div>

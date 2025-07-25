@@ -144,9 +144,9 @@ export function updateConfigDirectly(settings: UserSettings): void {
     default:
       console.warn(`Unknown provider ${settings.aiProvider}, using default`);
       // Set a safe default
-      AI_CONFIG.openrouter.model = 'anthropic/claude-3-7-sonnet';
+      AI_CONFIG.openrouter.model = 'anthropic/claude-sonnet-4';
       settings.aiProvider = 'openrouter';
-      settings.aiModel = 'anthropic/claude-3-7-sonnet';
+      settings.aiModel = 'anthropic/claude-sonnet-4';
   }
   
   // Then update all provider configurations to ensure consistency

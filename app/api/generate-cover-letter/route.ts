@@ -9,16 +9,16 @@ export async function POST(request: NextRequest) {
   try {
     // Check authentication first
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required',
         message: 'You must be logged in to generate cover letters.'
       }, { status: 401 });
     }
     
-    const userId = session.user.id;
+    const userId = user.id;
     
     const body = await request.json();
     const { jobId, resumeId, bypassTokenLimits = false } = body;
@@ -140,12 +140,12 @@ export async function POST(request: NextRequest) {
     });
 
     // Generate the cover letter with user's AI settings
-    const { pdf, fileName } = await generateCoverLetter(
+    const { pdf, txt, pdfFileName, txtFileName, structuredData } = await generateCoverLetter(
       parsedResumeData,
       parsedJobDescription,
       userName,
       companyName,
-      session.user.id,
+      user.id,
       bypassTokenLimits
     );
 
@@ -153,19 +153,49 @@ export async function POST(request: NextRequest) {
     let applicationResult: any;
 
     try {
-      // Save the generated document to database (optional - for future file storage)
-      // Currently we're not storing the actual PDF file, just metadata
-      const filePath = `cover-letters/${jobUserId}/${fileName}`;
+      // Save both PDF and TXT files to storage
+      const pdfFilePath = `cover-letters/${jobUserId}/${pdfFileName}`;
+      const txtFilePath = txtFileName ? `cover-letters/${jobUserId}/${txtFileName}` : undefined;
       
+      // Store PDF file in Supabase Storage
+      const { error: pdfUploadError } = await supabase.storage
+        .from('user_files')
+        .upload(pdfFilePath, pdf, {
+          upsert: true,
+          contentType: 'application/pdf'
+        });
+      
+      if (pdfUploadError) {
+        console.error('Error uploading PDF file:', pdfUploadError);
+        // Continue without failing the entire request
+      }
+      
+      // Store TXT file in Supabase Storage if available
+      if (txt && txtFilePath) {
+        const { error: txtUploadError } = await supabase.storage
+          .from('user_files')
+          .upload(txtFilePath, txt, {
+            upsert: true,
+            contentType: 'text/plain'
+          });
+        
+        if (txtUploadError) {
+          console.error('Error uploading TXT file:', txtUploadError);
+          // Continue without failing the entire request
+        }
+      }
+      
+      // Save the generated document metadata to database
       coverLetterDocumentId = await saveGeneratedDocument(
         jobUserId,
         jobId,
         'cover_letter',
-        fileName,
-        filePath
+        pdfFileName,
+        pdfFilePath,
+        txtFilePath
       );
 
-      console.log('Generated document saved:', { coverLetterDocumentId, fileName });
+      console.log('Generated document saved:', { coverLetterDocumentId, pdfFileName });
 
       // Automatically create or update job application
       applicationResult = await createOrUpdateApplication({
@@ -174,7 +204,7 @@ export async function POST(request: NextRequest) {
         jobDescriptionId: jobId,
         coverLetterId: coverLetterDocumentId,
         status: 'to_apply',
-        notes: `Cover letter generated: ${fileName}`
+        notes: `Cover letter generated: ${pdfFileName}`
       });
 
       console.log('Application automatically managed:', {
@@ -191,7 +221,7 @@ export async function POST(request: NextRequest) {
     // Return the PDF file with application info in headers
     const responseHeaders: Record<string, string> = {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Disposition': `attachment; filename="${pdfFileName}"`,
     };
 
     // Add application tracking info to headers

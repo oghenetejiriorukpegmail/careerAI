@@ -39,11 +39,11 @@ export async function extractJobWithPuppeteerMCP(url: string): Promise<string> {
   });
   
   // Extract content from screenshot using AI
-  const { createAIService } = await import('@/lib/ai/ai-service');
-  const aiService = await createAIService();
+  const { aiService } = await import('@/lib/ai/ai-service');
   
-  const extractedContent = await aiService.generateText({
-    systemPrompt: `Extract all job posting information from this screenshot including:
+  const response = await aiService.query(
+    'Extract the job details from this screenshot',
+    `Extract all job posting information from this screenshot including:
 - Job title
 - Company name  
 - Location
@@ -53,10 +53,8 @@ export async function extractJobWithPuppeteerMCP(url: string): Promise<string> {
 - Requirements
 - Qualifications
 - How to apply`,
-    userPrompt: 'Extract the job details from this screenshot',
-    imageData: screenshotData,
-    maxTokens: 2000
-  });
+    screenshotData
+  );
   
-  return extractedContent;
+  return response.content || 'Failed to extract content';
 }

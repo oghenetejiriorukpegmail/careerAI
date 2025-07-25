@@ -18,7 +18,8 @@ export function createServiceRoleClient() {
   return createClient(supabaseUrl, serviceKey, {
     auth: {
       autoRefreshToken: false,
-      persistSession: false
+      persistSession: false,
+      debug: false
     }
   });
 }

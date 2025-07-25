@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { RateLimitAlert } from "@/components/ui/rate-limit-alert";
+import { clearAllAuthStorage } from "@/lib/auth/auth-recovery";
 import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
@@ -19,6 +20,24 @@ export default function LoginPage() {
   const [error, setError] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
+
+  // Clear any corrupted auth state when login page loads
+  useEffect(() => {
+    // Only clear auth state if we're actually on login page due to auth issues
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasRedirectParam = urlParams.has('redirectTo');
+    
+    if (hasRedirectParam) {
+      console.log('Login page loaded due to redirect - clearing any corrupted auth state');
+      clearAllAuthStorage();
+      
+      // Show a brief informational message
+      const redirectFrom = urlParams.get('redirectTo');
+      if (redirectFrom && redirectFrom !== '/') {
+        setErrorMessage('Your session has expired. Please log in again to continue.');
+      }
+    }
+  }, []);
 
   // Removed client-side session check - middleware handles authentication
   // The middleware will redirect authenticated users away from login page

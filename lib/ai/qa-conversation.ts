@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 import { aiService } from './ai-service';
 import { Database } from '@/lib/supabase/types';
 
@@ -30,13 +30,13 @@ export interface ConversationMessage {
 }
 
 export class QAConversationManager {
-  private supabase = createClient();
+  private supabaseClient = supabase;
 
   async createConversation(
     userId: string,
     context: ConversationContext
   ): Promise<string> {
-    const { data, error } = await this.supabase
+    const { data, error } = await this.supabaseClient
       .from('qa_conversations')
       .insert({
         user_id: userId,
@@ -58,7 +58,7 @@ export class QAConversationManager {
     content: string,
     metadata?: any
   ): Promise<ConversationMessage> {
-    const { data, error } = await this.supabase
+    const { data, error } = await this.supabaseClient
       .from('qa_messages')
       .insert({
         conversation_id: conversationId,
@@ -84,7 +84,7 @@ export class QAConversationManager {
     conversationId: string,
     limit = 50
   ): Promise<ConversationMessage[]> {
-    const { data, error } = await this.supabase
+    const { data, error } = await this.supabaseClient
       .from('qa_messages')
       .select('*')
       .eq('conversation_id', conversationId)
@@ -93,7 +93,7 @@ export class QAConversationManager {
 
     if (error) throw error;
 
-    return data.map((msg) => ({
+    return data.map((msg: any) => ({
       id: msg.id,
       role: msg.role as 'user' | 'assistant',
       content: msg.content,
@@ -145,7 +145,7 @@ Key guidelines:
 
     // Add context-specific information
     if (context.jobDescriptionId) {
-      const { data: jobDesc } = await this.supabase
+      const { data: jobDesc } = await this.supabaseClient
         .from('job_descriptions')
         .select('job_title, company_name, description, parsed_data')
         .eq('id', context.jobDescriptionId)
@@ -159,7 +159,7 @@ Key guidelines:
     }
 
     if (context.jobApplicationId) {
-      const { data: application } = await this.supabase
+      const { data: application } = await this.supabaseClient
         .from('job_applications')
         .select('status, notes')
         .eq('id', context.jobApplicationId)
@@ -269,7 +269,7 @@ Key guidelines:
     conversationId: string,
     format: 'text' | 'pdf' = 'text'
   ): Promise<string | Buffer> {
-    const { data: conversation } = await this.supabase
+    const { data: conversation } = await this.supabaseClient
       .from('qa_conversations')
       .select('*')
       .eq('id', conversationId)
@@ -302,7 +302,7 @@ Key guidelines:
     userId: string,
     limit = 10
   ): Promise<QAConversation[]> {
-    const { data, error } = await this.supabase
+    const { data, error } = await this.supabaseClient
       .from('qa_conversations')
       .select('*')
       .eq('user_id', userId)
@@ -314,7 +314,7 @@ Key guidelines:
   }
 
   async archiveConversation(conversationId: string): Promise<void> {
-    const { error } = await this.supabase
+    const { error } = await this.supabaseClient
       .from('qa_conversations')
       .update({ status: 'archived' })
       .eq('id', conversationId);

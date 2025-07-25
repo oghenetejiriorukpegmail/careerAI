@@ -563,8 +563,26 @@ export class JobProcessor {
       
       const { resumeData, jobDescription, userName, companyName, userId, jobDescriptionId, bypassTokenLimits } = job.input_data;
       
+      // Save to storage
+      const supabase = createServiceRoleClient();
+      
+      // Validate that the job description still exists
+      let validJobDescriptionId = jobDescriptionId;
+      if (jobDescriptionId) {
+        const { data: jobDescExists, error: jobCheckError } = await supabase
+          .from('job_descriptions')
+          .select('id')
+          .eq('id', jobDescriptionId)
+          .single();
+        
+        if (jobCheckError || !jobDescExists) {
+          console.warn(`Job description ${jobDescriptionId} not found, will save document without job reference`);
+          validJobDescriptionId = null;
+        }
+      }
+      
       // Generate the cover letter
-      const { pdf, fileName } = await generateCoverLetter(
+      const { pdf, txt, pdfFileName, txtFileName, structuredData } = await generateCoverLetter(
         resumeData,
         jobDescription as ParsedJobDescription,
         userName,
@@ -573,46 +591,64 @@ export class JobProcessor {
         bypassTokenLimits || false
       );
       
-      // Save to storage
-      const supabase = createServiceRoleClient();
-      const filePath = `cover-letters/${userId}/${fileName}`;
+      const pdfFilePath = `cover-letters/${userId}/${pdfFileName}`;
+      const txtFilePath = txtFileName ? `cover-letters/${userId}/${txtFileName}` : undefined;
       
       // Convert Uint8Array to Buffer
       const pdfBuffer = Buffer.from(pdf);
       
-      const { error: uploadError } = await supabase.storage
+      // Upload PDF file
+      const { error: pdfUploadError } = await supabase.storage
         .from('user_files')
-        .upload(filePath, pdfBuffer, {
+        .upload(pdfFilePath, pdfBuffer, {
           contentType: 'application/pdf',
           upsert: true  // Allow overwriting for retries
         });
       
-      if (uploadError) {
-        throw uploadError;
+      if (pdfUploadError) {
+        throw pdfUploadError;
+      }
+      
+      // Upload TXT file if available
+      if (txt && txtFilePath) {
+        const { error: txtUploadError } = await supabase.storage
+          .from('user_files')
+          .upload(txtFilePath, txt, {
+            contentType: 'text/plain',
+            upsert: true  // Allow overwriting for retries
+          });
+        
+        if (txtUploadError) {
+          console.error('Error uploading TXT file:', txtUploadError);
+          // Continue without failing the entire job
+        }
       }
       
       // Save document record
       const docId = await saveGeneratedDocument(
         userId,
-        jobDescriptionId,
+        validJobDescriptionId,
         'cover_letter',
-        fileName,
-        filePath
+        pdfFileName,
+        pdfFilePath,
+        txtFilePath
       );
       
       // Create or update application
-      if (jobDescriptionId) {
+      if (validJobDescriptionId) {
         await createOrUpdateApplication({
           userId,
-          jobDescriptionId,
+          jobDescriptionId: validJobDescriptionId,
           coverLetterId: docId
         });
       }
       
       // Update job with results
       await this.updateJobStatus(job.id, 'completed', {
-        fileName,
-        filePath,
+        fileName: pdfFileName,
+        filePath: pdfFilePath,
+        txtFileName: txtFileName,
+        txtFilePath: txtFilePath,
         documentId: docId,
         companyName
       });
@@ -624,7 +660,7 @@ export class JobProcessor {
         'job_completed',
         'Cover Letter Generated Successfully',
         `Your cover letter for ${companyName} is ready to download.`,
-        { fileName, companyName, documentId: docId }
+        { fileName: pdfFileName, companyName, documentId: docId }
       );
       
     } catch (error) {

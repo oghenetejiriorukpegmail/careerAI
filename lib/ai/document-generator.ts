@@ -2,6 +2,94 @@ import { queryAI } from './config';
 import { ParsedResume, ParsedJobDescription } from '../documents/document-parser';
 import { ResumeData, CoverLetterData, generateResumePDF, generateCoverLetterPDF, generateFileName } from '../documents/pdf-generator';
 import { generateResumeDocx } from '../documents/docx-generator';
+import { getModelTokenConfig } from './token-manager';
+import { loadServerSettings } from './settings-loader';
+import { createServerClient } from '../supabase/server-client';
+
+// Note: Uses user's selected AI model from settings, with Claude Sonnet 4 fallback on errors
+
+// Enhanced skill processing for executive-level roles ($500K+ USD)
+function enhanceSkillsForExecutiveRole(originalSkills: string[]): string[] {
+  const enhancedSkills = new Set<string>();
+  
+  // Add all original skills
+  originalSkills.forEach(skill => {
+    if (skill && skill.trim()) {
+      enhancedSkills.add(skill.trim());
+    }
+  });
+  
+  // Skill expansion mapping for comprehensive technical prowess
+  const skillExpansions: Record<string, string[]> = {
+    // Cloud Platforms
+    'AWS': ['Amazon Web Services', 'EC2', 'S3', 'Lambda', 'CloudFormation', 'VPC', 'IAM', 'RDS', 'CloudWatch'],
+    'Azure': ['Microsoft Azure', 'Azure DevOps', 'Azure AD', 'Azure Functions', 'ARM Templates', 'Azure SQL'],
+    'GCP': ['Google Cloud Platform', 'Compute Engine', 'Cloud Storage', 'Cloud Functions', 'BigQuery'],
+    
+    // Container Technologies
+    'Docker': ['Containerization', 'Docker Compose', 'Container Orchestration'],
+    'Kubernetes': ['K8s', 'Container Orchestration', 'Microservices Architecture', 'Helm', 'Istio'],
+    
+    // Programming Languages
+    'JavaScript': ['Node.js', 'TypeScript', 'React', 'Angular', 'Vue.js', 'Express.js'],
+    'Python': ['Django', 'Flask', 'FastAPI', 'Pandas', 'NumPy', 'Machine Learning', 'Data Analytics'],
+    'Java': ['Spring Boot', 'Spring Framework', 'Maven', 'Gradle', 'Enterprise Java'],
+    'C#': ['.NET Core', '.NET Framework', 'ASP.NET', 'Entity Framework', 'Azure Integration'],
+    
+    // DevOps and Infrastructure
+    'Terraform': ['Infrastructure as Code', 'IaC', 'Cloud Automation', 'Resource Management'],
+    'Ansible': ['Configuration Management', 'Automation', 'Infrastructure Provisioning'],
+    'Jenkins': ['CI/CD', 'Build Automation', 'Pipeline Management', 'Continuous Integration'],
+    
+    // Databases
+    'PostgreSQL': ['Relational Databases', 'Database Design', 'Query Optimization', 'Data Modeling'],
+    'MongoDB': ['NoSQL', 'Document Databases', 'Database Scaling', 'Data Architecture'],
+    'Redis': ['Caching', 'In-Memory Databases', 'Performance Optimization'],
+    
+    // Security
+    'Security': ['Cybersecurity', 'Information Security', 'Risk Management', 'Compliance', 'Security Architecture'],
+    'OAuth': ['Authentication', 'Authorization', 'Identity Management', 'SSO', 'Security Protocols'],
+    
+    // Leadership and Strategy
+    'Leadership': ['Technical Leadership', 'Team Management', 'Strategic Planning', 'Mentoring', 'Cross-functional Collaboration'],
+    'Architecture': ['System Architecture', 'Solution Design', 'Technical Strategy', 'Scalability Planning']
+  };
+  
+  // Add expansions for existing skills
+  originalSkills.forEach(skill => {
+    const skillKey = skill.trim();
+    Object.keys(skillExpansions).forEach(expandKey => {
+      if (skillKey.toLowerCase().includes(expandKey.toLowerCase()) || expandKey.toLowerCase().includes(skillKey.toLowerCase())) {
+        skillExpansions[expandKey].forEach(expansion => {
+          enhancedSkills.add(expansion);
+        });
+      }
+    });
+  });
+  
+  // Add executive-level strategic skills for $500K+ roles
+  const executiveSkills = [
+    'Digital Transformation',
+    'Technology Strategy',
+    'Enterprise Architecture',
+    'Vendor Management',
+    'Budget Management',
+    'Risk Assessment',
+    'Stakeholder Management',
+    'Performance Optimization',
+    'Cost Management',
+    'Innovation Leadership',
+    'Agile Transformation',
+    'Technical Due Diligence'
+  ];
+  
+  // Add executive skills if candidate has sufficient technical depth
+  if (originalSkills.length > 10) {
+    executiveSkills.forEach(skill => enhancedSkills.add(skill));
+  }
+  
+  return Array.from(enhancedSkills).sort();
+}
 
 // Helper function to fix common JSON errors
 function fixCommonJsonErrors(content: string): string {
@@ -191,8 +279,37 @@ export async function generateAtsResume(
   companyName: string,
   userId?: string,
   bypassTokenLimits: boolean = false
-): Promise<{ pdf: Uint8Array; fileName: string }> {
+): Promise<{ pdf: Uint8Array; txt: string; pdfFileName: string; txtFileName: string; structuredData: any }> {
   try {
+    // Load user settings to get their preferred AI model
+    let userSettings = loadServerSettings();
+    if (userId) {
+      try {
+        const supabase = createServerClient();
+        const { data: settingsRow } = await supabase
+          .from('user_settings')
+          .select('settings')
+          .eq('user_id', userId)
+          .single();
+        if (settingsRow?.settings) {
+          userSettings = settingsRow.settings;
+        }
+      } catch (error) {
+        console.error('[generateAtsResume] Error loading user settings:', error);
+      }
+    }
+    
+    // Estimate content size for logging
+    const resumeJsonSize = JSON.stringify(resume).length;
+    const jobDescriptionSize = JSON.stringify(jobDescription).length;
+    const totalInputSize = resumeJsonSize + jobDescriptionSize + 2000; // Add buffer for prompts
+    const estimatedInputTokens = Math.ceil(totalInputSize / 3.5);
+    
+    // Use user's selected model, only bypass limits if explicitly requested
+    const shouldBypassTokenLimits = bypassTokenLimits;
+    
+    console.log(`[generateAtsResume] Content size: ${totalInputSize} chars (~${estimatedInputTokens} tokens). Using selected model: ${userSettings.aiModel}`);
+    
     // Debug log the input resume data
     console.log('[generateAtsResume] Input resume data:', {
       hasContactInfo: !!resume.contactInfo,
@@ -201,9 +318,11 @@ export async function generateAtsResume(
       experienceCount: resume.experience?.length || 0,
       educationCount: resume.education?.length || 0,
       skillsCount: resume.skills?.length || 0,
+      projectsCount: resume.projects?.length || 0,
       hasWorkAuth: !!resume.workAuthorization,
       workAuthValue: resume.workAuthorization,
       resumeKeys: Object.keys(resume),
+      bypassTokenLimits: shouldBypassTokenLimits,
       // Log first experience item if exists
       firstExperience: resume.experience?.[0] ? {
         title: resume.experience[0].title,
@@ -278,6 +397,15 @@ export async function generateAtsResume(
       - DO NOT add metrics or achievements not in the original
       - You can reword for clarity but the facts must remain the same
       - If the candidate lacks a required skill, work with what they have
+      
+      CRITICAL FOR HIGH-LEVEL TECHNICAL POSITIONS ($500K+ USD):
+      - Senior technical roles (Staff Engineer, Principal Architect, Director, VP) require demonstrable technical excellence
+      - Management roles need both leadership experience AND technical credibility
+      - NEVER sacrifice technical projects or details for brevity - they prove technical depth and problem-solving abilities
+      - ALL technical projects showcase architectural thinking, system design, and technical leadership
+      - Technical depth differentiates senior professionals from junior/mid-level candidates
+      - Include comprehensive technical skills, certifications, and project portfolios
+      - Position technical background as foundation for strategic technical decision-making and team leadership
       
       DATE FORMATTING REQUIREMENTS:
       - Preserve EXACT dates as they appear in the source resume
@@ -355,8 +483,81 @@ export async function generateAtsResume(
         "workAuthorization": ""
       }
 
+      CERTIFICATIONS SECTION - CRITICAL FOR EXECUTIVE CREDIBILITY:
+      - ALWAYS use FULL certification names, never abbreviations or acronyms
+      - Example: Use "Juniper Networks Certified Internetwork Specialist - Security" NOT "JNCIS-SEC"
+      - Example: Use "Cisco Certified Network Professional" NOT "CCNP"
+      - Example: Use "Information Technology Infrastructure Library Foundation" NOT "ITIL Foundation"
+      - Full certification names demonstrate comprehensive expertise and professional credibility
+      - Abbreviations minimize the perceived value and impact of certifications
+      - For executive roles ($500K+), detailed certification names are essential for demonstrating expertise depth
+      - If both full name and abbreviation exist, always choose the full descriptive name
+      - Include certification issuer, date, and credential ID if available
+      
+      PROJECTS SECTION - CRITICAL FOR HIGH-LEVEL TECHNICAL ROLES ($500K+ USD):
+      - Include ALL projects mentioned in the candidate's resume data - they demonstrate technical leadership and business impact
+      - For senior technical, management, and executive positions, comprehensive project history showcases technical depth
+      - Prioritize projects that align with the job requirements, but include the full portfolio
+      - Transform brief project mentions into comprehensive strategic descriptions that show:
+        * Technical complexity and architectural decisions
+        * Leadership and cross-functional collaboration
+        * Business impact and strategic value
+        * Innovation and problem-solving approaches
+      - Focus on both technical excellence AND business outcomes: system architecture, team leadership, organizational impact
+      - Use senior-level language: "spearheaded," "orchestrated," "championed," "transformed," "architected," "engineered," "designed," "scaled"
+      - Quantify impact wherever possible: performance improvements, cost savings, efficiency gains, scalability achievements, team productivity
+      - Position projects as strategic initiatives that demonstrate:
+        * Technical mastery and architectural thinking
+        * Leadership and mentoring capabilities  
+        * Cross-functional collaboration and communication
+        * Strategic technical decision-making
+      - If only project name is provided, infer strategic context from the candidate's role level and expand with likely technical leadership and business value
+      
+      SKILLS SECTION - COMPREHENSIVE TECHNICAL PROWESS FOR EXECUTIVE ROLES ($500K+ USD):
+      
+      **SKILL PRIORITIZATION STRATEGY:**
+      1. **Job-Relevance First**: Order skills by direct relevance to job description requirements
+      2. **Strategic Technologies**: Prioritize enterprise-level, strategic technologies over basic tools
+      3. **Depth Demonstration**: Show mastery across full technology stacks, not just individual tools
+      4. **Executive Leadership**: Emphasize skills that demonstrate technical leadership and architectural thinking
+      5. **Business Impact**: Focus on technologies that drive business outcomes and competitive advantage
+      
+      **COMPREHENSIVE SKILL INCLUSION:**
+      - Include ALL technical skills from the candidate's resume - comprehensive skill display strengthens executive positioning
+      - Prioritize skills most relevant to the job requirements while maintaining breadth of expertise
+      - Add related technologies and synonyms (e.g., if "React" mentioned, include "React.js", "ReactJS", "React Native")
+      - Expand technology stacks (e.g., if "AWS" mentioned, include specific services like "EC2", "S3", "Lambda", "CloudFormation")
+      - Include both foundational and advanced skills within each technology area
+      - Add emerging technologies that complement existing skill set
+      
+      **EXECUTIVE-LEVEL SKILL ENHANCEMENT:**
+      - Transform basic skills into strategic competencies:
+        * "Python" → "Python (Enterprise Application Development, Data Analytics, Automation)"
+        * "AWS" → "Amazon Web Services (Cloud Architecture, Cost Optimization, DevOps Transformation)"
+        * "Kubernetes" → "Kubernetes (Container Orchestration, Microservices Architecture, Scalability Engineering)"
+      - Emphasize architectural and design skills over implementation-only skills
+      - Include leadership technologies: "Technical Strategy", "Architecture Design", "Team Leadership", "Vendor Management"
+      - Add business-aligned skills: "Digital Transformation", "Cost Optimization", "Performance Engineering", "Security Governance"
+      
+      **SKILL CATEGORIZATION FOR $500K+ ROLES:**
+      Group skills into strategic categories:
+      - **Cloud & Infrastructure**: AWS, Azure, GCP, Kubernetes, Docker, Terraform, etc.
+      - **Programming & Development**: Languages, frameworks, and development methodologies
+      - **Data & Analytics**: Big data, ML, AI, data pipeline, and analytics technologies
+      - **Security & Compliance**: Cybersecurity, compliance frameworks, risk management
+      - **Leadership & Strategy**: Technical leadership, architecture, vendor management, digital transformation
+      
+      **TECHNICAL DEPTH DEMONSTRATION:**
+      For each major technology area, show full ecosystem knowledge:
+      - Cloud Platforms: Include core services, networking, security, monitoring, cost management
+      - Programming: Include languages, frameworks, tools, testing, deployment
+      - Data: Include collection, storage, processing, analysis, visualization, ML/AI
+      - Security: Include prevention, detection, response, compliance, governance
+      
       Include certifications, training, and projects ONLY if they are available in the candidate's resume data.
       If these sections are not present in the original data, omit them from the output or leave them as empty arrays.
+      
+      Focus on comprehensive coverage while maintaining relevance to the target role.
       
       BULLET POINT TRANSFORMATION EXAMPLES:
       Transform weak descriptions into powerful achievement statements:
@@ -477,6 +678,10 @@ export async function generateAtsResume(
          - Do NOT sort by date, relevance, or any other criteria
          - The first experience in input must be first in output
          - Preserve the exact chronological sequence
+      7. CONTENT COMPLETENESS: Maintain comprehensive skill and project coverage
+         - Include all skills and projects from the candidate's resume
+         - Prioritize most relevant content while preserving breadth of expertise
+         - Executive roles benefit from comprehensive technical and project portfolios
       
       CRITICAL for senior/executive resumes:
       - Experience descriptions MUST be comprehensive and detailed
@@ -546,8 +751,7 @@ export async function generateAtsResume(
       - The experience array must appear in the SAME ORDER as the input data
     `;
 
-    // Load user settings if userId provided
-    let userSettings;
+    // Update user settings using the existing userSettings variable
     if (userId) {
       try {
         // Use service role client for background jobs to avoid cookie context issues
@@ -571,7 +775,7 @@ export async function generateAtsResume(
     }
 
     // Call the AI service with user settings
-    const response = await queryAI(prompt, systemPrompt, userSettings, 'resume_parsing', bypassTokenLimits);
+    const response = await queryAI(prompt, systemPrompt, userSettings, 'resume_parsing', shouldBypassTokenLimits);
     
     // Extract content from the AI response object
     let parsedContent: string;
@@ -731,15 +935,37 @@ export async function generateAtsResume(
             field: edu.field,
             graduationDate: edu.graduationDate
           })) : [],
-          skills: Array.isArray(resume.skills) ? resume.skills : [],
+          skills: enhanceSkillsForExecutiveRole(Array.isArray(resume.skills) ? resume.skills : []),
           workAuthorization: resume.workAuthorization || '',
-          certifications: resume.certifications ? resume.certifications.map(cert => ({
-            name: cert.name || cert.title || 'Certification',
-            issuer: cert.issuer || cert.organization || 'Issuer',
-            date: cert.date || cert.issueDate,
-            expiryDate: cert.validUntil,
-            credentialId: undefined
-          })) : [],
+          certifications: resume.certifications ? resume.certifications.map(cert => {
+            // Prioritize longer, more descriptive certification names over abbreviations
+            let certName = 'Certification';
+            
+            // Choose the longest available name (full name over abbreviation)
+            if (cert.name && cert.title) {
+              certName = cert.name.length > cert.title.length ? cert.name : cert.title;
+            } else if (cert.name) {
+              certName = cert.name;
+            } else if (cert.title) {
+              certName = cert.title;
+            }
+            
+            // If we have a very short name (likely abbreviation), try to construct full name
+            if (certName.length < 15 && cert.organization) {
+              const fullName = `${cert.organization} ${certName}`;
+              if (fullName.length > certName.length) {
+                certName = fullName;
+              }
+            }
+            
+            return {
+              name: certName,
+              issuer: cert.issuer || cert.organization || 'Issuer',
+              date: cert.date || cert.issueDate,
+              expiryDate: cert.validUntil,
+              credentialId: undefined
+            };
+          }) : [],
           trainings: [],
           projects: [],
           references: [{
@@ -757,10 +983,21 @@ export async function generateAtsResume(
     // Generate the PDF
     const pdf = await generateResumePDF(tailoredResumeData);
     
-    // Generate the filename with job title
-    const fileName = generateFileName(companyName, userName, 'Resume', jobDescription.jobTitle);
+    // Generate the TXT version using the same data
+    const { generateResumeTXT } = await import('../documents/txt-generator');
+    const txtContent = generateResumeTXT(tailoredResumeData);
     
-    return { pdf, fileName };
+    // Generate the filenames
+    const pdfFileName = generateFileName(companyName, userName, 'Resume', jobDescription.jobTitle);
+    const txtFileName = generateFileName(companyName, userName, 'Resume', jobDescription.jobTitle).replace('.pdf', '.txt');
+    
+    return { 
+      pdf, 
+      txt: txtContent,
+      pdfFileName,
+      txtFileName,
+      structuredData: tailoredResumeData // Keep for future use
+    };
   } catch (error) {
     console.error('Error generating ATS resume:', error);
     throw new Error('Failed to generate ATS-optimized resume');
@@ -835,18 +1072,20 @@ export async function generateAtsResumeWithFormat(
   format: 'pdf' | 'docx' = 'pdf',
   userId?: string,
   bypassTokenLimits: boolean = false
-): Promise<{ document: Uint8Array; fileName: string; contentType: string }> {
+): Promise<{ document: Uint8Array; fileName: string; contentType: string; txtContent?: string; txtFileName?: string; structuredData?: any }> {
   try {
     // First generate the tailored resume data using the existing logic
-    const { pdf } = await generateAtsResume(resume, jobDescription, userName, companyName, userId, bypassTokenLimits);
+    const { pdf, txt, pdfFileName, txtFileName, structuredData } = await generateAtsResume(resume, jobDescription, userName, companyName, userId, bypassTokenLimits);
     
-    // For PDF format, we can return the existing result
+    // For PDF format, return both PDF and TXT content
     if (format === 'pdf') {
-      const fileName = generateFileName(companyName, userName, 'Resume', jobDescription.jobTitle);
       return {
         document: pdf,
-        fileName,
-        contentType: 'application/pdf'
+        fileName: pdfFileName,
+        contentType: 'application/pdf',
+        txtContent: txt,
+        txtFileName: txtFileName,
+        structuredData
       };
     }
     
@@ -867,7 +1106,10 @@ export async function generateAtsResumeWithFormat(
     return {
       document: docx,
       fileName,
-      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      txtContent: txt,
+      txtFileName: txtFileName,
+      structuredData
     };
   } catch (error) {
     console.error('Error generating resume with format:', error);
@@ -1015,8 +1257,8 @@ async function generateTailoredResumeData(
     - Optimize for both ATS parsing and human readability
   `;
 
-  // Call the AI service
-  const response = await queryAI(prompt, systemPrompt, userSettings, 'resume_generation', bypassTokenLimits);
+  // Always bypass token limits since we have Claude Sonnet 4 fallback with 200K context
+  const response = await queryAI(prompt, systemPrompt, userSettings, 'resume_generation', true);
   
   // Extract and parse the response
   let parsedContent: string;
@@ -1075,7 +1317,7 @@ async function generateTailoredResumeData(
         degree: edu.degree || 'Degree',
         graduationDate: edu.graduationDate || ''
       })) : [],
-      skills: Array.isArray(resume.skills) ? resume.skills : []
+      skills: enhanceSkillsForExecutiveRole(Array.isArray(resume.skills) ? resume.skills : [])
     };
   }
 
@@ -1099,9 +1341,18 @@ export async function generateCoverLetter(
   bypassTokenLimits: boolean = false
 ): Promise<{ pdf: Uint8Array; fileName: string }> {
   try {
+    // Get current date for cover letter
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
     // Create a prompt for the AI to generate a cover letter
     const prompt = `
       I need to create a personalized cover letter for a job application.
+      
+      IMPORTANT: Use this exact date for the cover letter: ${currentDate}
 
       Here is the candidate's information:
       ${JSON.stringify(resume, null, 2)}
@@ -1132,9 +1383,9 @@ export async function generateCoverLetter(
           "phone": "",
           "location": ""
         },
-        "date": "Current date (Month DD, YYYY)",
+        "date": "${currentDate}",
         "recipient": {
-          "name": "",  // Leave empty unless a specific person is mentioned in the job description
+          "name": "Hiring Manager",  // Use "Hiring Manager" if no specific person is mentioned
           "title": "",  // Job title of the person if mentioned
           "company": "",
           "address": ""
@@ -1150,8 +1401,10 @@ export async function generateCoverLetter(
       3. Closing paragraph with call to action
 
       IMPORTANT: 
+      - Use FIRST LAST name format (e.g., "John Smith", NOT "Smith, John")
       - DO NOT include "Dear Hiring Manager" or any salutation in the paragraphs
       - The greeting will be generated automatically from the recipient information
+      - Set recipient.name to "Hiring Manager" unless a specific person is mentioned in the job description
       - Start the first paragraph directly with your opening statement (e.g., "I am writing to express...")
 
       Keep the cover letter concise, professional, and tailored to the specific job opportunity.
@@ -1221,8 +1474,9 @@ export async function generateCoverLetter(
       }
     }
 
-    // Call the AI service with user settings
-    const response = await queryAI(prompt, systemPrompt, userSettings, 'cover_letter', bypassTokenLimits);
+    // Always bypass token limits for cover letter generation since we have Claude Sonnet 4 fallback with 200K context
+    console.log('[generateCoverLetter] Bypassing token limits to preserve all content - using Claude Sonnet 4 fallback (200K context) if needed');
+    const response = await queryAI(prompt, systemPrompt, userSettings, 'cover_letter', true);
     
     // Extract content from the AI response object
     let parsedContent: string;
@@ -1298,10 +1552,21 @@ export async function generateCoverLetter(
     // Generate the PDF
     const pdf = await generateCoverLetterPDF(coverLetterData);
     
-    // Generate the filename with job title
-    const fileName = generateFileName(companyName, userName, 'CoverLetter', jobDescription.jobTitle);
+    // Generate the TXT version using the same data
+    const { generateCoverLetterTXT } = await import('../documents/txt-generator');
+    const txtContent = generateCoverLetterTXT(coverLetterData);
     
-    return { pdf, fileName };
+    // Generate the filenames
+    const pdfFileName = generateFileName(companyName, userName, 'CoverLetter', jobDescription.jobTitle);
+    const txtFileName = generateFileName(companyName, userName, 'CoverLetter', jobDescription.jobTitle).replace('.pdf', '.txt');
+    
+    return { 
+      pdf, 
+      txt: txtContent,
+      pdfFileName,
+      txtFileName,
+      structuredData: coverLetterData // Keep for future use
+    };
   } catch (error) {
     console.error('Error generating cover letter:', error);
     throw new Error('Failed to generate cover letter');
@@ -1339,8 +1604,8 @@ export async function generateLinkedInOptimizationTips(linkedInData: any): Promi
       recommendations that will have a meaningful impact on profile effectiveness.
     `;
 
-    // Call the AI service
-    const response = await queryAI(prompt, systemPrompt);
+    // Call the AI service (bypass token limits for consistency)
+    const response = await queryAI(prompt, systemPrompt, undefined, 'profile_optimization', true);
     
     // Parse the response to get the optimization tips
     const optimizationTips: string[] = JSON.parse(response.choices[0].message.content);

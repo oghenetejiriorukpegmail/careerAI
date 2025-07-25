@@ -51,7 +51,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "date-fns": "^4.1.0",
-    "docx": "^9.5.0",
+    "docx": "^9.5.1",
     "dompurify": "^3.2.5",
     "dotenv": "^16.5.0",
     "jspdf": "^3.0.1",

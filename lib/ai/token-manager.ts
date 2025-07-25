@@ -12,12 +12,14 @@ export interface TokenConfig {
 
 // Model-specific token configurations
 export const MODEL_TOKEN_CONFIGS: Record<string, TokenConfig> = {
-  // Claude models
+  // Claude models (including OpenRouter format)
   'claude-opus-4': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.015, supportsLongContext: true },
   'claude-sonnet-4': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.003, supportsLongContext: true },
+  'anthropic/claude-sonnet-4': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.003, supportsLongContext: true },
   'claude-3-opus': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.015, supportsLongContext: true },
   'claude-3-sonnet': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.003, supportsLongContext: true },
   'claude-3-haiku': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.00025, supportsLongContext: true },
+  'anthropic/claude-3-5-sonnet': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.003, supportsLongContext: true },
   
   // GPT models
   'gpt-4': { baseTokens: 4096, maxTokens: 8192, costPerKToken: 0.03 },
@@ -28,6 +30,14 @@ export const MODEL_TOKEN_CONFIGS: Record<string, TokenConfig> = {
   // Gemini models
   'gemini-1.5-pro': { baseTokens: 8192, maxTokens: 1048576, costPerKToken: 0.00125, supportsLongContext: true },
   'gemini-1.5-flash': { baseTokens: 8192, maxTokens: 1048576, costPerKToken: 0.00025, supportsLongContext: true },
+  
+  // X.AI models
+  'x-ai/grok-4': { baseTokens: 4096, maxTokens: 256000, costPerKToken: 0.005, supportsLongContext: true },
+  'x-ai/grok-3': { baseTokens: 4096, maxTokens: 128000, costPerKToken: 0.003, supportsLongContext: true },
+  
+  // Mistral models
+  'mistralai/devstral-small-2505:free': { baseTokens: 4096, maxTokens: 32000, costPerKToken: 0 },
+  'moonshotai/kimi-k2:free': { baseTokens: 4096, maxTokens: 60000, costPerKToken: 0, supportsLongContext: true },
   
   // Default for unknown models
   'default': { baseTokens: 4096, maxTokens: 32000 }
@@ -59,22 +69,34 @@ export function calculateOptimalTokens(
   userPreference?: number,
   bypassLimits: boolean = false
 ): number {
-  // Normalize model name
-  const normalizedModel = modelName.toLowerCase().replace(/[^a-z0-9-]/g, '');
-  
-  // Find matching config
+  // Find matching config - check exact match first, then substring match
   let config: TokenConfig = MODEL_TOKEN_CONFIGS.default;
-  for (const [key, value] of Object.entries(MODEL_TOKEN_CONFIGS)) {
-    if (normalizedModel.includes(key.toLowerCase())) {
-      config = value;
-      break;
+  
+  // Check for exact match first (handles OpenRouter format like "anthropic/claude-sonnet-4")
+  if (MODEL_TOKEN_CONFIGS[modelName]) {
+    config = MODEL_TOKEN_CONFIGS[modelName];
+  } else {
+    // Fallback to substring matching
+    const normalizedModel = modelName.toLowerCase().replace(/[^a-z0-9-\/]/g, '');
+    for (const [key, value] of Object.entries(MODEL_TOKEN_CONFIGS)) {
+      if (normalizedModel.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedModel)) {
+        config = value;
+        break;
+      }
     }
   }
   
-  // If bypassing limits, return maximum tokens for the model
+  // If bypassing limits, calculate available output tokens for high-capacity model
   if (bypassLimits) {
-    console.log(`[TOKEN MANAGER] Bypassing token limits - using maximum tokens: ${config.maxTokens}`);
-    return config.maxTokens;
+    // Use more accurate token estimation (Claude tokenizer is closer to 3.5 chars per token)
+    const estimatedInputTokens = Math.ceil(inputLength / 3.5);
+    const bufferTokens = 2000; // Larger buffer to account for estimation errors
+    const availableOutputTokens = Math.max(config.maxTokens - estimatedInputTokens - bufferTokens, config.baseTokens);
+    
+    console.log(`[TOKEN MANAGER] Using high-capacity model - available output tokens: ${availableOutputTokens}`);
+    console.log(`[TOKEN MANAGER] Input: ${estimatedInputTokens} tokens, Buffer: ${bufferTokens}, Available: ${availableOutputTokens}/${config.maxTokens}`);
+    
+    return availableOutputTokens;
   }
   
   // If user has set a preference, use it (within model limits)
@@ -83,8 +105,8 @@ export function calculateOptimalTokens(
   }
   
   // Calculate based on input length
-  // Rough estimate: 1 token ≈ 4 characters
-  const estimatedInputTokens = Math.ceil(inputLength / 4);
+  // More accurate estimate: 1 token ≈ 3.5 characters for Claude models
+  const estimatedInputTokens = Math.ceil(inputLength / 3.5);
   
   // For resume parsing, output is typically 1.5-2x the input
   const outputMultiplier = USE_CASE_MULTIPLIERS[useCase] || USE_CASE_MULTIPLIERS.default;
@@ -112,10 +134,16 @@ export function estimateCost(
   inputTokens: number,
   outputTokens: number
 ): number | null {
-  const normalizedModel = modelName.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  // Check for exact match first
+  if (MODEL_TOKEN_CONFIGS[modelName] && MODEL_TOKEN_CONFIGS[modelName].costPerKToken) {
+    const totalTokens = inputTokens + outputTokens;
+    return (totalTokens / 1000) * MODEL_TOKEN_CONFIGS[modelName].costPerKToken!;
+  }
   
+  // Fallback to substring matching
+  const normalizedModel = modelName.toLowerCase().replace(/[^a-z0-9-\/]/g, '');
   for (const [key, config] of Object.entries(MODEL_TOKEN_CONFIGS)) {
-    if (normalizedModel.includes(key.toLowerCase()) && config.costPerKToken) {
+    if ((normalizedModel.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedModel)) && config.costPerKToken) {
       const totalTokens = inputTokens + outputTokens;
       return (totalTokens / 1000) * config.costPerKToken;
     }
@@ -128,10 +156,15 @@ export function estimateCost(
  * Get token configuration for a model
  */
 export function getModelTokenConfig(modelName: string): TokenConfig {
-  const normalizedModel = modelName.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  // Check for exact match first (handles OpenRouter format like "anthropic/claude-sonnet-4")
+  if (MODEL_TOKEN_CONFIGS[modelName]) {
+    return MODEL_TOKEN_CONFIGS[modelName];
+  }
   
+  // Fallback to substring matching
+  const normalizedModel = modelName.toLowerCase().replace(/[^a-z0-9-\/]/g, '');
   for (const [key, value] of Object.entries(MODEL_TOKEN_CONFIGS)) {
-    if (normalizedModel.includes(key.toLowerCase())) {
+    if (normalizedModel.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedModel)) {
       return value;
     }
   }

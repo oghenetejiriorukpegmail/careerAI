@@ -70,11 +70,11 @@ export async function POST(request: NextRequest) {
     
     // 2. Reset all AI_CONFIG provider models to defaults
     AI_CONFIG.openrouter.model = 'qwen/qwen3-235b-a22b:free';
-    // AI_CONFIG.anthropic.model = 'claude-3-7-sonnet-20250219';
-    AI_CONFIG.requesty.model = 'anthropic/claude-3-7-sonnet-20250219';
+    // AI_CONFIG.anthropic.model = 'claude-sonnet-4';
+    AI_CONFIG.requesty.model = 'anthropic/claude-sonnet-4';
     AI_CONFIG.openai.model = 'gpt-4';
     AI_CONFIG.gemini.model = 'gemini-1.5-pro';
-    AI_CONFIG.vertex.model = 'vertex/anthropic/claude-3-7-sonnet-latest@us-east5';
+    AI_CONFIG.vertex.model = 'vertex/anthropic/claude-sonnet-4@us-east5';
     
     console.log('AI provider configuration reset to defaults');
     

@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import SupabaseInitializer from "@/components/supabase-initializer";
+// import "@/lib/utils/suppress-supabase-logs"; // Suppress noisy GoTrueClient debug logs - temporarily disabled due to build errors
 
 const inter = Inter({ subsets: ["latin"] });
 

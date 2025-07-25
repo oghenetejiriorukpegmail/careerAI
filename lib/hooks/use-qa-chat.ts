@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, createElement } from 'react';
 import { createPortal } from 'react-dom';
-import ApplicationQAChat from '@/components/application-qa-chat';
+import { ApplicationQAChat as ApplicationQAChatComponent } from '@/components/application-qa-chat';
 
 interface UseQAChatOptions {
   jobDescriptionId?: string;
@@ -29,11 +29,16 @@ export function useQAChat() {
     if (!isOpen || typeof window === 'undefined') return null;
 
     return createPortal(
-      <ApplicationQAChat
-        context={context}
-        isFloating
-        onClose={closeChat}
-      />,
+      createElement(ApplicationQAChatComponent, {
+        jobDescriptionId: context.jobDescriptionId,
+        applicationId: context.jobApplicationId,
+        initialContext: {
+          page: 'floating',
+          documentType: context.documentType,
+        },
+        isOpen: true,
+        onClose: closeChat,
+      }),
       document.body
     );
   }, [isOpen, context, closeChat]);

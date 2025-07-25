@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/components/ui/use-toast";
 import { Loader, Settings, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AIVisionSelector, VISION_MODELS } from "@/components/ai-vision-selector";
 
 export default function NewJobDescriptionPage() {
@@ -28,6 +29,7 @@ export default function NewJobDescriptionPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAISelector, setShowAISelector] = useState(false);
   const [selectedVisionModel, setSelectedVisionModel] = useState(VISION_MODELS[0].id);
+  const [scrapingMethod, setScrapingMethod] = useState<'puppeteer' | 'jina'>('puppeteer');
   const [userSettings, setUserSettings] = useState<any>(null);
   const router = useRouter();
   const { toast } = useToast();
@@ -126,7 +128,8 @@ export default function NewJobDescriptionPage() {
       const requestData: any = {
         userId,
         inputMethod: activeTab === 'url' ? 'url' : activeTab === 'manual' ? 'manual' : 'text_paste',
-        visionModel: selectedVisionModel // Include selected vision model for URL scraping
+        visionModel: selectedVisionModel, // Include selected vision model for URL scraping
+        scrapingMethod: scrapingMethod // Include selected scraping method
       };
 
       if (activeTab === 'paste') {
@@ -262,7 +265,7 @@ ${description}`;
                 </div>
               </TabsContent>
               <TabsContent value="url" className="space-y-4 pt-4">
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <div className="flex items-end gap-2">
                     <div className="flex-1 space-y-2">
                       <Label htmlFor="jobUrl">Job Listing URL</Label>
@@ -289,26 +292,66 @@ ${description}`;
                       <span className="hidden sm:inline">AI Model</span>
                     </Button>
                   </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="scrapingMethod">Scraping Method</Label>
+                    <Select value={scrapingMethod} onValueChange={(value: 'puppeteer' | 'jina') => setScrapingMethod(value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select scraping method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="puppeteer">
+                          <div className="flex flex-col">
+                            <span className="font-medium">Puppeteer (Recommended)</span>
+                            <span className="text-xs text-muted-foreground">Takes screenshot and uses AI vision - works with most sites</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="jina">
+                          <div className="flex flex-col">
+                            <span className="font-medium">Jina.ai Reader (Pure)</span>
+                            <span className="text-xs text-muted-foreground">Fast text extraction only - no fallbacks to other methods</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">
-                      We'll automatically extract the job details from the provided URL
+                      We'll automatically extract the job details from the provided URL using your selected method
                     </p>
-                    <div 
-                      className="flex items-center gap-2 p-2 bg-muted rounded-md cursor-pointer hover:bg-muted/80 transition-colors"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        console.log('Info box clicked');
-                        setShowAISelector(true);
-                      }}
-                    >
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-sm">
-                        AI Model: <span className="font-medium text-foreground">{VISION_MODELS.find(m => m.id === selectedVisionModel)?.name || 'Gemini 2.0 Flash'}</span>
-                      </p>
-                      <Badge variant="outline" className="ml-auto text-xs">
-                        {VISION_MODELS.find(m => m.id === selectedVisionModel)?.cost === 'free' ? 'FREE' : VISION_MODELS.find(m => m.id === selectedVisionModel)?.cost?.toUpperCase()}
-                      </Badge>
-                    </div>
+                    
+                    {scrapingMethod === 'puppeteer' && (
+                      <div 
+                        className="flex items-center gap-2 p-2 bg-muted rounded-md cursor-pointer hover:bg-muted/80 transition-colors"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          console.log('Info box clicked');
+                          setShowAISelector(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm">
+                          AI Model: <span className="font-medium text-foreground">{VISION_MODELS.find(m => m.id === selectedVisionModel)?.name || 'Gemini 2.0 Flash'}</span>
+                        </p>
+                        <Badge variant="outline" className="ml-auto text-xs">
+                          {VISION_MODELS.find(m => m.id === selectedVisionModel)?.cost === 'free' ? 'FREE' : VISION_MODELS.find(m => m.id === selectedVisionModel)?.cost?.toUpperCase()}
+                        </Badge>
+                      </div>
+                    )}
+                    
+                    {scrapingMethod === 'jina' && (
+                      <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                        <div className="h-4 w-4 rounded-full bg-blue-500 flex items-center justify-center">
+                          <span className="text-xs text-white font-bold">J</span>
+                        </div>
+                        <p className="text-sm text-blue-900">
+                          Using <span className="font-medium">Jina.ai Reader API</span> for fast text extraction
+                        </p>
+                        <Badge variant="outline" className="ml-auto text-xs bg-green-50 text-green-700 border-green-200">
+                          FREE
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -464,7 +507,6 @@ ${description}`;
       </Card>
       
       {/* AI Vision Model Selector Modal */}
-      {console.log('Modal state:', showAISelector)}
       <AIVisionSelector
         open={showAISelector}
         onOpenChange={(open) => {

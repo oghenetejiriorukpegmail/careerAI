@@ -20,6 +20,9 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [country, setCountry] = useState("");
   const [workAuthorization, setWorkAuthorization] = useState("");
   const { toast } = useToast();
 
@@ -43,6 +46,9 @@ export default function ProfilePage() {
           setEmail(data.email || user.email || "");
           setPhone(data.phone || "");
           setLocation(data.location || "");
+          setCity(data.city || "");
+          setState(data.state || "");
+          setCountry(data.country || "");
           setWorkAuthorization(data.work_authorization || "");
         }
       } catch (error: any) {
@@ -74,7 +80,10 @@ export default function ProfilePage() {
         full_name: fullName,
         email,
         phone,
-        location,
+        location: city || state || country ? `${city}${city && state ? ', ' : ''}${state}${(city || state) && country ? ', ' : ''}${country}` : location,
+        city,
+        state,
+        country,
         updated_at: new Date().toISOString(),
       };
       
@@ -89,10 +98,16 @@ export default function ProfilePage() {
         .eq("id", user.id);
         
       if (error) {
-        // If error is about work_authorization column, try without it
-        if (error.message && error.message.includes('work_authorization')) {
-          console.warn('Work authorization column not available, updating without it');
+        // If error is about new columns, try without them
+        if (error.message && (error.message.includes('work_authorization') || 
+            error.message.includes('city') || 
+            error.message.includes('state') || 
+            error.message.includes('country'))) {
+          console.warn('Some columns not available, updating without them');
           delete updateData.work_authorization;
+          delete updateData.city;
+          delete updateData.state;
+          delete updateData.country;
           
           const { error: retryError } = await supabase
             .from("profiles")
@@ -194,14 +209,39 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="location">Location (Optional)</Label>
-                  <Input
-                    id="location"
-                    placeholder="New York, NY"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    disabled={saving}
-                  />
+                  <Label>Location (Optional)</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Input
+                        id="city"
+                        placeholder="City"
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        disabled={saving}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        id="state"
+                        placeholder="State/Province"
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        disabled={saving}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        id="country"
+                        placeholder="Country"
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                        disabled={saving}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Enter your location details for better job matching
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="workAuth">Work Authorization Status (Optional)</Label>
@@ -320,13 +360,13 @@ export default function ProfilePage() {
                 </div>
               )}
               
-              {location && (
+              {(city || state || country) && (
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center space-x-2">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">Location</span>
                   </div>
-                  <span>{location}</span>
+                  <span>{`${city}${city && state ? ', ' : ''}${state}${(city || state) && country ? ', ' : ''}${country}`}</span>
                 </div>
               )}
               

@@ -12,6 +12,7 @@ import { ArrowLeft, Download, Edit, Trash2, Calendar, FileText, CheckCircle, Clo
 import { PrintPreviewDialog } from "@/components/ui/print-preview-dialog";
 import { RewriteDialog } from "@/components/ui/rewrite-dialog";
 import { ManualEditDialog } from "@/components/ui/manual-edit-dialog";
+import ErrorBoundary from "@/components/error-boundary";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SortableSection } from "@/components/ui/sortable-section";
@@ -408,7 +409,8 @@ export default function ResumeViewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 print:bg-white">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 print:bg-white">
       <div className="container mx-auto px-4 py-6 space-y-6 print:px-0 print:py-0">
         {/* Modern Navigation Header */}
         <div className="flex items-center justify-between print:hidden">
@@ -664,6 +666,7 @@ export default function ResumeViewPage() {
           fieldDefinitions={manualEditSection.fieldDefinitions}
         />
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

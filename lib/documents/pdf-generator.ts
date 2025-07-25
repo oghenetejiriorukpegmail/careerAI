@@ -30,8 +30,10 @@ export interface ResumeData {
     name: string;
     issuer: string;
     date?: string;
+    issueDate?: string; // Alternative date field
     expiryDate?: string;
     credentialId?: string;
+    credential_id?: string; // Alternative credential ID field
   }>;
   trainings?: Array<{
     name: string;
@@ -85,6 +87,53 @@ const colors = {
   text: rgb(0.1, 0.1, 0.1),             // Near black for text
   white: rgb(1, 1, 1)                    // Pure white
 };
+
+// Helper function to format dates consistently
+function formatCertificationDate(dateString: string): string {
+  if (!dateString) return '';
+  
+  // Try to parse the date
+  const date = new Date(dateString);
+  
+  // Check if it's a valid date
+  if (!isNaN(date.getTime())) {
+    // Format as "Month Year" (e.g., "October 2023")
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long' 
+    });
+  }
+  
+  // If it's already in "Month Year" format, return as-is
+  if (/^[A-Z][a-z]+\s+\d{4}$/.test(dateString.trim())) {
+    return dateString.trim();
+  }
+  
+  // If it's in "Month YYYY" or "Mon YYYY" format, standardize
+  const monthYearMatch = dateString.match(/^([A-Z][a-z]+)\s+(\d{4})$/);
+  if (monthYearMatch) {
+    return monthYearMatch[0];
+  }
+  
+  // If it's just a year, format as "December YYYY" (assuming end of year)
+  if (/^\d{4}$/.test(dateString.trim())) {
+    return `December ${dateString.trim()}`;
+  }
+  
+  // If it's in ISO format (YYYY-MM-DD), parse and format
+  const isoMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    const isoDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return isoDate.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long' 
+    });
+  }
+  
+  // If none of the above, return the original string
+  return dateString.trim();
+}
 
 // Helper function to wrap text and calculate height
 function wrapText(text: string, maxWidth: number, fontSize: number, font: PDFFont): string[] {
@@ -264,8 +313,9 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   };
   
   // HEADER SECTION WITH MODERN LAYOUT
-  // Name with larger, modern typography
-  currentPage.drawText(data.fullName, {
+  // Name with larger, modern typography - handle undefined fullName
+  const fullName = data.fullName || 'Applicant';
+  currentPage.drawText(fullName, {
     x: margins.left,
     y: currentY,
     size: 28,
@@ -473,57 +523,100 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     currentY -= 20;
   }
   
-  // SKILLS SECTION with modern pill-style layout
-  const pageInfo6 = checkSectionStart(pdfDoc, currentPage, currentY, 60, margins);
+  // SKILLS SECTION - Enhanced for Executive-Level Technical Prowess ($500K+ roles)
+  const pageInfo6 = checkSectionStart(pdfDoc, currentPage, currentY, 80, margins);
   currentPage = pageInfo6.page;
   currentY = pageInfo6.y;
   
-  currentY = drawSectionHeader(currentPage, 'Core Competencies', margins.left, currentY, contentWidth, helveticaBold);
+  currentY = drawSectionHeader(currentPage, 'Technical Expertise & Core Competencies', margins.left, currentY, contentWidth, helveticaBold);
   
-  // Create skill pills layout with better organization
-  let skillX = margins.left;
-  let skillY = currentY;
-  const skillSpacing = 10;
-  const lineHeight = 24;
-  
-  for (const skill of data.skills) {
-    const skillWidth = helvetica.widthOfTextAtSize(skill, 9) + 16;
-    
-    // Check if skill fits on current line
-    if (skillX + skillWidth > width - margins.right) {
-      skillX = margins.left;
-      skillY -= lineHeight;
+  // Enhanced skills display with comprehensive coverage
+  if (data.skills && data.skills.length > 0) {
+    // Split complex skills into individual components
+    const processSkills = (skills) => {
+      const individualSkills = [];
       
-      // Check if we need a new page
-      const pageInfo = checkAndAddPage(pdfDoc, currentPage, skillY, lineHeight, margins);
-      currentPage = pageInfo.page;
-      if (pageInfo.y !== skillY) skillY = pageInfo.y;
+      for (const skill of skills) {
+        // Handle skills that contain parentheses with comma-separated items
+        if (skill.includes('(') && skill.includes(')')) {
+          const baseSkill = skill.split('(')[0].trim();
+          const parenthesesContent = skill.match(/\(([^)]+)\)/)?.[1];
+          
+          if (parenthesesContent) {
+            // Add the base skill
+            individualSkills.push(baseSkill);
+            
+            // Split the parentheses content by commas and add each as individual skill
+            const subSkills = parenthesesContent.split(',').map(s => s.trim());
+            individualSkills.push(...subSkills);
+          } else {
+            individualSkills.push(skill);
+          }
+        } else if (skill.includes(',')) {
+          // Handle comma-separated skills
+          const splitSkills = skill.split(',').map(s => s.trim()).filter(s => s.length > 0);
+          individualSkills.push(...splitSkills);
+        } else {
+          individualSkills.push(skill);
+        }
+      }
+      
+      return individualSkills;
+    };
+    
+    // Process skills to split them into individual components
+    const allSkills = processSkills(data.skills);
+    
+    // Create enhanced skill pills layout optimized for comprehensive display
+    let skillX = margins.left;
+    let skillY = currentY;
+    const skillSpacing = 8; // Reduced spacing for more skills per line
+    const lineHeight = 22; // Optimized line height
+    
+    for (const skill of allSkills) {
+      // For executive resumes, show full skill information - no truncation
+      const skillWidth = helvetica.widthOfTextAtSize(skill, 9) + 14;
+      
+      // Check if skill fits on current line with proper margins
+      if (skillX + skillWidth > width - margins.right - 10) {
+        skillX = margins.left;
+        skillY -= lineHeight;
+        
+        // Check if we need a new page
+        const pageInfo = checkAndAddPage(pdfDoc, currentPage, skillY, lineHeight, margins);
+        currentPage = pageInfo.page;
+        if (pageInfo.y !== skillY) skillY = pageInfo.y;
+      }
+      
+      // Draw premium skill pill with executive-level styling
+      currentPage.drawRectangle({
+        x: skillX,
+        y: skillY - 2,
+        width: skillWidth,
+        height: 15, // Slightly reduced height for more compact display
+        color: colors.primaryLight,
+        borderColor: colors.primary,
+        borderWidth: 0.8, // Slightly thicker border for premium appearance
+      });
+      
+      // Draw full skill text with optimized positioning
+      currentPage.drawText(skill, {
+        x: skillX + 7,
+        y: skillY + 2,
+        size: 9,
+        font: helvetica,
+        color: colors.primary,
+      });
+      
+      skillX += skillWidth + skillSpacing;
     }
     
-    // Draw enhanced skill pill background
-    currentPage.drawRectangle({
-      x: skillX,
-      y: skillY - 2,
-      width: skillWidth,
-      height: 16,
-      color: colors.primaryLight,
-      borderColor: colors.primary,
-      borderWidth: 0.75,
-    });
-    
-    // Draw skill text
-    currentPage.drawText(skill, {
-      x: skillX + 8,
-      y: skillY + 3,
-      size: 9,
-      font: helvetica,
-      color: colors.primary,
-    });
-    
-    skillX += skillWidth + skillSpacing;
+    currentY = skillY;
+    currentY -= 25;
+  } else {
+    // No skills section, adjust spacing accordingly
+    currentY -= 20;
   }
-  
-  currentY = skillY - 25;
   
   // ADDITIONAL SECTIONS (Certifications, Training, Projects, References)
   // Following the same modern design pattern...
@@ -541,36 +634,74 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentPage = pageInfoCertItem.page;
       currentY = pageInfoCertItem.y;
       
-      currentPage.drawText(cert.name, {
-        x: margins.left,
-        y: currentY,
-        size: 11,
-        font: helveticaBold,
-        color: colors.primary,
-      });
+      // Handle certification name and date layout - check multiple possible date fields
+      const rawCertDate = cert.date || cert.issueDate || (cert as any).obtained_date || (cert as any).date_obtained;
+      const certDate = rawCertDate ? formatCertificationDate(rawCertDate) : null;
       
-      if (cert.date) {
-        const dateWidth = helvetica.widthOfTextAtSize(cert.date, 9);
-        currentPage.drawText(cert.date, {
-          x: width - margins.right - dateWidth,
-          y: currentY,
-          size: 9,
-          font: helvetica,
-          color: colors.secondary,
-        });
+      // Check for expiration date
+      const rawExpiryDate = cert.expiryDate || cert.validUntil || (cert as any).expiry_date || (cert as any).expires || (cert as any).valid_until;
+      const isExpired = rawExpiryDate ? new Date(rawExpiryDate) < new Date() : false;
+      
+      if (certDate) {
+        const dateWidth = helvetica.widthOfTextAtSize(certDate, 9);
+        const dateX = width - margins.right - dateWidth;
+        
+        // Prepare certification name with inactive indicator
+        const displayName = isExpired ? `${cert.name} (INACTIVE)` : cert.name;
+        const nameColor = isExpired ? rgb(0.6, 0.6, 0.6) : colors.primary; // Gray for inactive, normal color otherwise
+        
+        // Check if certification name fits on one line with date
+        const certNameWidth = helveticaBold.widthOfTextAtSize(displayName, 11);
+        const availableSpaceForName = dateX - margins.left - 20; // 20px buffer
+        
+        if (certNameWidth <= availableSpaceForName) {
+          // Single line: certification name and date on same line
+          currentPage.drawText(displayName, {
+            x: margins.left,
+            y: currentY,
+            size: 11,
+            font: helveticaBold,
+            color: nameColor,
+          });
+          
+          currentPage.drawText(certDate, {
+            x: dateX,
+            y: currentY,
+            size: 9,
+            font: helvetica,
+            color: colors.secondary,
+          });
+          
+          currentY -= 16;
+        } else {
+          // Multi-line: certification name wraps, date on new line
+          currentY = drawWrappedText(displayName, margins.left, 11, helveticaBold, nameColor, contentWidth, 1.4);
+          
+          currentPage.drawText(certDate, {
+            x: dateX,
+            y: currentY + 6,
+            size: 9,
+            font: helvetica,
+            color: colors.secondary,
+          });
+          
+          currentY -= 8;
+        }
+      } else {
+        // No date: use full width for certification name
+        const displayName = isExpired ? `${cert.name} (INACTIVE)` : cert.name;
+        const nameColor = isExpired ? rgb(0.6, 0.6, 0.6) : colors.primary; // Gray for inactive, normal color otherwise
+        
+        currentY = drawWrappedText(displayName, margins.left, 11, helveticaBold, nameColor, contentWidth, 1.4);
+        currentY -= 8;
       }
-      currentY -= 16;
       
-      const certInfo = [cert.issuer, cert.credentialId ? `ID: ${cert.credentialId}` : null].filter(Boolean).join(' | ');
+      // Handle credential ID with multiple possible field names
+      const credentialId = cert.credentialId || (cert as any).credential_id || (cert as any).id;
+      const certInfo = [cert.issuer, credentialId ? `ID: ${credentialId}` : null].filter(Boolean).join(' | ');
       if (certInfo) {
-        currentPage.drawText(certInfo, {
-          x: margins.left,
-          y: currentY,
-          size: 9,
-          font: helvetica,
-          color: colors.secondary,
-        });
-        currentY -= 15;
+        currentY = drawWrappedText(certInfo, margins.left, 9, helvetica, colors.secondary, contentWidth, 1.4);
+        currentY -= 8;
       }
     }
     currentY -= 10;
@@ -585,73 +716,264 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     currentY = drawSectionHeader(currentPage, 'Professional Development', margins.left, currentY, contentWidth, helveticaBold);
     
     for (const training of data.trainings) {
-      const pageInfoTrainItem = checkAndAddPage(pdfDoc, currentPage, currentY, 60, margins);
+      const pageInfoTrainItem = checkAndAddPage(pdfDoc, currentPage, currentY, 50, margins);
       currentPage = pageInfoTrainItem.page;
       currentY = pageInfoTrainItem.y;
       
-      currentPage.drawText(training.name, {
-        x: margins.left,
-        y: currentY,
-        size: 11,
-        font: helveticaBold,
-        color: colors.primary,
-      });
-      
+      // Handle training name and date layout (matching certification style)
       if (training.date) {
         const dateWidth = helvetica.widthOfTextAtSize(training.date, 9);
-        currentPage.drawText(training.date, {
-          x: width - margins.right - dateWidth,
-          y: currentY,
-          size: 9,
-          font: helvetica,
-          color: colors.secondary,
-        });
+        const dateX = width - margins.right - dateWidth;
+        
+        // Check if training name fits on one line with date
+        const trainingNameWidth = helveticaBold.widthOfTextAtSize(training.name, 11);
+        const availableSpaceForName = dateX - margins.left - 20; // 20px buffer
+        
+        if (trainingNameWidth <= availableSpaceForName) {
+          // Single line: training name and date on same line
+          currentPage.drawText(training.name, {
+            x: margins.left,
+            y: currentY,
+            size: 11,
+            font: helveticaBold,
+            color: colors.primary,
+          });
+          
+          currentPage.drawText(training.date, {
+            x: dateX,
+            y: currentY,
+            size: 9,
+            font: helvetica,
+            color: colors.secondary,
+          });
+          
+          currentY -= 16;
+        } else {
+          // Multi-line: training name wraps, date on new line
+          currentY = drawWrappedText(training.name, margins.left, 11, helveticaBold, colors.primary, contentWidth, 1.4);
+          
+          currentPage.drawText(training.date, {
+            x: dateX,
+            y: currentY + 6,
+            size: 9,
+            font: helvetica,
+            color: colors.secondary,
+          });
+          
+          currentY -= 8;
+        }
+      } else {
+        // No date: use full width for training name
+        currentY = drawWrappedText(training.name, margins.left, 11, helveticaBold, colors.primary, contentWidth, 1.4);
+        currentY -= 8;
       }
-      currentY -= 16;
       
       const trainInfo = [training.provider, training.duration ? `Duration: ${training.duration}` : null].filter(Boolean).join(' | ');
       if (trainInfo) {
-        currentPage.drawText(trainInfo, {
-          x: margins.left,
-          y: currentY,
-          size: 9,
-          font: helvetica,
-          color: colors.secondary,
-        });
-        currentY -= 12;
+        currentY = drawWrappedText(trainInfo, margins.left, 9, helvetica, colors.secondary, contentWidth, 1.4);
+        currentY -= 6;
       }
       
       if (training.description) {
-        currentY = drawWrappedText(training.description, margins.left, 10, helvetica, colors.text, contentWidth, 1.6);
+        currentY = drawWrappedText(training.description, margins.left, 10, helvetica, colors.text, contentWidth, 1.5);
+        currentY -= 6;
       }
-      currentY -= 20;
+      
+      currentY -= 8; // Reduced spacing between training items
     }
   }
   
-  // Projects section
-  if (data.projects && data.projects.length > 0) {
+  // Projects section - enhanced for executive-level positions ($500K+ roles)
+  const validProjects = data.projects?.filter(project => {
+    // For executive roles, include all projects with any meaningful content
+    if (!project.name && !project.description) {
+      return false;
+    }
+    
+    // Include projects with just a name (we'll enhance the presentation)
+    if (project.name && project.name.trim().length >= 2) {
+      return true;
+    }
+    
+    // Include projects with any substantial description
+    if (project.description && project.description.trim().length >= 10) {
+      return true;
+    }
+    
+    // Only filter out completely empty or obvious placeholder content
+    const content = (project.name || '') + ' ' + (project.description || '');
+    const contentLower = content.toLowerCase().trim();
+    
+    // Filter only obvious placeholders
+    const placeholderPhrases = [
+      'lorem ipsum',
+      'sample text',
+      'placeholder text',
+      'example project'
+    ];
+    
+    if (placeholderPhrases.some(phrase => contentLower.includes(phrase))) {
+      return false;
+    }
+    
+    return content.trim().length > 0;
+  }) || [];
+
+  if (validProjects.length > 0) {
     const pageInfo7 = checkSectionStart(pdfDoc, currentPage, currentY, 70, margins);
     currentPage = pageInfo7.page;
     currentY = pageInfo7.y;
     
-    currentY = drawSectionHeader(currentPage, 'Notable Projects', margins.left, currentY, contentWidth, helveticaBold);
+    currentY = drawSectionHeader(currentPage, 'Key Projects & Strategic Initiatives', margins.left, currentY, contentWidth, helveticaBold);
     
-    for (const project of data.projects) {
-      const pageInfo8 = checkAndAddPage(pdfDoc, currentPage, currentY, 45, margins);
+    for (const project of validProjects) {
+      const pageInfo8 = checkAndAddPage(pdfDoc, currentPage, currentY, 60, margins);
       currentPage = pageInfo8.page;
       currentY = pageInfo8.y;
       
-      currentPage.drawText(project.name, {
-        x: margins.left,
-        y: currentY,
-        size: 11,
-        font: helveticaBold,
-        color: colors.primary,
-      });
-      currentY -= 16;
+      // Enhanced project name with executive-level formatting
+      if (project.name && project.name.trim()) {
+        currentY = drawWrappedText(project.name.trim(), margins.left, 12, helveticaBold, colors.primary, contentWidth, 1.3);
+        currentY -= 6; // Reduced spacing after title
+      }
       
-      currentY = drawWrappedText(project.description, margins.left, 10, helvetica, colors.text, contentWidth, 1.6);
-      currentY -= 20;
+      // Enhanced description with professional formatting
+      if (project.description && project.description.trim()) {
+        const description = project.description.trim();
+        
+        // Add bullet point for better visual hierarchy
+        currentPage.drawCircle({
+          x: margins.left + 5,
+          y: currentY + 4,
+          size: 2.5,
+          color: colors.primary,
+        });
+        
+        currentY = drawWrappedText(description, margins.left + 15, 10.5, helvetica, colors.text, contentWidth - 15, 1.5);
+        currentY -= 6; // Space before tech tags
+        
+        // Extract and display technology tags
+        const projectText = (project.name || '') + ' ' + description;
+        const technologies = extractTechnologies(projectText);
+        
+        if (technologies.length > 0) {
+          // Draw technology tags
+          let techX = margins.left + 15;
+          let techY = currentY;
+          const techSpacing = 6;
+          const techLineHeight = 18;
+          
+          for (const tech of technologies) {
+            const techColors = getTechColor(tech);
+            const techWidth = helvetica.widthOfTextAtSize(tech, 8) + 10;
+            
+            // Check if tech tag fits on current line
+            if (techX + techWidth > width - margins.right - 10) {
+              techX = margins.left + 15;
+              techY -= techLineHeight;
+              
+              // Check if we need a new page
+              const pageInfo = checkAndAddPage(pdfDoc, currentPage, techY, techLineHeight, margins);
+              currentPage = pageInfo.page;
+              if (pageInfo.y !== techY) techY = pageInfo.y;
+            }
+            
+            // Draw tech tag background
+            currentPage.drawRectangle({
+              x: techX,
+              y: techY - 2,
+              width: techWidth,
+              height: 12,
+              color: techColors.background,
+              borderColor: techColors.border,
+              borderWidth: 0.5,
+            });
+            
+            // Draw tech tag text
+            currentPage.drawText(tech, {
+              x: techX + 5,
+              y: techY + 1,
+              size: 8,
+              font: helvetica,
+              color: techColors.text,
+            });
+            
+            techX += techWidth + techSpacing;
+          }
+          
+          currentY = techY - 8;
+        } else {
+          currentY -= 4; // No tech tags, just add normal spacing
+        }
+        
+      } else if (project.name && project.name.trim()) {
+        // If only name is available, add professional context note
+        currentPage.drawCircle({
+          x: margins.left + 5,
+          y: currentY + 4,
+          size: 2.5,
+          color: colors.primary,
+        });
+        
+        currentY = drawWrappedText('Strategic initiative contributing to organizational objectives and business growth.', margins.left + 15, 10, helvetica, colors.secondary, contentWidth - 15, 1.5);
+        
+        // Extract technologies from project name if no description
+        const technologies = extractTechnologies(project.name);
+        
+        if (technologies.length > 0) {
+          currentY -= 6; // Space before tech tags
+          
+          // Draw technology tags
+          let techX = margins.left + 15;
+          let techY = currentY;
+          const techSpacing = 6;
+          const techLineHeight = 18;
+          
+          for (const tech of technologies) {
+            const techColors = getTechColor(tech);
+            const techWidth = helvetica.widthOfTextAtSize(tech, 8) + 10;
+            
+            // Check if tech tag fits on current line
+            if (techX + techWidth > width - margins.right - 10) {
+              techX = margins.left + 15;
+              techY -= techLineHeight;
+              
+              // Check if we need a new page
+              const pageInfo = checkAndAddPage(pdfDoc, currentPage, techY, techLineHeight, margins);
+              currentPage = pageInfo.page;
+              if (pageInfo.y !== techY) techY = pageInfo.y;
+            }
+            
+            // Draw tech tag background
+            currentPage.drawRectangle({
+              x: techX,
+              y: techY - 2,
+              width: techWidth,
+              height: 12,
+              color: techColors.background,
+              borderColor: techColors.border,
+              borderWidth: 0.5,
+            });
+            
+            // Draw tech tag text
+            currentPage.drawText(tech, {
+              x: techX + 5,
+              y: techY + 1,
+              size: 8,
+              font: helvetica,
+              color: techColors.text,
+            });
+            
+            techX += techWidth + techSpacing;
+          }
+          
+          currentY = techY - 8;
+        } else {
+          currentY -= 4;
+        }
+      }
+      
+      currentY -= 10; // Reduced spacing between projects
     }
   }
   
@@ -677,29 +999,17 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
           font: helvetica,
           color: colors.text,
         });
-        currentY -= 20;
+        currentY -= 12; // Reduced spacing
       } else {
         // Reference name and title
         const nameTitle = ref.title ? `${ref.name}, ${ref.title}` : ref.name;
-        currentPage.drawText(nameTitle, {
-          x: margins.left,
-          y: currentY,
-          size: 11,
-          font: helveticaBold,
-          color: colors.primary,
-        });
-        currentY -= 16;
+        currentY = drawWrappedText(nameTitle, margins.left, 11, helveticaBold, colors.primary, contentWidth, 1.3);
+        currentY -= 4; // Further reduced spacing
         
         // Company
         if (ref.company) {
-          currentPage.drawText(ref.company, {
-            x: margins.left,
-            y: currentY,
-            size: 10,
-            font: helvetica,
-            color: colors.secondary,
-          });
-          currentY -= 12;
+          currentY = drawWrappedText(ref.company, margins.left, 10, helvetica, colors.secondary, contentWidth, 1.3);
+          currentY -= 3; // Further reduced spacing
         }
         
         // Contact information
@@ -709,16 +1019,17 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         ].filter(Boolean).join(' | ');
         
         if (contactInfo) {
-          currentY = drawWrappedText(contactInfo, margins.left, 9, helvetica, colors.secondary, contentWidth, 1.5);
-          currentY -= 5;
+          currentY = drawWrappedText(contactInfo, margins.left, 9, helvetica, colors.secondary, contentWidth, 1.3);
+          currentY -= 2; // Further reduced spacing
         }
         
         // Relationship
         if (ref.relationship) {
-          currentY = drawWrappedText(`Relationship: ${ref.relationship}`, margins.left, 9, helvetica, colors.text, contentWidth, 1.5);
+          currentY = drawWrappedText(`Relationship: ${ref.relationship}`, margins.left, 9, helvetica, colors.text, contentWidth, 1.3);
+          currentY -= 2; // Further reduced spacing
         }
         
-        currentY -= 15; // Space between references
+        currentY -= 5; // Much smaller space between references
       }
     }
   }
@@ -775,14 +1086,15 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
     return currentY;
   };
   
-  // Draw name at the top
-  currentPage.drawText(data.fullName, {
+  // Draw name at the top - handle undefined fullName
+  const fullName = data.fullName || 'Applicant';
+  currentPage.drawText(fullName, {
     x: margins.left,
     y: currentY,
     size: 16,
     font: timesBold,
   });
-  currentY -= 25;
+  currentY -= 15; // Standard spacing between all elements
   
   // Contact info line
   const contactText = [
@@ -792,7 +1104,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   ].filter(Boolean).join(' | ');
   
   currentY = drawWrappedText(contactText, margins.left, 10, timesRoman);
-  currentY -= 30;
+  currentY -= 15; // Standard spacing
   
   // Date
   currentPage.drawText(data.date, {
@@ -801,7 +1113,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
     size: 10,
     font: timesRoman,
   });
-  currentY -= 30;
+  currentY -= 30; // Extra space between date and recipient for visual separation
   
   // Recipient info
   if (data.recipient) {
@@ -812,7 +1124,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
         size: 10,
         font: timesRoman,
       });
-      currentY -= 15;
+      currentY -= 15; // Standard spacing
       
       // Show title only if we have a specific name (not "Hiring Manager")
       if (data.recipient.title && data.recipient.name !== 'Hiring Manager' && data.recipient.title !== 'Hiring Manager') {
@@ -822,7 +1134,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
           size: 10,
           font: timesRoman,
         });
-        currentY -= 15;
+        currentY -= 15; // Standard spacing
       }
     }
     
@@ -832,7 +1144,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
       size: 10,
       font: timesRoman,
     });
-    currentY -= 15;
+    currentY -= 15; // Standard spacing
     
     if (data.recipient.address) {
       currentY = drawWrappedText(data.recipient.address, margins.left, 10, timesRoman);
@@ -840,7 +1152,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
     }
   }
   
-  currentY -= 15;
+  currentY -= 15; // Standard spacing
   
   // Subject line
   const subjectText = `Re: Application for ${data.jobTitle} Position`;
@@ -850,7 +1162,7 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
     size: 10,
     font: timesBold,
   });
-  currentY -= 30;
+  currentY -= 15; // Standard spacing
   
   // Greeting - use recipient name if available, otherwise default to Hiring Manager
   const greeting = data.recipient?.name && data.recipient.name.trim() !== '' && data.recipient.name !== 'Hiring Manager' 
@@ -887,8 +1199,9 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
   
   currentY -= 60; // Space for signature
   
-  // Name
-  currentPage.drawText(data.fullName, {
+  // Name - handle undefined fullName
+  const fullNameCover = data.fullName || 'Applicant';
+  currentPage.drawText(fullNameCover, {
     x: margins.left,
     y: currentY,
     size: 10,
@@ -900,14 +1213,14 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
 
 /**
  * Generates file name according to PRD requirements
- * Format: companyName_userFirstname_jobTitle_resume.pdf|docx
- * Example: openAI_Oghenetejiri_Senior_Network_Engineer_resume.pdf
+ * Format: companyName_userFirstname_jobTitle_docType_YYYY-MM-DD.pdf|docx
+ * Example: openAI_Oghenetejiri_Senior_Network_Engineer_resume_2025-01-23.pdf
  * @param companyName Company name
  * @param userName User's full name
  * @param docType 'Resume' or 'CoverLetter'
  * @param jobTitle Optional job title to include in filename
  * @param format File format ('pdf' or 'docx')
- * @returns Formatted file name with company, first name, job title, document type, and format
+ * @returns Formatted file name with company, first name, job title, document type, date, and format
  */
 export function generateFileName(companyName: string, userName: string, docType: 'Resume' | 'CoverLetter', jobTitle?: string, format: 'pdf' | 'docx' = 'pdf'): string {
   const sanitizedCompany = companyName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
@@ -916,11 +1229,114 @@ export function generateFileName(companyName: string, userName: string, docType:
   const firstName = userName.split(' ')[0];
   const sanitizedFirstName = firstName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
   
+  // Add current date in YYYY-MM-DD format
+  const currentDate = new Date().toISOString().split('T')[0]; // Gets YYYY-MM-DD format
+  
   // Sanitize job title if provided
   if (jobTitle) {
     const sanitizedJobTitle = jobTitle.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-    return `${sanitizedCompany}_${sanitizedFirstName}_${sanitizedJobTitle}_${docType.toLowerCase()}.${format}`;
+    return `${sanitizedCompany}_${sanitizedFirstName}_${sanitizedJobTitle}_${docType.toLowerCase()}_${currentDate}.${format}`;
   }
   
-  return `${sanitizedCompany}_${sanitizedFirstName}_${docType.toLowerCase()}.${format}`;
+  return `${sanitizedCompany}_${sanitizedFirstName}_${docType.toLowerCase()}_${currentDate}.${format}`;
+}
+
+// Helper function to extract technologies from text
+function extractTechnologies(text: string): string[] {
+  if (!text) return [];
+  
+  const techPatterns = [
+    // Programming Languages
+    /\b(JavaScript|TypeScript|Python|Java|C\+\+|C#|PHP|Ruby|Go|Rust|Swift|Kotlin|Scala|Perl|R|MATLAB|Objective-C|Shell|PowerShell|Bash)\b/gi,
+    // Web Technologies
+    /\b(HTML|CSS|SASS|SCSS|React|Angular|Vue\.?js|Node\.?js|Express|Django|Flask|Laravel|Rails|Spring|ASP\.NET|jQuery|Bootstrap|Tailwind)\b/gi,
+    // Databases
+    /\b(MySQL|PostgreSQL|MongoDB|Redis|Elasticsearch|Oracle|SQL Server|SQLite|Cassandra|DynamoDB|Neo4j|InfluxDB|MariaDB)\b/gi,
+    // Cloud & DevOps
+    /\b(AWS|Azure|GCP|Google Cloud|Docker|Kubernetes|Terraform|Jenkins|GitLab|GitHub Actions|CircleCI|Ansible|Puppet|Chef|Vagrant)\b/gi,
+    // Networking & Security
+    /\b(BGP|OSPF|MPLS|VPN|VLAN|SDN|Cisco|Juniper|Palo Alto|Fortinet|Check Point|Wireshark|Nmap|OpenSSL|IPSec|SSL|TLS)\b/gi,
+    // Data & Analytics
+    /\b(Hadoop|Spark|Kafka|Airflow|Tableau|Power BI|Grafana|Prometheus|Splunk|ELK Stack|Kibana|Logstash|Apache|Nginx)\b/gi,
+    // Mobile & Desktop
+    /\b(iOS|Android|React Native|Flutter|Xamarin|Unity|Electron|Qt|WPF|Swing|JavaFX)\b/gi,
+    // Tools & Platforms
+    /\b(Git|SVN|JIRA|Confluence|Slack|Teams|Zoom|VS Code|IntelliJ|Eclipse|Postman|Insomnia|SoapUI)\b/gi,
+    // Methodologies & Frameworks
+    /\b(Agile|Scrum|Kanban|DevOps|CI\/CD|TDD|BDD|Microservices|REST|GraphQL|SOAP|gRPC|API|SDK|MVC|MVVM)\b/gi,
+    // Specialized Technologies
+    /\b(Blockchain|Ethereum|Bitcoin|IoT|AI|ML|Machine Learning|Deep Learning|Neural Networks|TensorFlow|PyTorch|OpenCV|CUDA)\b/gi
+  ];
+  
+  const technologies = new Set<string>();
+  
+  for (const pattern of techPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        // Clean up the match
+        const cleaned = match.replace(/\.js$/, '.js').replace(/\.?js$/, '.js');
+        technologies.add(cleaned);
+      });
+    }
+  }
+  
+  return Array.from(technologies);
+}
+
+// Helper function to get color for technology type
+function getTechColor(tech: string): { background: RGB; text: RGB; border: RGB } {
+  const techLower = tech.toLowerCase();
+  
+  // Programming Languages - Blue shades
+  if (['javascript', 'typescript', 'python', 'java', 'c++', 'c#', 'php', 'ruby', 'go', 'rust', 'swift', 'kotlin'].some(lang => techLower.includes(lang))) {
+    return {
+      background: rgb(0.9, 0.95, 1.0),
+      text: rgb(0.1, 0.3, 0.7),
+      border: rgb(0.3, 0.5, 0.9)
+    };
+  }
+  
+  // Web Technologies - Green shades
+  if (['react', 'angular', 'vue', 'node', 'express', 'html', 'css', 'bootstrap', 'tailwind'].some(web => techLower.includes(web))) {
+    return {
+      background: rgb(0.9, 1.0, 0.9),
+      text: rgb(0.1, 0.6, 0.1),
+      border: rgb(0.2, 0.8, 0.2)
+    };
+  }
+  
+  // Databases - Purple shades
+  if (['mysql', 'postgresql', 'mongodb', 'redis', 'elasticsearch', 'oracle', 'sql'].some(db => techLower.includes(db))) {
+    return {
+      background: rgb(0.95, 0.9, 1.0),
+      text: rgb(0.4, 0.1, 0.7),
+      border: rgb(0.6, 0.3, 0.9)
+    };
+  }
+  
+  // Cloud & DevOps - Orange shades
+  if (['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'jenkins', 'devops'].some(cloud => techLower.includes(cloud))) {
+    return {
+      background: rgb(1.0, 0.95, 0.9),
+      text: rgb(0.8, 0.4, 0.1),
+      border: rgb(0.9, 0.6, 0.2)
+    };
+  }
+  
+  // Networking - Red shades
+  if (['bgp', 'ospf', 'mpls', 'vpn', 'vlan', 'cisco', 'juniper', 'networking'].some(net => techLower.includes(net))) {
+    return {
+      background: rgb(1.0, 0.9, 0.9),
+      text: rgb(0.7, 0.1, 0.1),
+      border: rgb(0.9, 0.3, 0.3)
+    };
+  }
+  
+  // Default - Gray shades
+  return {
+    background: rgb(0.95, 0.95, 0.95),
+    text: rgb(0.3, 0.3, 0.3),
+    border: rgb(0.5, 0.5, 0.5)
+  };
 }

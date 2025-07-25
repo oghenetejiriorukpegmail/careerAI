@@ -21,13 +21,27 @@ CareerAI is an AI-Assisted Job Application App that helps users optimize their j
 - Connection details are available in PRD.md and prompt files
 
 ### AI Models
-- Primary: Qwen 3 30B model via OpenRouter
-- Secondary: Gemini 2.5 Pro Exp
+- Primary: User-configurable via settings page (currently anthropic/claude-sonnet-4 via OpenRouter)
+- Default fallback options: mistralai/devstral-small-2505:free, moonshotai/kimi-k2:free via OpenRouter
+- Fallback: anthropic/claude-sonnet-4 via OpenRouter (200K context for large resumes)
 - Models are used for document parsing, content generation, and job matching
+- Note: Claude Sonnet 4 is provided by OpenRouter, not Requesty
+- ✅ Fixed Architecture Updates:
+  1. Respects user choice: Always uses the AI model selected in user settings (e.g., Grok-4)
+  2. No preemptive fallback: Doesn't force Claude Sonnet 4 based on content size
+  3. Error-based fallback: Only falls back to Claude Sonnet 4 if the selected model fails with an error
+  4. Proper token limits: Each model now has correct context limits (Grok-4: 256K, Kimi-K2: 60K, etc.)
+
+  🔄 Flow:
+  1. Load user's preferred model from settings
+  2. Try to generate resume with that model
+  3. If it fails (network error, token limit exceeded, etc.), the existing fallback logic in queryAI will try Claude Sonnet 4
+  4. Only then would it fall back
 
 ### External Services
 - Bright Data MCP for web scraping LinkedIn profiles and job boards (Indeed, LinkedIn, Dice)
 - Puppeteer MCP for browser automation and advanced web scraping capabilities
+- Jina.ai Reader API for intelligent web content extraction and job description scraping
 
 ### Deployment
 - Application will be deployed on Replit
@@ -107,4 +121,3 @@ The AI document generation system MUST maintain absolute truthfulness. When gene
    - Manage job application lifecycle
    - Track status of applications
    - Store generated documents
-

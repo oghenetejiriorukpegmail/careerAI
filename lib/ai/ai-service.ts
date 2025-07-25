@@ -39,6 +39,8 @@ class AIService {
         return process.env.OPENROUTER_API_KEY;
       case 'requesty':
         return process.env.REQUESTY_API_KEY;
+      case 'anthropic':
+        return process.env.ANTHROPIC_API_KEY;
       default:
         return undefined;
     }
@@ -63,7 +65,41 @@ class AIService {
       return response;
     } catch (error) {
       console.error(`AI query error (${settings.aiProvider}):`, error);
-      throw error;
+      
+      // Try Claude Sonnet 4 as fallback if primary provider fails
+      return this.queryWithFallback(prompt, systemPrompt, imageData, error);
+    }
+  }
+  
+  private async queryWithFallback(prompt: string, systemPrompt?: string, imageData?: string, originalError?: any): Promise<AIResponse> {
+    console.log('Attempting fallback to Claude Sonnet 4 via OpenRouter...');
+    
+    try {
+      // Create OpenRouter fallback provider with Claude Sonnet 4
+      const openRouterApiKey = this.getApiKey('openrouter');
+      if (!openRouterApiKey) {
+        console.error('No OpenRouter API key available for fallback');
+        throw originalError || new Error('Primary AI provider failed and no fallback available');
+      }
+      
+      const fallbackProvider = createAIProvider('openrouter', {
+        apiKey: openRouterApiKey,
+        model: 'anthropic/claude-sonnet-4', // Claude Sonnet 4
+        temperature: 0.7,
+        maxTokens: 4000,
+      });
+      
+      const response = await fallbackProvider.query(prompt, systemPrompt, imageData);
+      
+      // Log successful fallback
+      console.log(`Fallback successful - Claude Sonnet 4 usage: ${response.usage?.total_tokens || 'unknown'} tokens`);
+      
+      return response;
+    } catch (fallbackError) {
+      console.error('Fallback to Claude Sonnet 4 also failed:', fallbackError);
+      
+      // If fallback fails, throw the original error
+      throw originalError || fallbackError;
     }
   }
   

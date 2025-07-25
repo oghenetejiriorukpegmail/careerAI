@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { FileDown, FileText, ExternalLink, Eye, MessageSquare, ChevronDown, ChevronUp, Search, Filter, SortAsc, X } from "lucide-react";
+import { FileDown, FileText, ExternalLink, Eye, MessageSquare, ChevronDown, ChevronUp, Search, Filter, SortAsc, X, FileType } from "lucide-react";
 import ApplicationQAIntegrated from "@/components/application-qa-integrated";
 
 type Application = {
@@ -22,6 +22,7 @@ type Application = {
   resume_id: string | null;
   cover_letter_id: string | null;
   job_url: string | null;
+  job_description_id: string | null;
 };
 
 type GeneratedDocument = {
@@ -91,6 +92,7 @@ export default function ApplicationsPage() {
             resume_id: app.resume?.id || null,
             cover_letter_id: app.cover_letter?.id || null,
             job_url: app.job_descriptions?.url || null,
+            job_description_id: app.job_descriptions?.id || null,
           }));
           
           console.log('Fetched applications:', transformedData.map((app: any) => ({ id: app.id, company: app.company_name })));
@@ -247,6 +249,47 @@ export default function ApplicationsPage() {
       toast({
         title: "Download Failed",
         description: error.message || "Failed to download document. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadTxtDocument = async (doc: GeneratedDocument) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        throw new Error('User not authenticated');
+      }
+
+      const response = await fetch(`/api/documents/${doc.id}/txt`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate TXT document');
+      }
+      
+      const txtContent = await response.text();
+      const txtFileName = doc.file_name.replace('.pdf', '.txt');
+      
+      // Create and trigger download
+      const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = txtFileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "TXT Download Complete",
+        description: `Downloaded ${txtFileName} for easy copy-paste`,
+      });
+    } catch (error: any) {
+      console.error('TXT download error:', error);
+      toast({
+        title: "TXT Download Failed",
+        description: error.message || "Failed to download TXT document. Please try again.",
         variant: "destructive",
       });
     }
@@ -520,9 +563,18 @@ export default function ApplicationsPage() {
                               size="sm"
                               className="flex items-center px-2"
                               onClick={() => downloadDocument(doc)}
-                              title={`Download ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}`}
+                              title={`Download PDF ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}`}
                             >
                               <FileDown className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center px-2"
+                              onClick={() => downloadTxtDocument(doc)}
+                              title={`Download TXT ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'} for copy-paste`}
+                            >
+                              <FileType className="h-4 w-4" />
                             </Button>
                           </div>
                         ))}
@@ -534,6 +586,18 @@ export default function ApplicationsPage() {
                               View Job
                             </Button>
                           </a>
+                        )}
+                        
+                        {application.job_description_id && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex items-center"
+                            onClick={() => router.push(`/dashboard/job-opportunities/${application.job_description_id}`)}
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            View Job Details
+                          </Button>
                         )}
                         
                         <Button

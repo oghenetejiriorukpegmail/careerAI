@@ -256,8 +256,47 @@ async function tryAlternativeScraping(url: string, headers: any, userId?: string
   }
 }
 
+// Helper function to format parsed job description as text for AI processing
+function formatJobDescriptionAsText(jobDesc: any): string {
+  const sections = [];
+  
+  if (jobDesc.jobTitle) {
+    sections.push(`Job Title: ${jobDesc.jobTitle}`);
+  }
+  
+  if (jobDesc.company) {
+    sections.push(`Company: ${jobDesc.company}`);
+  }
+  
+  if (jobDesc.location) {
+    sections.push(`Location: ${jobDesc.location}`);
+  }
+  
+  if (jobDesc.responsibilities && jobDesc.responsibilities.length > 0) {
+    sections.push(`\nResponsibilities:\n${jobDesc.responsibilities.map(r => `• ${r}`).join('\n')}`);
+  }
+  
+  if (jobDesc.requirements && jobDesc.requirements.length > 0) {
+    sections.push(`\nRequirements:\n${jobDesc.requirements.map(r => `• ${r}`).join('\n')}`);
+  }
+  
+  if (jobDesc.qualifications && jobDesc.qualifications.length > 0) {
+    sections.push(`\nQualifications:\n${jobDesc.qualifications.map(q => `• ${q}`).join('\n')}`);
+  }
+  
+  if (jobDesc.keywords && jobDesc.keywords.length > 0) {
+    sections.push(`\nKeywords: ${jobDesc.keywords.join(', ')}`);
+  }
+  
+  if (jobDesc.company_culture && jobDesc.company_culture.length > 0) {
+    sections.push(`\nCompany Culture:\n${jobDesc.company_culture.map(c => `• ${c}`).join('\n')}`);
+  }
+  
+  return sections.join('\n\n');
+}
+
 // Enhanced URL scraping function with job board specific handling
-async function scrapeJobFromURL(url: string, userId?: string, visionModel?: string): Promise<string> {
+async function scrapeJobFromURL(url: string, userId?: string, visionModel?: string, scrapingMethod?: string): Promise<string> {
   try {
     console.log(`[URL SCRAPING] Attempting to scrape job from URL: ${url}`);
     
@@ -269,24 +308,77 @@ async function scrapeJobFromURL(url: string, userId?: string, visionModel?: stri
       return cachedContent;
     }
     
-    // PRIMARY METHOD: Try direct Puppeteer screenshot-based extraction
-    console.log('[URL SCRAPING] Using direct Puppeteer as primary scraping method...');
-    try {
-      const { scrapeWithDirectPuppeteer } = await import('@/lib/scraping/puppeteer-direct');
-      const puppeteerResult = await scrapeWithDirectPuppeteer(url, visionModel);
-      
-      if (puppeteerResult.success && puppeteerResult.extractedContent && puppeteerResult.extractedContent.length > 100) {
-        console.log('[URL SCRAPING] Direct Puppeteer extraction successful (PRIMARY METHOD)');
-        scrapingCache.set(url, puppeteerResult.extractedContent);
-        return puppeteerResult.extractedContent;
-      } else if (puppeteerResult.error) {
-        console.log('[URL SCRAPING] Direct Puppeteer failed, will try fallback methods:', puppeteerResult.error);
+    // Respect user's choice of scraping method
+    if (scrapingMethod === 'jina') {
+      // USER SELECTED: Jina.ai Reader API - PURE JINA ONLY, NO FALLBACKS
+      console.log('[URL SCRAPING] Using Jina.ai Reader API as user-selected method (no fallbacks)...');
+      try {
+        const { scrapeJobWithJina } = await import('@/lib/scraping/jina-scraper');
+        const jinaResult = await scrapeJobWithJina(url);
+        
+        if (jinaResult) {
+          // Convert parsed job description back to text format for AI processing
+          const jinaContent = formatJobDescriptionAsText(jinaResult);
+          
+          if (jinaContent.length > 50) { // Minimal validation - accept whatever Jina gives us
+            console.log('[URL SCRAPING] Jina.ai extraction completed (USER-SELECTED, NO FALLBACKS)');
+            console.log(`[URL SCRAPING] Jina extracted: ${jinaContent.length} chars, Company: ${jinaResult.company}, Requirements: ${jinaResult.requirements.length}, Responsibilities: ${jinaResult.responsibilities.length}`);
+            scrapingCache.set(url, jinaContent);
+            return jinaContent;
+          } else {
+            console.log(`[URL SCRAPING] Jina.ai extracted minimal content: ${jinaContent.length} chars`);
+            // Still return it - user chose Jina specifically
+            scrapingCache.set(url, jinaContent);
+            return jinaContent;
+          }
+        } else {
+          console.log('[URL SCRAPING] Jina.ai returned null - extraction failed but user chose Jina-only');
+          throw new Error('Jina.ai extraction returned no results');
+        }
+      } catch (jinaError) {
+        console.error('[URL SCRAPING] Jina.ai extraction failed (user chose Jina-only):', jinaError);
+        throw new Error(`Jina.ai extraction failed: ${jinaError instanceof Error ? jinaError.message : 'Unknown error'}`);
       }
-    } catch (puppeteerError) {
-      console.error('[URL SCRAPING] Direct Puppeteer error, continuing with fallback methods:', puppeteerError);
+    } else {
+      // DEFAULT OR USER SELECTED: Puppeteer as primary method
+      console.log('[URL SCRAPING] Using Puppeteer as primary scraping method...');
+      try {
+        const { scrapeWithDirectPuppeteer } = await import('@/lib/scraping/puppeteer-direct');
+        const puppeteerResult = await scrapeWithDirectPuppeteer(url, visionModel);
+        
+        if (puppeteerResult.success && puppeteerResult.extractedContent && puppeteerResult.extractedContent.length > 100) {
+          console.log('[URL SCRAPING] Puppeteer extraction successful (PRIMARY METHOD)');
+          scrapingCache.set(url, puppeteerResult.extractedContent);
+          return puppeteerResult.extractedContent;
+        } else if (puppeteerResult.error) {
+          console.log('[URL SCRAPING] Puppeteer failed, will try Jina.ai fallback:', puppeteerResult.error);
+        }
+      } catch (puppeteerError) {
+        console.error('[URL SCRAPING] Puppeteer error, continuing with Jina.ai fallback:', puppeteerError);
+      }
+      
+      // Fallback to Jina.ai if Puppeteer fails
+      console.log('[URL SCRAPING] Trying Jina.ai Reader API as fallback...');
+      try {
+        const { scrapeJobWithJina } = await import('@/lib/scraping/jina-scraper');
+        const jinaResult = await scrapeJobWithJina(url);
+        
+        if (jinaResult) {
+          // Convert parsed job description back to text format for AI processing
+          const jinaContent = formatJobDescriptionAsText(jinaResult);
+          if (jinaContent.length > 100) {
+            console.log('[URL SCRAPING] Jina.ai fallback successful');
+            scrapingCache.set(url, jinaContent);
+            return jinaContent;
+          }
+        }
+        console.log('[URL SCRAPING] Jina.ai fallback insufficient content, continuing...');
+      } catch (jinaError) {
+        console.error('[URL SCRAPING] Jina.ai fallback failed:', jinaError);
+      }
     }
-    
-    // FALLBACK: Traditional HTML scraping methods
+
+    // TERTIARY FALLBACK: Traditional HTML scraping methods
     console.log('[URL SCRAPING] Falling back to traditional HTML scraping...');
     
     // Detect job board type for specialized handling
@@ -1050,7 +1142,7 @@ function cleanExtractedText(html: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jobText, url, inputMethod, userId, visionModel } = body;
+    const { jobText, url, inputMethod, userId, visionModel, scrapingMethod } = body;
     
     if (!userId) {
       return NextResponse.json({
@@ -1063,9 +1155,9 @@ export async function POST(request: NextRequest) {
     
     // Handle URL input method
     if (inputMethod === 'url' && url) {
-      console.log('[JOB PROCESSING] Processing job description from URL');
+      console.log(`[JOB PROCESSING] Processing job description from URL using ${scrapingMethod || 'default'} method`);
       try {
-        contentToProcess = await scrapeJobFromURL(url, userId, visionModel);
+        contentToProcess = await scrapeJobFromURL(url, userId, visionModel, scrapingMethod);
         processingMethod = 'url';
       } catch (scrapeError) {
         console.error('[JOB PROCESSING] URL scraping failed:', scrapeError);
@@ -1101,6 +1193,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         error: 'Job description content is required'
       }, { status: 400 });
+    }
+    
+    // Skip AI processing for obviously insufficient content to save costs and time
+    // BUT allow short content if user explicitly chose Jina (they want pure Jina results)
+    if (contentToProcess.length < 200 && processingMethod === 'url' && scrapingMethod !== 'jina') {
+      console.log(`[JOB PROCESSING] Content too short (${contentToProcess.length} chars) from URL scraping - likely extraction failure`);
+      return NextResponse.json({
+        error: 'Extracted content is too short to be a valid job description',
+        details: `Only ${contentToProcess.length} characters extracted. This usually indicates the scraping method couldn't access the job content.`,
+        suggestions: [
+          'Try switching to Puppeteer scraping method for dynamic sites',
+          'Copy and paste the job description text directly using the "Paste Text" option',
+          'Ensure the URL is publicly accessible and not behind a login'
+        ],
+        inputMethod: processingMethod,
+        url: url || null,
+        extractedLength: contentToProcess.length
+      }, { status: 400 });
+    } else if (contentToProcess.length < 200 && scrapingMethod === 'jina') {
+      console.log(`[JOB PROCESSING] Short content from Jina (${contentToProcess.length} chars) but user selected Jina-only - proceeding with AI processing`);
     }
 
     console.log(`[JOB PROCESSING] Processing job description via ${processingMethod}`);

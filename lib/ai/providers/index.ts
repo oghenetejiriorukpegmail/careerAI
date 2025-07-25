@@ -2,8 +2,9 @@ import { BaseAIProvider, AIProviderConfig } from './base-provider';
 import { OpenAIProvider } from './openai-provider';
 import { GeminiProvider } from './gemini-provider';
 import { OpenRouterProvider } from './openrouter-provider';
+import { AnthropicProvider } from './anthropic-provider';
 
-export type AIProviderType = 'openai' | 'gemini' | 'openrouter' | 'requesty';
+export type AIProviderType = 'openai' | 'gemini' | 'openrouter' | 'requesty' | 'anthropic';
 
 export function createAIProvider(type: AIProviderType, config: AIProviderConfig): BaseAIProvider {
   switch (type) {
@@ -19,6 +20,8 @@ export function createAIProvider(type: AIProviderType, config: AIProviderConfig)
         ...config,
         baseUrl: 'https://api.requesty.ai/v1',
       });
+    case 'anthropic':
+      return new AnthropicProvider(config);
     default:
       throw new Error(`Unsupported AI provider: ${type}`);
   }

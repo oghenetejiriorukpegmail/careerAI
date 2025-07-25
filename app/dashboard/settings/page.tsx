@@ -26,8 +26,7 @@ const AI_MODELS = {
   requesty: [
     { id: 'coding/gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview (Coding)' },
     { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (Fast)' },
-    { id: 'anthropic/claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'anthropic/claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
+    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
     { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (Fast)' },
     { id: 'meta/llama-3-70b-instruct', name: 'Llama 3 70B' },
     { id: 'mistral/mistral-large', name: 'Mistral Large' },
@@ -48,9 +47,8 @@ const AI_MODELS = {
     { id: 'google/gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
     { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
     // Anthropic Models
-    { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet' },
-    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (Fast)' },
     { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
+    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (Fast)' },
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
     // OpenAI Models
@@ -58,9 +56,13 @@ const AI_MODELS = {
     { id: 'openai/gpt-4-vision-preview', name: 'GPT-4 Vision' },
     // DeepSeek Models
     { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Paid)' },
+    // xAI Models
+    { id: 'x-ai/grok-4', name: 'Grok 4' },
+    // MoonshotAI Models
+    { id: 'moonshotai/kimi-k2', name: 'Kimi K2' },
   ],
   anthropic: [
-    { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' },
+    { id: 'claude-sonnet-4', name: 'Claude Sonnet 4' },
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
     { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
@@ -77,7 +79,7 @@ const AI_MODELS = {
     { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
   ],
   vertex: [
-    { id: 'vertex/anthropic/claude-3-7-sonnet-20250219@us-east5', name: 'Claude 3.7 Sonnet (Vertex)' },
+    { id: 'vertex/anthropic/claude-sonnet-4@us-east5', name: 'Claude Sonnet 4 (Vertex)' },
     { id: 'vertex/anthropic/claude-3-opus-latest@us-east5', name: 'Claude 3 Opus (Vertex)' },
     { id: 'vertex/anthropic/claude-3-sonnet-latest@us-east5', name: 'Claude 3 Sonnet (Vertex)' },
     { id: 'vertex/gemini-1.5-pro-latest@us-east5', name: 'Gemini 1.5 Pro (Vertex)' },

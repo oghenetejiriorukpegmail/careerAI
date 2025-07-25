@@ -6,9 +6,9 @@ export async function GET(request: NextRequest) {
   try {
     // Check authentication
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required'
       }, { status: 401 });
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const { data: application, error } = await adminSupabase
       .from('job_applications')
       .select('*')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('job_description_id', jobDescriptionId)
       .maybeSingle();
       
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     const { data: documents, error: docsError } = await adminSupabase
       .from('generated_documents')
       .select('*')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('job_description_id', jobDescriptionId);
       
     if (docsError) {

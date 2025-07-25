@@ -2,7 +2,7 @@
 // This uses the Puppeteer MCP service for screenshot-based extraction
 
 import { scrapeJobWithScreenshot } from './puppeteer-screenshot';
-import { createAIService } from '@/lib/ai/ai-service';
+import { aiService } from '@/lib/ai/ai-service';
 
 interface PuppeteerScrapingResult {
   success: boolean;

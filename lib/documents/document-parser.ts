@@ -25,6 +25,7 @@ export interface ParsedResume {
     graduationDate?: string;
   }>;
   skills: string[];
+  workAuthorization?: string;
   projects?: Array<{
     name?: string;
     description?: string;

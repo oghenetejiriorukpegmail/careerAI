@@ -11,13 +11,14 @@ export const AI_CONFIG = {
   // OpenRouter configuration
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY || '', // Set OPENROUTER_API_KEY in your environment variables
-    model: 'anthropic/claude-3.7-sonnet',
+    model: 'mistralai/devstral-small-2505:free', // Updated to use devstral-small free model
+    // Alternative model: 'moonshotai/kimi-k2:free' - Free Kimi K2 model
     baseUrl: 'https://openrouter.ai/api/v1'
   },
   // Requesty Router configuration
   requesty: {
     apiKey: process.env.ROUTER_API_KEY || '', // Set ROUTER_API_KEY in your environment variables
-    model: 'anthropic/claude-3-7-sonnet-20250219',
+    model: 'anthropic/claude-sonnet-4',
     baseUrl: 'https://router.requesty.ai/v1'
   },
   // OpenAI configuration (keeping for backwards compatibility)
@@ -33,9 +34,15 @@ export const AI_CONFIG = {
   // Vertex AI configuration
   vertex: {
     apiKey: process.env.VERTEX_API_KEY || process.env.GOOGLE_API_KEY || '', // Set VERTEX_API_KEY or GOOGLE_API_KEY in your environment variables
-    model: 'vertex/anthropic/claude-3-7-sonnet-latest@us-east5',
+    model: 'vertex/anthropic/claude-3-5-sonnet-20241022@us-east5',
     projectId: process.env.GOOGLE_PROJECT_ID || '', // Set GOOGLE_PROJECT_ID in your environment variables
     location: 'us-east5'
+  },
+  // Direct Anthropic configuration for fallback
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY || '', // Set ANTHROPIC_API_KEY in your environment variables
+    model: 'claude-sonnet-4', // Claude Sonnet 4
+    baseUrl: 'https://api.anthropic.com'
   }
 };
 
@@ -1057,12 +1064,22 @@ function normalizeJson(jsonString: string): string {
 }
 
 // Function to query OpenRouter API
-export async function queryOpenRouter(prompt: string, systemPrompt?: string, useCase: string = 'default', tokenLimits?: any, bypassLimits: boolean = false) {
+export async function queryOpenRouter(prompt: string, systemPrompt?: string, useCase: string = 'default', tokenLimits?: any, bypassLimits: boolean = false, overrideModel?: string) {
   try {
-    console.log(`Calling OpenRouter API with model: ${AI_CONFIG.openrouter.model}`);
+    const modelToUse = overrideModel || AI_CONFIG.openrouter.model;
+    console.log(`Calling OpenRouter API with model: ${modelToUse}`);
     
-    // Apply token limiting for the model
-    const MAX_TOKENS = 30000;
+    // Apply token limiting based on the model - Claude models have much higher limits
+    let MAX_TOKENS = 30000; // Default for most models
+    
+    // Claude models have much higher context limits
+    if (modelToUse.includes('claude-sonnet-4') || modelToUse.includes('claude-3-5-sonnet') || modelToUse.includes('claude-3-opus')) {
+      MAX_TOKENS = 150000; // Claude Sonnet 4 and 3.5 have 200K context, use 150K to be safe
+      console.log(`[OPENROUTER] Using higher token limit (${MAX_TOKENS}) for Claude model: ${modelToUse}`);
+    } else if (modelToUse.includes('claude')) {
+      MAX_TOKENS = 80000; // Other Claude models have 100K+ context
+      console.log(`[OPENROUTER] Using medium token limit (${MAX_TOKENS}) for Claude model: ${modelToUse}`);
+    }
     
     // Check if prompt needs truncation
     const originalLength = prompt.length;
@@ -1111,11 +1128,11 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
     
     // Prepare request body
     const requestBody: any = {
-      model: AI_CONFIG.openrouter.model,
+      model: modelToUse,
       messages: messages,
       temperature: 0.2,
       max_tokens: calculateOptimalTokens(
-        AI_CONFIG.openrouter.model,
+        modelToUse,
         prompt.length + (systemPrompt?.length || 0),
         useCase,
         tokenLimits?.[useCase] || tokenLimits?.general,
@@ -1127,14 +1144,13 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
     
     // Only add response_format for Claude models that support it
     const claudeModels = [
-      'anthropic/claude-3.7-sonnet',
-      'anthropic/claude-3-haiku', 
       'anthropic/claude-sonnet-4',
+      'anthropic/claude-3-haiku', 
       'claude-3-opus-20240229',
       'claude-3-sonnet-20240229'
     ];
     
-    if (claudeModels.includes(AI_CONFIG.openrouter.model)) {
+    if (claudeModels.includes(modelToUse)) {
       requestBody.response_format = { type: "json_object" };
     }
     
@@ -1443,10 +1459,10 @@ async function loadUserSettings() {
       // Server side - use cached settings if available
       return global.userSettings;
     } else {
-      // Server side - use Claude 3.7 Sonnet via OpenRouter
+      // Server side - use devstral-small via OpenRouter
       return {
         aiProvider: 'openrouter',
-        aiModel: 'anthropic/claude-3.7-sonnet',
+        aiModel: 'mistralai/devstral-small-2505:free',
         documentAiOnly: true,
         enableLogging: true
       };
@@ -1458,7 +1474,7 @@ async function loadUserSettings() {
   // Default settings if loading fails
   return {
     aiProvider: 'openrouter',
-    aiModel: 'anthropic/claude-3.7-sonnet',
+    aiModel: 'mistralai/devstral-small-2505:free',
     documentAiOnly: true,
     enableLogging: true
   };
@@ -1468,9 +1484,9 @@ export async function queryAI(prompt: string, systemPrompt?: string, providedSet
   // Use provided settings or load user settings
   const settings = providedSettings || await loadUserSettings();
   
-  // Handle provider and model from settings - always default to Claude 3.7 Sonnet with OpenRouter
+  // Handle provider and model from settings - default to devstral-small with OpenRouter
   const provider = settings.aiProvider || 'openrouter';
-  const model = settings.aiModel || 'anthropic/claude-3.7-sonnet';
+  const model = settings.aiModel || 'mistralai/devstral-small-2505:free';
   
   console.log(`Using AI provider from settings: ${provider}`);
   console.log(`Using AI model from settings: ${model}`);
@@ -1504,33 +1520,119 @@ export async function queryAI(prompt: string, systemPrompt?: string, providedSet
       AI_CONFIG.requesty.model = model;
   }
   
-  // Use the selected provider without any fallbacks
-  console.log(`Using ${provider} provider with model ${model} with NO FALLBACKS`);
+  // Use the selected provider with Claude Sonnet 4 as fallback
+  console.log(`Using ${provider} provider with model ${model} with Claude Sonnet 4 fallback`);
   
-  switch (provider) {
-    case 'requesty':
-      console.log(`Using Requesty Router API with model ${AI_CONFIG.requesty.model}`);
-      return await queryRequesty(prompt, systemPrompt, bypassLimits);
-    case 'openrouter':
-      console.log(`Using OpenRouter API with model ${model}`);
-      return await queryOpenRouter(prompt, systemPrompt, useCase, settings?.tokenLimits, bypassLimits);
-    case 'anthropic':
-      console.log(`Using Anthropic API directly with model ${model}`);
-      // Would need to implement queryAnthropic function
-      return await queryOpenAI(prompt, systemPrompt, bypassLimits);
-    case 'google':
-      console.log(`Using Google AI API directly with model ${model}`);
-      return await queryGemini(prompt, systemPrompt, bypassLimits);
-    case 'openai':
-      console.log(`Using OpenAI API directly with model ${model}`);
-      return await queryOpenAI(prompt, systemPrompt, bypassLimits);
-    case 'vertex':
-      console.log(`Using Vertex AI with model ${model}`);
-      AI_CONFIG.vertex.model = model;
-      // For now, we're using Requesty as it can route to Vertex AI
-      return await queryRequesty(prompt, systemPrompt, bypassLimits);
-    default:
-      console.log(`Using Requesty Router API (default) with model ${AI_CONFIG.requesty.model}`);
-      return await queryRequesty(prompt, systemPrompt, bypassLimits);
+  try {
+    switch (provider) {
+      case 'requesty':
+        console.log(`Using Requesty Router API with model ${AI_CONFIG.requesty.model}`);
+        return await queryRequesty(prompt, systemPrompt, bypassLimits);
+      case 'openrouter':
+        console.log(`Using OpenRouter API with model ${model}`);
+        return await queryOpenRouter(prompt, systemPrompt, useCase, settings?.tokenLimits, bypassLimits);
+      case 'anthropic':
+        console.log(`Using Anthropic API directly with model ${model}`);
+        return await queryAnthropic(prompt, systemPrompt, bypassLimits);
+      case 'google':
+        console.log(`Using Google AI API directly with model ${model}`);
+        return await queryGemini(prompt, systemPrompt, bypassLimits);
+      case 'openai':
+        console.log(`Using OpenAI API directly with model ${model}`);
+        return await queryOpenAI(prompt, systemPrompt, bypassLimits);
+      case 'vertex':
+        console.log(`Using Vertex AI with model ${model}`);
+        AI_CONFIG.vertex.model = model;
+        // For now, we're using Requesty as it can route to Vertex AI
+        return await queryRequesty(prompt, systemPrompt, bypassLimits);
+      default:
+        console.log(`Using Requesty Router API (default) with model ${AI_CONFIG.requesty.model}`);
+        return await queryRequesty(prompt, systemPrompt, bypassLimits);
+    }
+  } catch (error) {
+    console.error(`Primary AI provider ${provider} failed:`, error);
+    
+    // Try Claude Sonnet 4 as fallback via OpenRouter
+    if (AI_CONFIG.openrouter.apiKey) {
+      console.log('Attempting fallback to Claude Sonnet 4 via OpenRouter...');
+      try {
+        // Use Claude Sonnet 4 as fallback
+        return await queryOpenRouter(prompt, systemPrompt, useCase, { general: { maxTokens: 32000 } }, bypassLimits, 'anthropic/claude-sonnet-4');
+      } catch (fallbackError) {
+        console.error('Fallback to Claude Sonnet 4 also failed:', fallbackError);
+        throw error; // Throw the original error
+      }
+    } else {
+      console.error('No OpenRouter API key available for fallback');
+      throw error;
+    }
+  }
+}
+
+// Direct Anthropic API query function
+export async function queryAnthropic(prompt: string, systemPrompt?: string, bypassLimits: boolean = false) {
+  try {
+    if (!AI_CONFIG.anthropic.apiKey) {
+      throw new Error('Anthropic API key not configured');
+    }
+    
+    const messages = [];
+    
+    // Add user message
+    messages.push({
+      role: 'user',
+      content: prompt
+    });
+    
+    const requestBody: any = {
+      model: AI_CONFIG.anthropic.model,
+      max_tokens: 4000,
+      temperature: 0.7,
+      messages
+    };
+    
+    // Add system prompt if provided
+    if (systemPrompt) {
+      requestBody.system = systemPrompt;
+    }
+    
+    console.log(`[ANTHROPIC] Making API request to model: ${AI_CONFIG.anthropic.model}`);
+    
+    const response = await fetch(`${AI_CONFIG.anthropic.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AI_CONFIG.anthropic.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(requestBody),
+    });
+    
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`[ANTHROPIC] API error: ${response.status} ${response.statusText}`, errorBody);
+      throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Extract content from Anthropic's response format
+    let content = '';
+    if (data.content && Array.isArray(data.content)) {
+      content = data.content.map((item: any) => item.text || '').join('');
+    } else if (data.content && typeof data.content === 'string') {
+      content = data.content;
+    }
+    
+    // Log usage
+    if (data.usage) {
+      console.log(`[ANTHROPIC] Token usage - Input: ${data.usage.input_tokens}, Output: ${data.usage.output_tokens}, Total: ${data.usage.input_tokens + data.usage.output_tokens}`);
+    }
+    
+    return content;
+    
+  } catch (error) {
+    console.error('[ANTHROPIC] Query failed:', error);
+    throw error;
   }
 }

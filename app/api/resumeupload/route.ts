@@ -436,7 +436,77 @@ export async function POST(request: NextRequest) {
     console.log(`[DOCUMENT PROCESSING] Total processing time: ${totalProcessingTime}ms (Document AI: ${documentAiProcessingTime}ms + AI Parsing: ${aiParsingTime}ms)`);
     console.log('[DOCUMENT PROCESSING] Resume processed successfully');
 
-    // Step 3: Save to database
+    // Step 3: Merge profile data with parsed resume data
+    console.log('[PROFILE MERGE] Loading user profile data...');
+    try {
+      const { getSupabaseAdminClient } = await import('@/lib/supabase/client');
+      const supabaseAdmin = getSupabaseAdminClient();
+      
+      if (supabaseAdmin) {
+        const { data: profileData } = await supabaseAdmin
+          .from('profiles')
+          .select('full_name, email, location, city, state, country, work_authorization')
+          .eq('id', userId)
+          .single();
+        
+        if (profileData) {
+          console.log('[PROFILE MERGE] Profile data loaded:', {
+            hasWorkAuth: !!profileData.work_authorization,
+            workAuthValue: profileData.work_authorization,
+            hasCity: !!profileData.city,
+            hasState: !!profileData.state,
+            hasCountry: !!profileData.country,
+            hasOldLocation: !!profileData.location
+          });
+          
+          // Merge work authorization if available
+          if (profileData.work_authorization) {
+            structuredData.workAuthorization = profileData.work_authorization;
+            console.log('[PROFILE MERGE] Added work authorization to parsed data');
+          }
+          
+          // Merge location data - construct from city, state, country if available
+          if (profileData.city || profileData.state || profileData.country) {
+            const locationParts = [];
+            if (profileData.city) locationParts.push(profileData.city);
+            if (profileData.state) locationParts.push(profileData.state);
+            if (profileData.country) locationParts.push(profileData.country);
+            const profileLocation = locationParts.join(', ');
+            
+            // Update structured data with profile location if not already present or if profile has better data
+            if (!structuredData.address || structuredData.address.length < profileLocation.length) {
+              structuredData.address = profileLocation;
+              console.log('[PROFILE MERGE] Updated address from profile:', profileLocation);
+            }
+          } else if (profileData.location && (!structuredData.address || structuredData.address.length < profileData.location.length)) {
+            // Fallback to old location field
+            structuredData.address = profileData.location;
+            console.log('[PROFILE MERGE] Updated address from profile location field:', profileData.location);
+          }
+          
+          // Ensure email is consistent
+          if (profileData.email && !structuredData.email) {
+            structuredData.email = profileData.email;
+            console.log('[PROFILE MERGE] Added email from profile');
+          }
+          
+          // Ensure name is consistent if missing
+          if (profileData.full_name && !structuredData.name) {
+            structuredData.name = profileData.full_name;
+            console.log('[PROFILE MERGE] Added name from profile');
+          }
+        } else {
+          console.log('[PROFILE MERGE] No profile data found for user');
+        }
+      } else {
+        console.log('[PROFILE MERGE] Admin client not available, skipping profile merge');
+      }
+    } catch (profileError) {
+      console.error('[PROFILE MERGE] Error loading profile data:', profileError);
+      // Continue without profile data - don't fail the upload
+    }
+
+    // Step 4: Save to database
     console.log('[DATABASE] Saving resume to database...');
     try {
       const { getSupabaseAdminClient } = await import('@/lib/supabase/client');

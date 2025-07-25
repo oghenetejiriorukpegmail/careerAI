@@ -15,16 +15,16 @@ export async function POST(request: NextRequest) {
   try {
     // Check authentication
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required',
         message: 'You must be logged in to generate cover letters.'
       }, { status: 401 });
     }
     
-    const userId = session.user.id;
+    const userId = user.id;
     
     const body = await request.json();
     const { jobId, resumeId, bypassTokenLimits = false } = body;

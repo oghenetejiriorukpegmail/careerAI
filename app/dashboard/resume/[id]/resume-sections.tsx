@@ -2,7 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Phone, MapPin, Globe, Users, Briefcase, GraduationCap, Code, Award, BookOpen, Wrench, Trophy, Star, FileText, Zap, Edit2, Sparkles, Edit3 } from "lucide-react";
+import { User, Mail, Phone, MapPin, Globe, Users, Briefcase, GraduationCap, Code, Award, BookOpen, Wrench, Trophy, Star, FileText, Zap, Edit2, Sparkles, Edit3, ShieldCheck } from "lucide-react";
+import { safeRender, logZoneObjects } from "@/lib/utils/safe-render";
 
 interface SectionProps {
   data: any;
@@ -10,7 +11,37 @@ interface SectionProps {
   onManualEdit?: (title: string, content: any, path: string[], contentType: string, fieldDefinitions?: any[]) => void;
 }
 
+// Helper function to safely render any field that might be an object
+function renderField(field: any): string {
+  // Log Zone objects for debugging
+  logZoneObjects(field, 'renderField');
+  
+  // Use the global safe render utility
+  return safeRender(field);
+}
+
+// Helper function specifically for address data (backward compatibility)
+function renderAddress(address: any): string {
+  return renderField(address);
+}
+
+// Helper for arrays that might contain objects
+function renderArrayField(arr: any[]): string[] {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(item => renderField(item));
+}
+
 export function PersonalInfoSection({ data, onRewrite, onManualEdit }: SectionProps) {
+  // Debug logging to catch Zone objects at the component level
+  if (data) {
+    logZoneObjects(data, 'PersonalInfoSection.data');
+    logZoneObjects(data.address, 'PersonalInfoSection.data.address');
+    logZoneObjects(data.name, 'PersonalInfoSection.data.name');
+    logZoneObjects(data.email, 'PersonalInfoSection.data.email');
+    logZoneObjects(data.phone, 'PersonalInfoSection.data.phone');
+    logZoneObjects(data.workAuthorization, 'PersonalInfoSection.data.workAuthorization');
+  }
+  
   return (
     <>
       <CardHeader className="pb-3">
@@ -53,7 +84,7 @@ export function PersonalInfoSection({ data, onRewrite, onManualEdit }: SectionPr
                 <User className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium text-blue-900">Name</div>
-                  <div className="text-sm text-blue-700 break-words">{data.name}</div>
+                  <div className="text-sm text-blue-700 break-words">{renderField(data.name)}</div>
                 </div>
               </div>
             )}
@@ -62,7 +93,7 @@ export function PersonalInfoSection({ data, onRewrite, onManualEdit }: SectionPr
                 <Mail className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium text-green-900">Email</div>
-                  <div className="text-sm text-green-700 break-all">{data.email}</div>
+                  <div className="text-sm text-green-700 break-all">{renderField(data.email)}</div>
                 </div>
               </div>
             )}
@@ -71,7 +102,7 @@ export function PersonalInfoSection({ data, onRewrite, onManualEdit }: SectionPr
                 <Phone className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium text-purple-900">Phone</div>
-                  <div className="text-sm text-purple-700 break-words">{data.phone}</div>
+                  <div className="text-sm text-purple-700 break-words">{renderField(data.phone)}</div>
                 </div>
               </div>
             )}
@@ -80,7 +111,16 @@ export function PersonalInfoSection({ data, onRewrite, onManualEdit }: SectionPr
                 <MapPin className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium text-orange-900">Address</div>
-                  <div className="text-sm text-orange-700 break-words">{data.address}</div>
+                  <div className="text-sm text-orange-700 break-words">{renderAddress(data.address)}</div>
+                </div>
+              </div>
+            )}
+            {data.workAuthorization && (
+              <div className="flex items-start gap-3 p-2.5 bg-emerald-50 rounded-lg">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-emerald-900">Work Authorization</div>
+                  <div className="text-sm text-emerald-700 break-words">{renderField(data.workAuthorization)}</div>
                 </div>
               </div>
             )}
@@ -205,7 +245,7 @@ export function ExperienceSection({ data, onRewrite, onManualEdit }: SectionProp
                     {Array.isArray(exp.description) ? (
                       <ul className="list-disc list-inside space-y-1">
                         {exp.description.map((item: string, itemIndex: number) => (
-                          <li key={itemIndex}>{item}</li>
+                          <li key={itemIndex}>{renderField(item)}</li>
                         ))}
                       </ul>
                     ) : (
@@ -226,7 +266,7 @@ export function ExperienceSection({ data, onRewrite, onManualEdit }: SectionProp
                       const colorClass = colors[techIndex % colors.length];
                       return (
                         <span key={techIndex} className={`px-2 py-0.5 rounded-full text-xs font-medium border ${colorClass} shadow-sm hover:shadow-md transition-all hover:scale-105`}>
-                          {tech}
+                          {renderField(tech)}
                         </span>
                       );
                     })}
@@ -353,7 +393,7 @@ export function SkillsSection({ data, onRewrite, onManualEdit }: SectionProps) {
                 key={index} 
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all hover:scale-105 hover:shadow-sm ${colorClass}`}
               >
-                {skill}
+                {renderField(skill)}
               </span>
             );
           })}
@@ -531,7 +571,7 @@ export function ProjectsSection({ data, onRewrite, onManualEdit }: SectionProps)
                     const colorClass = colors[techIndex % colors.length];
                     return (
                       <span key={techIndex} className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${colorClass} shadow-sm hover:shadow-md transition-all hover:scale-105 cursor-default`}>
-                        {tech}
+                        {renderField(tech)}
                       </span>
                     );
                   })}
@@ -560,8 +600,8 @@ export function LanguagesSection({ data, onRewrite, onManualEdit }: SectionProps
         <div className="grid gap-2 md:grid-cols-2">
           {data.map((lang: any, index: number) => (
             <div key={index} className="flex justify-between items-center p-2.5 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg border border-teal-100">
-              <span className="text-sm font-medium text-teal-900">{lang.language}</span>
-              <span className="text-xs text-teal-700 bg-teal-100 px-2 py-0.5 rounded">{lang.proficiency}</span>
+              <span className="text-sm font-medium text-teal-900">{renderField(lang.language)}</span>
+              <span className="text-xs text-teal-700 bg-teal-100 px-2 py-0.5 rounded">{renderField(lang.proficiency)}</span>
             </div>
           ))}
         </div>
@@ -603,10 +643,39 @@ export function ReferencesSection({ data, onRewrite, onManualEdit }: SectionProp
   return (
     <>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Users className="h-5 w-5 text-slate-600" />
-          References ({data.length})
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Users className="h-5 w-5 text-slate-600" />
+            References ({data.length})
+          </CardTitle>
+          {onManualEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const fieldDefs = [
+                  { key: 'name', label: 'Name', type: 'text' },
+                  { key: 'title', label: 'Title', type: 'text' },
+                  { key: 'company', label: 'Company', type: 'text' },
+                  { key: 'email', label: 'Email', type: 'email' },
+                  { key: 'phone', label: 'Phone', type: 'tel' },
+                  { key: 'relationship', label: 'Relationship', type: 'text' }
+                ];
+                onManualEdit(
+                  'References',
+                  data,
+                  ['references'],
+                  'array-of-objects',
+                  fieldDefs
+                );
+              }}
+              className="print:hidden"
+              title="Edit References"
+            >
+              <Edit3 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid gap-3 md:grid-cols-2">
@@ -618,6 +687,7 @@ export function ReferencesSection({ data, onRewrite, onManualEdit }: SectionProp
               <div className="text-xs text-slate-600 space-y-0.5 mt-1">
                 {ref.email && <div>Email: {ref.email}</div>}
                 {ref.phone && <div>Phone: {ref.phone}</div>}
+                {ref.relationship && <div>Relationship: {ref.relationship}</div>}
               </div>
             </div>
           ))}

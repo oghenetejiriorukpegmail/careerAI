@@ -2,6 +2,7 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 // import { checkSubscriptionMiddleware } from '@/lib/middleware/subscription'; // Disabled for now
+// import '@/lib/utils/suppress-supabase-logs'; // Suppress noisy GoTrueClient debug logs - temporarily disabled due to build errors
 
 export async function middleware(request: NextRequest) {
   // Handle health check endpoint
@@ -17,7 +18,7 @@ export async function middleware(request: NextRequest) {
   
   const supabase = createMiddlewareClient({ req: request, res: response });
   
-  // Refresh session from cookies with rate limit handling
+  // Enhanced session handling with retry logic
   let session = null;
   let error = null;
   
@@ -26,19 +27,70 @@ export async function middleware(request: NextRequest) {
     session = result.data?.session;
     error = result.error;
     
-    // Handle specific auth errors
+    // Handle specific auth errors with proper cleanup
     if (error?.code === 'refresh_token_already_used') {
-      console.log('Refresh token already used, clearing session...');
-      await supabase.auth.signOut();
+      console.log('Refresh token already used, clearing all auth state...');
+      
+      // Clear all auth cookies and storage
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        if (supabaseUrl) {
+          const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+          if (projectRef) {
+            const cookieBase = `sb-${projectRef}-auth-token`;
+            response.cookies.delete(cookieBase);
+            response.cookies.delete(`${cookieBase}.0`);
+            response.cookies.delete(`${cookieBase}.1`);
+          }
+        }
+        // Also clear the custom storage key
+        response.cookies.delete('careerai-auth-token');
+      } catch (cookieError) {
+        console.error('Error clearing cookies:', cookieError);
+      }
+      
+      // Force signout to clear any remaining state
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error('Error during force signout:', signOutError);
+      }
+      
       session = null;
     } else if (error?.status === 429 || error?.code === 'over_request_rate_limit') {
       console.log('Rate limit reached, proceeding without session refresh');
-      // Don't throw, just proceed without session
+      session = null;
+    } else if (error?.message?.includes('Invalid Refresh Token')) {
+      console.log('Invalid refresh token detected, clearing auth state...');
+      
+      // Clear cookies for invalid refresh token
+      const cookiePrefix = 'sb-' + process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0];
+      response.cookies.delete(cookiePrefix + '-auth-token');
+      response.cookies.delete(cookiePrefix + '-auth-token.0');
+      response.cookies.delete(cookiePrefix + '-auth-token.1');
+      
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error('Error during invalid token signout:', signOutError);
+      }
+      
+      session = null;
+    } else if (session?.expires_at && Date.now() / 1000 > session.expires_at) {
+      console.log('Session expired, clearing auth state...');
       session = null;
     }
   } catch (e: any) {
     console.error('Middleware session error:', e);
-    // Continue without session on error
+    
+    // Clear potentially corrupted auth state
+    if (e.message?.includes('refresh') || e.message?.includes('token')) {
+      const cookiePrefix = 'sb-' + process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0];
+      response.cookies.delete(cookiePrefix + '-auth-token');
+      response.cookies.delete(cookiePrefix + '-auth-token.0');
+      response.cookies.delete(cookiePrefix + '-auth-token.1');
+    }
+    
     session = null;
   }
   

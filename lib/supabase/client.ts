@@ -23,7 +23,31 @@ export function getSupabaseClient() {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
-        storageKey: 'careerai-auth-token'
+        storageKey: 'careerai-auth-token',
+        // Add retry configuration for refresh token
+        flowType: 'pkce',
+        // Debug mode disabled to reduce console noise
+        debug: false
+      },
+      // Add global error handling for auth errors
+      global: {
+        headers: {
+          'X-Client-Info': 'careerai-web'
+        }
+      }
+    });
+    
+    // Add global auth state change listener to handle token refresh failures
+    supabaseInstance.auth.onAuthStateChange((event: string, session: any) => {
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('Auth token refreshed successfully');
+      } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out, clearing local storage');
+        // Clear any remaining auth data
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('careerai-auth-token');
+          localStorage.removeItem('sb-' + supabaseUrl.split('//')[1]?.split('.')[0] + '-auth-token');
+        }
       }
     });
   }

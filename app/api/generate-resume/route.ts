@@ -17,16 +17,16 @@ export async function POST(request: NextRequest) {
   try {
     // Check authentication first
     const supabaseClient = createServerClient();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     
-    if (!session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: 'Authentication required',
         message: 'You must be logged in to generate resumes.'
       }, { status: 401 });
     }
     
-    const userId = session.user.id;
+    const userId = user.id;
     
     const body = await request.json();
     const { jobId, resumeId, bypassTokenLimits = false, format = 'pdf' } = body;
@@ -220,13 +220,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Generate the ATS-optimized resume with user's AI settings
-    const { document, fileName, contentType } = await generateAtsResumeWithFormat(
+    const { document, fileName, contentType, txtContent, txtFileName, structuredData } = await generateAtsResumeWithFormat(
       parsedResumeData,
       parsedJobDescription,
       userName,
       companyName,
       format as 'pdf' | 'docx',
-      session.user.id,
+      user.id,
       bypassTokenLimits
     );
 
@@ -234,16 +234,46 @@ export async function POST(request: NextRequest) {
     let applicationResult: any;
 
     try {
-      // Save the generated document to database (optional - for future file storage)
-      // Currently we're not storing the actual PDF file, just metadata
-      const filePath = `resumes/${jobUserId}/${fileName}`;
+      // Save both PDF and TXT files to storage
+      const pdfFilePath = `resumes/${jobUserId}/${fileName}`;
+      const txtFilePath = txtFileName ? `resumes/${jobUserId}/${txtFileName}` : undefined;
       
+      // Store PDF file in Supabase Storage
+      const { error: pdfUploadError } = await supabase.storage
+        .from('user_files')
+        .upload(pdfFilePath, document, {
+          upsert: true,
+          contentType: contentType
+        });
+      
+      if (pdfUploadError) {
+        console.error('Error uploading PDF file:', pdfUploadError);
+        // Continue without failing the entire request
+      }
+      
+      // Store TXT file in Supabase Storage if available
+      if (txtContent && txtFilePath) {
+        const { error: txtUploadError } = await supabase.storage
+          .from('user_files')
+          .upload(txtFilePath, txtContent, {
+            upsert: true,
+            contentType: 'text/plain'
+          });
+        
+        if (txtUploadError) {
+          console.error('Error uploading TXT file:', txtUploadError);
+          // Continue without failing the entire request
+        }
+      }
+      
+      // Save the generated document metadata to database
       resumeDocumentId = await saveGeneratedDocument(
         jobUserId,
         jobId,
         'resume',
         fileName,
-        filePath
+        pdfFilePath,
+        txtFilePath
       );
 
       console.log('Generated document saved:', { resumeDocumentId, fileName });

@@ -75,7 +75,18 @@ export function ManualEditDialog({
   contentType = 'string',
   fieldDefinitions = [],
 }: ManualEditDialogProps) {
-  const [editedContent, setEditedContent] = useState<any>('');
+  // Initialize with proper default based on content type
+  const getInitialContent = () => {
+    if (contentType === 'array' || contentType === 'array-of-objects') {
+      return Array.isArray(currentContent) ? [...currentContent] : [];
+    } else if (contentType === 'object') {
+      return currentContent ? { ...currentContent } : {};
+    } else {
+      return currentContent || '';
+    }
+  };
+  
+  const [editedContent, setEditedContent] = useState<any>(getInitialContent);
   const { toast } = useToast();
 
   const sensors = useSensors(
@@ -123,17 +134,20 @@ export function ManualEditDialog({
   };
 
   const handleArrayItemChange = (index: number, value: string) => {
-    const newArray = [...editedContent];
+    const currentArray = Array.isArray(editedContent) ? editedContent : [];
+    const newArray = [...currentArray];
     newArray[index] = value;
     setEditedContent(newArray);
   };
 
   const handleArrayItemAdd = () => {
-    setEditedContent([...editedContent, '']);
+    const currentArray = Array.isArray(editedContent) ? editedContent : [];
+    setEditedContent([...currentArray, '']);
   };
 
   const handleArrayItemRemove = (index: number) => {
-    const newArray = editedContent.filter((_: any, i: number) => i !== index);
+    const currentArray = Array.isArray(editedContent) ? editedContent : [];
+    const newArray = currentArray.filter((_: any, i: number) => i !== index);
     setEditedContent(newArray);
   };
 
@@ -141,16 +155,18 @@ export function ManualEditDialog({
     const { active, over } = event;
 
     if (active.id !== over?.id) {
-      setEditedContent((items: any[]) => {
-        const oldIndex = items.findIndex((_, i) => i.toString() === active.id);
-        const newIndex = items.findIndex((_, i) => i.toString() === over?.id);
-        return arrayMove(items, oldIndex, newIndex);
+      setEditedContent((items: any) => {
+        const currentArray = Array.isArray(items) ? items : [];
+        const oldIndex = currentArray.findIndex((_, i) => i.toString() === active.id);
+        const newIndex = currentArray.findIndex((_, i) => i.toString() === over?.id);
+        return arrayMove(currentArray, oldIndex, newIndex);
       });
     }
   };
 
   const handleObjectFieldChange = (index: number, field: string, value: string | any[]) => {
-    const newArray = [...editedContent];
+    const currentArray = Array.isArray(editedContent) ? editedContent : [];
+    const newArray = [...currentArray];
     newArray[index] = { ...newArray[index], [field]: value };
     setEditedContent(newArray);
   };
@@ -160,11 +176,15 @@ export function ManualEditDialog({
     fieldDefinitions.forEach(field => {
       newObject[field.key] = '';
     });
-    setEditedContent([...editedContent, newObject]);
+    const currentArray = Array.isArray(editedContent) ? editedContent : [];
+    setEditedContent([...currentArray, newObject]);
   };
 
   const renderEditContent = () => {
     if (contentType === 'array') {
+      // Ensure editedContent is an array
+      const contentArray = Array.isArray(editedContent) ? editedContent : [];
+      
       return (
         <div className="space-y-2">
           <DndContext
@@ -173,10 +193,10 @@ export function ManualEditDialog({
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={editedContent.map((_: any, i: number) => i.toString())}
+              items={contentArray.map((_: any, i: number) => i.toString())}
               strategy={verticalListSortingStrategy}
             >
-              {editedContent.map((item: string, index: number) => (
+              {contentArray.map((item: string, index: number) => (
                 <SortableItem key={index} id={index.toString()}>
                   <div className="flex gap-2">
                     <Textarea
@@ -212,9 +232,12 @@ export function ManualEditDialog({
     }
 
     if (contentType === 'array-of-objects' && fieldDefinitions.length > 0) {
+      // Ensure editedContent is an array
+      const contentArray = Array.isArray(editedContent) ? editedContent : [];
+      
       return (
         <div className="space-y-4">
-          {editedContent.map((item: any, index: number) => (
+          {contentArray.map((item: any, index: number) => (
             <div key={index} className="border rounded-lg p-4 space-y-3">
               <div className="flex justify-between items-start">
                 <h4 className="font-medium text-sm">Item {index + 1}</h4>

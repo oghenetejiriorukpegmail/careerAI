@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, getSupabaseAdminClient } from '@/lib/supabase/server-client';
+import { createServerClient } from '@/lib/supabase/server-client';
+import { getSupabaseAdminClient } from '@/lib/supabase/client';
 import { rateLimitPresets } from '@/lib/middleware/rate-limit';
 import { generateApplicationResponse } from '@/lib/ai/application-qa';
 import { ParsedJobDescription, ParsedResume } from '@/lib/documents/document-parser';
@@ -124,6 +125,14 @@ export async function POST(request: NextRequest) {
         // Extract text content from the document
         coverLetterContent = document.metadata?.content || null;
       }
+    }
+
+    // Check if resume data is available
+    if (!resumeData) {
+      return NextResponse.json({ 
+        error: 'Resume data not available',
+        message: 'Resume data could not be parsed or is missing.'
+      }, { status: 400 });
     }
 
     // Generate response using AI
