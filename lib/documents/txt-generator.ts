@@ -175,7 +175,44 @@ export function generateResumeTXT(data: ResumeData): string {
     data.certifications.forEach(cert => {
       // Check for expiration date
       const rawExpiryDate = cert.expiryDate;
-      const isExpired = rawExpiryDate ? new Date(rawExpiryDate) < new Date() : false;
+      let isExpired = rawExpiryDate ? new Date(rawExpiryDate) < new Date() : false;
+      
+      // If no explicit expiry date, check for commonly expired certifications based on their typical validity periods
+      if (!rawExpiryDate && (cert.date || cert.issueDate)) {
+        const certDate = cert.date || cert.issueDate;
+        const certificationDate = new Date(certDate);
+        const currentDate = new Date();
+        const yearsSinceCertification = (currentDate.getTime() - certificationDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+        
+        // Define typical validity periods for common certifications (in years)
+        const certificationValidityPeriods: { [key: string]: number } = {
+          'CCIE': 3, // Cisco Certified Internetwork Expert - 3 years
+          'CCNP': 3, // Cisco Certified Network Professional - 3 years  
+          'CCNA': 3, // Cisco Certified Network Associate - 3 years
+          'CISSP': 3, // Certified Information Systems Security Professional - 3 years
+          'CISM': 3, // Certified Information Security Manager - 3 years
+          'CISA': 3, // Certified Information Systems Auditor - 3 years
+          'CompTIA Security+': 3, // CompTIA Security+ - 3 years
+          'CompTIA Network+': 3, // CompTIA Network+ - 3 years
+          'AWS Certified': 3, // AWS Certifications - 3 years
+          'Microsoft Certified': 3, // Microsoft Certifications - varies, but often 3 years
+          'PMP': 3, // Project Management Professional - 3 years
+          'ITIL': 3, // ITIL certifications - 3 years
+          'Fortinet': 2, // Fortinet certifications - 2 years
+          'Juniper': 3, // Juniper certifications - 3 years
+          'Nokia': 3, // Nokia certifications - 3 years
+        };
+        
+        // Check if certification name matches any of the patterns that typically expire
+        for (const [certPattern, validityYears] of Object.entries(certificationValidityPeriods)) {
+          if (cert.name.toLowerCase().includes(certPattern.toLowerCase())) {
+            if (yearsSinceCertification > validityYears) {
+              isExpired = true;
+              break;
+            }
+          }
+        }
+      }
       
       let certLine = isExpired ? `${cert.name} (INACTIVE)` : cert.name;
       

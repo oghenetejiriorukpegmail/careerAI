@@ -639,8 +639,44 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       const certDate = rawCertDate ? formatCertificationDate(rawCertDate) : null;
       
       // Check for expiration date
-      const rawExpiryDate = cert.expiryDate || cert.validUntil || (cert as any).expiry_date || (cert as any).expires || (cert as any).valid_until;
-      const isExpired = rawExpiryDate ? new Date(rawExpiryDate) < new Date() : false;
+      const rawExpiryDate = cert.expiryDate || (cert as any).validUntil || (cert as any).expiry_date || (cert as any).expires || (cert as any).valid_until;
+      let isExpired = rawExpiryDate ? new Date(rawExpiryDate) < new Date() : false;
+      
+      // If no explicit expiry date, check for commonly expired certifications based on their typical validity periods
+      if (!rawExpiryDate && cert.date) {
+        const certificationDate = new Date(cert.date);
+        const currentDate = new Date();
+        const yearsSinceCertification = (currentDate.getTime() - certificationDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+        
+        // Define typical validity periods for common certifications (in years)
+        const certificationValidityPeriods: { [key: string]: number } = {
+          'CCIE': 3, // Cisco Certified Internetwork Expert - 3 years
+          'CCNP': 3, // Cisco Certified Network Professional - 3 years  
+          'CCNA': 3, // Cisco Certified Network Associate - 3 years
+          'CISSP': 3, // Certified Information Systems Security Professional - 3 years
+          'CISM': 3, // Certified Information Security Manager - 3 years
+          'CISA': 3, // Certified Information Systems Auditor - 3 years
+          'CompTIA Security+': 3, // CompTIA Security+ - 3 years
+          'CompTIA Network+': 3, // CompTIA Network+ - 3 years
+          'AWS Certified': 3, // AWS Certifications - 3 years
+          'Microsoft Certified': 3, // Microsoft Certifications - varies, but often 3 years
+          'PMP': 3, // Project Management Professional - 3 years
+          'ITIL': 3, // ITIL certifications - 3 years
+          'Fortinet': 2, // Fortinet certifications - 2 years
+          'Juniper': 3, // Juniper certifications - 3 years
+          'Nokia': 3, // Nokia certifications - 3 years
+        };
+        
+        // Check if certification name matches any of the patterns that typically expire
+        for (const [certPattern, validityYears] of Object.entries(certificationValidityPeriods)) {
+          if (cert.name.toLowerCase().includes(certPattern.toLowerCase())) {
+            if (yearsSinceCertification > validityYears) {
+              isExpired = true;
+              break;
+            }
+          }
+        }
+      }
       
       if (certDate) {
         const dateWidth = helvetica.widthOfTextAtSize(certDate, 9);
