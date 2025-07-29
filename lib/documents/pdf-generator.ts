@@ -1265,16 +1265,18 @@ export function generateFileName(companyName: string, userName: string, docType:
   const firstName = userName.split(' ')[0];
   const sanitizedFirstName = firstName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
   
-  // Add current date in YYYY-MM-DD format
-  const currentDate = new Date().toISOString().split('T')[0]; // Gets YYYY-MM-DD format
+  // Add current date and time for uniqueness
+  const now = new Date();
+  const currentDate = now.toISOString().split('T')[0]; // Gets YYYY-MM-DD format
+  const timestamp = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0'); // HHMM format
   
   // Sanitize job title if provided
   if (jobTitle) {
     const sanitizedJobTitle = jobTitle.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-    return `${sanitizedCompany}_${sanitizedFirstName}_${sanitizedJobTitle}_${docType.toLowerCase()}_${currentDate}.${format}`;
+    return `${sanitizedCompany}_${sanitizedFirstName}_${sanitizedJobTitle}_${docType.toLowerCase()}_${currentDate}_${timestamp}.${format}`;
   }
   
-  return `${sanitizedCompany}_${sanitizedFirstName}_${docType.toLowerCase()}_${currentDate}.${format}`;
+  return `${sanitizedCompany}_${sanitizedFirstName}_${docType.toLowerCase()}_${currentDate}_${timestamp}.${format}`;
 }
 
 // Helper function to extract technologies from text

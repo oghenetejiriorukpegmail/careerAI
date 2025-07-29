@@ -231,9 +231,33 @@ export async function saveGeneratedDocument(
     const { data: existingDoc, error: checkError } = await existingDocQuery.single();
 
     if (existingDoc && !checkError) {
-      // Document already exists, return its ID
-      console.log('Document already exists, returning existing ID:', existingDoc.id);
-      return existingDoc.id;
+      // Document record exists, but we need to verify the actual file exists
+      // For now, we'll update the existing record to ensure consistency
+      console.log('Document record exists, updating with new file data:', existingDoc.id);
+      
+      const updateData: any = {
+        file_name: fileName,
+        file_path: filePath,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Add TXT file path if provided
+      if (txtFilePath) {
+        updateData.txt_file_path = txtFilePath;
+      }
+      
+      const { error: updateError } = await supabase
+        .from('generated_documents')
+        .update(updateData)
+        .eq('id', existingDoc.id);
+      
+      if (updateError) {
+        console.error('Error updating existing document:', updateError);
+        // Continue to create new document if update fails
+      } else {
+        console.log('Successfully updated existing document:', existingDoc.id);
+        return existingDoc.id;
+      }
     }
 
     // Create new document
