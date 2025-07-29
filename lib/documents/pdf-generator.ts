@@ -1248,22 +1248,23 @@ export async function generateCoverLetterPDF(data: CoverLetterData): Promise<Uin
 }
 
 /**
- * Generates file name according to PRD requirements
- * Format: companyName_userFirstname_jobTitle_docType_YYYY-MM-DD.pdf|docx
- * Example: openAI_Oghenetejiri_Senior_Network_Engineer_resume_2025-01-23.pdf
+ * Generates file name according to updated requirements
+ * Format: {Company}_{LastName}_{JobTitle}_{DocumentType}_{YYYY-MM-DD}_{HHMM}.{ext}
+ * Example: Google_ORUKPE_Senior_Network_Engineer_resume_2025-07-29_1425.pdf
  * @param companyName Company name
  * @param userName User's full name
  * @param docType 'Resume' or 'CoverLetter'
  * @param jobTitle Optional job title to include in filename
  * @param format File format ('pdf' or 'docx')
- * @returns Formatted file name with company, first name, job title, document type, date, and format
+ * @returns Formatted file name with company, last name (CAPS), job title, document type, date, time, and format
  */
 export function generateFileName(companyName: string, userName: string, docType: 'Resume' | 'CoverLetter', jobTitle?: string, format: 'pdf' | 'docx' = 'pdf'): string {
   const sanitizedCompany = companyName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
   
-  // Extract first name from full name
-  const firstName = userName.split(' ')[0];
-  const sanitizedFirstName = firstName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  // Extract last name from full name (or use full name if no spaces)
+  const nameParts = userName.trim().split(' ');
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0];
+  const sanitizedLastName = lastName.toUpperCase().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
   
   // Add current date and time for uniqueness
   const now = new Date();
@@ -1273,10 +1274,10 @@ export function generateFileName(companyName: string, userName: string, docType:
   // Sanitize job title if provided
   if (jobTitle) {
     const sanitizedJobTitle = jobTitle.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-    return `${sanitizedCompany}_${sanitizedFirstName}_${sanitizedJobTitle}_${docType.toLowerCase()}_${currentDate}_${timestamp}.${format}`;
+    return `${sanitizedCompany}_${sanitizedLastName}_${sanitizedJobTitle}_${docType.toLowerCase()}_${currentDate}_${timestamp}.${format}`;
   }
   
-  return `${sanitizedCompany}_${sanitizedFirstName}_${docType.toLowerCase()}_${currentDate}_${timestamp}.${format}`;
+  return `${sanitizedCompany}_${sanitizedLastName}_${docType.toLowerCase()}_${currentDate}_${timestamp}.${format}`;
 }
 
 // Helper function to extract technologies from text

@@ -106,7 +106,17 @@ The AI document generation system MUST maintain absolute truthfulness. When gene
 3. **Document Generation**:
    - Create customized, ATS-optimized resumes
    - Generate targeted cover letters
-   - Format as downloadable PDFs
+   - Format as downloadable PDFs, DOCX, and TXT files
+   - **File Naming Convention**: All generated documents MUST follow the format:
+     `{Company}_{LastName}_{JobTitle}_{DocumentType}_{YYYY-MM-DD}_{HHMM}.{ext}`
+     Example: `Google_ORUKPE_Senior_Network_Engineer_resume_2025-07-29_1425.pdf`
+     - Company: Sanitized company name (spaces replaced with underscores)
+     - LastName: User's last name in CAPS (extracted from full name)
+     - JobTitle: Sanitized job title (spaces replaced with underscores)
+     - DocumentType: Either "resume" or "coverletter" (lowercase)
+     - Date: Current date in YYYY-MM-DD format
+     - Time: Current time in HHMM format for uniqueness
+     - Extension: pdf, docx, or txt as appropriate
 
 4. **Job Matching**:
    - Crawl job boards using Bright Data MCP
