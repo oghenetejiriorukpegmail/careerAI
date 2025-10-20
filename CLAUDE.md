@@ -2,132 +2,121 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially
-## Project Overview
+## Common Development Commands
 
-CareerAI is an AI-Assisted Job Application App that helps users optimize their job search process. The application:
+### Development & Build
+```bash
+npm run dev              # Start dev server on port 3000 with SSL cert warnings bypassed
+npm run dev:secure       # Start dev server with TLS enforcement (for OAuth callbacks)
+npm run build           # Create production build
+npm run lint            # Run ESLint with Next.js & Tailwind rules
+```
 
-1. Processes user resumes and LinkedIn profiles
-2. Analyzes job descriptions
-3. Generates ATS-optimized resumes and cover letters
-4. Matches users with relevant job opportunities
-5. Provides LinkedIn profile optimization suggestions
-6. Offers a dashboard to track job applications
+### Testing
+```bash
+npx vitest run test/application-qa.test.ts  # Run AI Q&A scoring tests
+npx vitest run                               # Run all tests
+```
 
-## Technical Architecture
+### Production & Workers
+```bash
+npm run start           # Production server from build artifacts
+npm run start:replit    # Replit-specific production server
+npm run worker          # Run job processing worker
+npm run dev:all         # Run dev server + worker concurrently
+```
 
-### Database
-- Supabase PostgreSQL database for storing user data, resumes, and job application tracking
-- Connection details are available in PRD.md and prompt files
+### Database Migrations
+```bash
+node scripts/run-migration.js check    # Check current schema status
+node scripts/run-migration.js migrate  # Apply missing columns
+```
 
-### AI Models
-- Primary: User-configurable via settings page (currently anthropic/claude-sonnet-4 via OpenRouter)
-- Default fallback options: mistralai/devstral-small-2505:free, moonshotai/kimi-k2:free via OpenRouter
-- Fallback: anthropic/claude-sonnet-4 via OpenRouter (200K context for large resumes)
-- Models are used for document parsing, content generation, and job matching
-- Note: Claude Sonnet 4 is provided by OpenRouter, not Requesty
-- ✅ Fixed Architecture Updates:
-  1. Respects user choice: Always uses the AI model selected in user settings (e.g., Grok-4)
-  2. No preemptive fallback: Doesn't force Claude Sonnet 4 based on content size
-  3. Error-based fallback: Only falls back to Claude Sonnet 4 if the selected model fails with an error
-  4. Proper token limits: Each model now has correct context limits (Grok-4: 256K, Kimi-K2: 60K, etc.)
+## High-Level Architecture
 
-  🔄 Flow:
-  1. Load user's preferred model from settings
-  2. Try to generate resume with that model
-  3. If it fails (network error, token limit exceeded, etc.), the existing fallback logic in queryAI will try Claude Sonnet 4
-  4. Only then would it fall back
+### AI Document Generation Pipeline
+The system uses a multi-model approach with user-configurable preferences:
 
-### External Services
-- Bright Data MCP for web scraping LinkedIn profiles and job boards (Indeed, LinkedIn, Dice)
-- Puppeteer MCP for browser automation and advanced web scraping capabilities
-- Jina.ai Reader API for intelligent web content extraction and job description scraping
+1. **Model Selection** (`/lib/ai/token-manager.ts`):
+   - Primary: User's selected model from settings (Kimi K2 free by default)
+   - Free Options: Kimi K2, Grok-4 Fast, Grok Code Fast 1, Qwen models
+   - Fallback: Claude Sonnet 4 via OpenRouter on errors only
+   - Vision: Qwen2.5-VL-72B for multimodal tasks
 
-### Deployment
-- Application will be deployed on Replit
-- Consider serverless function limitations (execution time, memory)
+2. **Resume Generation** (`/lib/ai/document-generator.ts`):
+   - Extracts user data from uploaded resume (NEVER fabricates)
+   - Analyzes job description for ATS keywords
+   - Creates tailored resume maintaining 100% truthfulness
+   - Generates in multiple formats (PDF, DOCX, TXT)
 
-## Development Guidelines
+3. **Job Processing** (`/lib/utils/job-processor.ts`):
+   - Queue-based async processing with status tracking
+   - Handles specific job requests vs queue processing
+   - Saves all document formats to Supabase storage
 
-### Code Structure
-- No single file should exceed 500 lines to maintain modularity and readability
-- AI functionality should be modular (separate functions for parsing, analysis, generation)
+### File Naming Convention
+All generated documents follow strict naming:
+`{Company}_{LASTNAME}_{JobTitle}_{DocumentType}_{YYYY-MM-DD}_{HHMM}.{ext}`
 
-### Security Considerations
-- Never commit API keys or credentials (they should be in environment variables)
-- Follow secure practices for handling user data
-- Implement protection against common web vulnerabilities (XSS, CSRF, SQLi)
+### Authentication & Session Management
+- Supabase Auth with both UUID and session-based user IDs
+- Row Level Security (RLS) policies on all user data
+- Session persistence across dashboard navigation
 
-### 🔒 CRITICAL: Resume Integrity & Truthfulness
+### Web Scraping & Data Extraction
+- Bright Data MCP for job board scraping (Indeed, LinkedIn, Dice)
+- Puppeteer MCP for browser automation
+- Jina.ai Reader API for intelligent content extraction
 
-**This is the most important requirement in the entire codebase:**
+### Document Processing Flow
+1. User uploads resume → PDF/DOCX parsing → Store in `resumes` table
+2. Job description input → Extract requirements → Store in `job_descriptions` table
+3. Generate documents → Save to storage → Track in `generated_resumes` table
+4. Download via API routes with proper content types
 
-The AI document generation system MUST maintain absolute truthfulness. When generating resumes or cover letters:
+## Critical Requirements
 
-1. **STRICT RULES - NEVER VIOLATE:**
-   - Use ONLY information from the user's uploaded resume
-   - NEVER invent experiences, skills, or achievements
-   - NEVER add qualifications the user doesn't have
-   - NEVER embellish metrics or accomplishments
-   - NEVER create false employment history
+### Resume Truthfulness (NEVER VIOLATE)
+The AI MUST maintain absolute truthfulness when generating documents:
+- Use ONLY information from user's uploaded resume
+- NEVER invent experiences, skills, or achievements
+- NEVER add qualifications the user doesn't have
+- Allowed: Reword for ATS, reorganize, use synonyms
 
-2. **ALLOWED OPERATIONS:**
-   - Reword existing content for ATS optimization
-   - Reorganize information for better impact
-   - Use professional synonyms for existing skills
-   - Format achievements with action verbs
-   - Connect real experience to job requirements
+### Recent Bug Fixes (2025-01-30)
+1. **Job Processing**: Fixed inline processor to handle specific job IDs correctly
+2. **TXT Generation**: Ensures TXT content matches PDF exactly
+3. **DOCX Completeness**: Added missing References section
+4. **Certification Display**: Removed "(INACTIVE)" text for expired certs
 
-3. **IMPLEMENTATION:**
-   - Location: `/lib/ai/document-generator.ts`
-   - Functions: `generateAtsResume()` and `generateCoverLetter()`
-   - Both system and user prompts enforce these rules
-   - Multiple layers of instructions prevent fabrication
+## Project Structure
+```
+app/
+├── api/               # Next.js API routes
+├── dashboard/         # Protected user pages
+└── auth/             # Authentication flows
 
-4. **WHY THIS MATTERS:**
-   - Users must defend claims in interviews
-   - False info = immediate termination risk
-   - Legal and ethical implications
-   - Trust and reputation protection
+lib/
+├── ai/               # AI model integration
+├── documents/        # PDF/DOCX/TXT generators
+├── supabase/         # Database client & types
+└── utils/            # Job processing, helpers
 
-**Testing:** Any modifications to AI prompts MUST be tested to ensure no fabrication is possible.
+components/
+├── ui/               # shadcn primitives
+└── [features]/       # Domain components
+```
 
-## Data Flow
+## Environment Variables
+Required in `.env.local`:
+- `NEXT_PUBLIC_SUPABASE_URL` & `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `OPENROUTER_API_KEY` for AI models
+- `GOOGLE_GENERATIVE_AI_API_KEY` for Gemini
+- `BRIGHT_DATA_*` credentials for web scraping
+- `JINA_API_KEY` for content extraction
 
-1. **User Data Ingestion**:
-   - Parse uploaded resumes (PDF, DOCX)
-   - Extract LinkedIn profile data via Bright Data MCP
-   - Structure and store user information in Supabase
-
-2. **Job Description Analysis**:
-   - Parse job descriptions (text or via URL)
-   - Extract key requirements and ATS keywords
-
-3. **Document Generation**:
-   - Create customized, ATS-optimized resumes
-   - Generate targeted cover letters
-   - Format as downloadable PDFs, DOCX, and TXT files
-   - **File Naming Convention**: All generated documents MUST follow the format:
-     `{Company}_{LastName}_{JobTitle}_{DocumentType}_{YYYY-MM-DD}_{HHMM}.{ext}`
-     Example: `Google_ORUKPE_Senior_Network_Engineer_resume_2025-07-29_1425.pdf`
-     - Company: Sanitized company name (spaces replaced with underscores)
-     - LastName: User's last name in CAPS (extracted from full name)
-     - JobTitle: Sanitized job title (spaces replaced with underscores)
-     - DocumentType: Either "resume" or "coverletter" (lowercase)
-     - Date: Current date in YYYY-MM-DD format
-     - Time: Current time in HHMM format for uniqueness
-     - Extension: pdf, docx, or txt as appropriate
-
-4. **Job Matching**:
-   - Crawl job boards using Bright Data MCP
-   - Match postings to user profiles
-   - Present curated job opportunities
-
-5. **Profile Optimization**:
-   - Analyze LinkedIn profiles
-   - Provide actionable improvement suggestions
-
-6. **Application Tracking**:
-   - Manage job application lifecycle
-   - Track status of applications
-   - Store generated documents
+## Testing Strategy
+- Unit tests for AI prompt validation in `test/application-qa.test.ts`
+- Manual testing of document generation with truthfulness checks
+- Verify all formats (PDF, DOCX, TXT) have identical content
+- Test job-specific processing with queue disabled

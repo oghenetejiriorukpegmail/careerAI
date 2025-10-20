@@ -30,6 +30,7 @@ type GeneratedDocument = {
   doc_type: string;
   file_name: string;
   file_path: string;
+  file_format?: 'pdf' | 'docx';
 };
 
 export default function ApplicationsPage() {
@@ -203,6 +204,12 @@ export default function ApplicationsPage() {
         throw new Error('User not authenticated');
       }
 
+      // Determine file format from filename
+      const fileFormat = doc.file_name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+      const contentType = fileFormat === 'docx' 
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf';
+
       // Try to download directly from Supabase Storage
       const { data, error } = await supabase.storage
         .from('user_files')
@@ -229,7 +236,7 @@ export default function ApplicationsPage() {
         document.body.removeChild(a);
       } else {
         // Create blob URL and trigger download
-        const blob = new Blob([data], { type: 'application/pdf' });
+        const blob = new Blob([data], { type: contentType });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -563,7 +570,7 @@ export default function ApplicationsPage() {
                               size="sm"
                               className="flex items-center px-2"
                               onClick={() => downloadDocument(doc)}
-                              title={`Download PDF ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}`}
+                              title={`Download ${doc.file_name.toLowerCase().endsWith('.docx') ? 'DOCX' : 'PDF'} ${doc.doc_type === 'resume' ? 'Resume' : 'Cover Letter'}`}
                             >
                               <FileDown className="h-4 w-4" />
                             </Button>

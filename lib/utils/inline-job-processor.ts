@@ -14,9 +14,9 @@ const MAX_INLINE_WAIT_TIME = 60000; // 1 minute max for inline processing
  */
 export async function processJobInline(jobId: string): Promise<void> {
   if (!REPLIT_MODE) {
-    // In non-Replit environments, use the standard background processing
+    // In non-Replit environments, process the specific job immediately
     setTimeout(() => {
-      JobProcessor.processPendingJobs().catch(console.error);
+      JobProcessor.processSpecificJob(jobId).catch(console.error);
     }, 100);
     return;
   }

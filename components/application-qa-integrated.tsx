@@ -151,12 +151,37 @@ export default function ApplicationQAIntegrated({ applicationId }: ApplicationQA
     setQuestions(questions.filter((_, i) => i !== index));
   };
 
-  const copyAnswer = (answer: string) => {
-    navigator.clipboard.writeText(answer);
-    toast({
-      title: 'Copied',
-      description: 'Answer copied to clipboard'
-    });
+  const copyAnswer = async (answer: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(answer);
+        toast({
+          title: 'Copied',
+          description: 'Answer copied to clipboard'
+        });
+      } else {
+        // Fallback for older browsers or insecure contexts
+        const textArea = document.createElement('textarea');
+        textArea.value = answer;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        toast({
+          title: 'Copied',
+          description: 'Answer copied to clipboard'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast({
+        title: 'Copy Failed',
+        description: 'Unable to copy to clipboard. Please copy manually.',
+        variant: 'destructive'
+      });
+    }
   };
 
   const exportQuestions = () => {

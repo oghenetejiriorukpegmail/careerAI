@@ -1,7 +1,275 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server-client';
 import { getSupabaseAdminClient } from '@/lib/supabase/client';
-import { generateResumeTXT, generateCoverLetterTXT } from '@/lib/documents/txt-generator';
+
+/**
+ * Extract text content by reconstructing it from the resume data
+ * This ensures the TXT version matches exactly what's in the PDF
+ */
+function extractTextFromResumeData(resumeData: any): string {
+  const lines: string[] = [];
+  
+  // Header section
+  if (resumeData.fullName) {
+    lines.push(resumeData.fullName.toUpperCase());
+    lines.push('');
+  }
+  
+  if (resumeData.jobTitle) {
+    lines.push(resumeData.jobTitle);
+    lines.push('');
+  }
+  
+  // Contact information
+  const contactLines: string[] = [];
+  if (resumeData.contactInfo?.email) contactLines.push(resumeData.contactInfo.email);
+  if (resumeData.contactInfo?.phone) contactLines.push(resumeData.contactInfo.phone);
+  if (resumeData.contactInfo?.location) contactLines.push(resumeData.contactInfo.location);
+  if (contactLines.length > 0) {
+    lines.push(contactLines.join(' • '));
+    lines.push('');
+  }
+  
+  if (resumeData.contactInfo?.linkedin) {
+    lines.push(resumeData.contactInfo.linkedin);
+    lines.push('');
+  }
+  
+  // Work Authorization
+  if (resumeData.workAuthorization) {
+    lines.push(`Work Authorization: ${resumeData.workAuthorization}`);
+    lines.push('');
+  }
+  
+  // Professional Summary
+  if (resumeData.summary) {
+    lines.push('PROFESSIONAL SUMMARY');
+    lines.push('━'.repeat(50));
+    lines.push('');
+    lines.push(resumeData.summary);
+    lines.push('');
+  }
+  
+  // Professional Experience
+  if (resumeData.experience && resumeData.experience.length > 0) {
+    lines.push('PROFESSIONAL EXPERIENCE');
+    lines.push('━'.repeat(50));
+    lines.push('');
+    
+    resumeData.experience.forEach((job: any, index: number) => {
+      // Job title
+      lines.push(job.title);
+      
+      // Company and location
+      const companyLine = job.company + (job.location ? ` | ${job.location}` : '');
+      lines.push(companyLine);
+      
+      // Duration
+      const startDate = job.startDate || '';
+      const endDate = job.endDate || 'Present';
+      lines.push(`${startDate} - ${endDate}`);
+      lines.push('');
+      
+      // Job summary if available
+      if (job.summary && job.summary.trim()) {
+        lines.push(job.summary);
+        lines.push('');
+      }
+      
+      // Job description bullets
+      if (job.description && job.description.length > 0) {
+        job.description.forEach((bullet: string) => {
+          if (bullet && bullet.trim()) {
+            lines.push(`• ${bullet}`);
+          }
+        });
+      }
+      
+      // Add spacing between jobs (except last one)
+      if (index < resumeData.experience.length - 1) {
+        lines.push('');
+        lines.push('');
+      }
+    });
+    lines.push('');
+  }
+  
+  // Education
+  if (resumeData.education && resumeData.education.length > 0) {
+    lines.push('EDUCATION');
+    lines.push('━'.repeat(50));
+    lines.push('');
+    
+    resumeData.education.forEach((edu: any) => {
+      const eduLine = `${edu.degree}${edu.field ? ` in ${edu.field}` : ''}`;
+      lines.push(eduLine);
+      lines.push(edu.institution);
+      if (edu.graduationYear) {
+        lines.push(edu.graduationYear);
+      }
+      lines.push('');
+    });
+  }
+  
+  // Technical Skills
+  if (resumeData.skills && resumeData.skills.length > 0) {
+    lines.push('TECHNICAL EXPERTISE & CORE COMPETENCIES');
+    lines.push('━'.repeat(50));
+    lines.push('');
+    lines.push(resumeData.skills.join(', '));
+    lines.push('');
+  }
+  
+  // Certifications
+  if (resumeData.certifications && resumeData.certifications.length > 0) {
+    lines.push('CERTIFICATIONS');
+    lines.push('━'.repeat(50));
+    lines.push('');
+    
+    resumeData.certifications.forEach((cert: any) => {
+      const certLine = cert.name + (cert.issuer ? ` | ${cert.issuer}` : '');
+      lines.push(certLine);
+      if (cert.date) {
+        lines.push(cert.date);
+      }
+      lines.push('');
+    });
+  }
+  
+  // Professional Development/Training
+  if (resumeData.training && resumeData.training.length > 0) {
+    lines.push('PROFESSIONAL DEVELOPMENT');
+    lines.push('━'.repeat(50));
+    lines.push('');
+    
+    resumeData.training.forEach((training: any) => {
+      const trainingLine = training.name + (training.provider ? ` | ${training.provider}` : '');
+      lines.push(trainingLine);
+      if (training.date) {
+        lines.push(training.date);
+      }
+      if (training.description) {
+        lines.push(training.description);
+      }
+      lines.push('');
+    });
+  }
+  
+  // Projects
+  if (resumeData.projects && resumeData.projects.length > 0) {
+    lines.push('KEY PROJECTS & STRATEGIC INITIATIVES');
+    lines.push('━'.repeat(50));
+    lines.push('');
+    
+    resumeData.projects.forEach((project: any) => {
+      lines.push(project.name);
+      if (project.description) {
+        lines.push(`• ${project.description}`);
+      }
+      lines.push('');
+    });
+  }
+  
+  // References
+  if (resumeData.references && resumeData.references.length > 0) {
+    lines.push('REFERENCES');
+    lines.push('━'.repeat(50));
+    lines.push('');
+    
+    resumeData.references.forEach((ref: any) => {
+      lines.push(`${ref.name} | ${ref.title}`);
+      lines.push(`${ref.company} | ${ref.phone} | ${ref.email}`);
+      lines.push('');
+    });
+  }
+  
+  return lines.join('\n');
+}
+
+/**
+ * Extract text content from cover letter data
+ * This ensures the TXT version matches exactly what's in the PDF
+ */
+function extractTextFromCoverLetterData(coverLetterData: any): string {
+  const lines: string[] = [];
+  
+  // Header section
+  if (coverLetterData.fullName) {
+    lines.push(coverLetterData.fullName.toUpperCase());
+    lines.push('');
+  }
+  
+  // Contact information
+  const contactLines: string[] = [];
+  if (coverLetterData.contactInfo?.email) contactLines.push(coverLetterData.contactInfo.email);
+  if (coverLetterData.contactInfo?.phone) contactLines.push(coverLetterData.contactInfo.phone);
+  if (coverLetterData.contactInfo?.location) contactLines.push(coverLetterData.contactInfo.location);
+  if (contactLines.length > 0) {
+    lines.push(contactLines.join(' • '));
+    lines.push('');
+  }
+  
+  if (coverLetterData.contactInfo?.linkedin) {
+    lines.push(coverLetterData.contactInfo.linkedin);
+    lines.push('');
+  }
+  
+  // Date
+  lines.push(new Date().toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  }));
+  lines.push('');
+  
+  // Company information
+  if (coverLetterData.companyName || coverLetterData.recipient?.company) {
+    lines.push(`Hiring Manager`);
+    lines.push(coverLetterData.companyName || coverLetterData.recipient?.company);
+    lines.push('');
+  }
+  
+  // Subject line
+  if (coverLetterData.jobTitle && (coverLetterData.companyName || coverLetterData.recipient?.company)) {
+    lines.push(`Re: Application for ${coverLetterData.jobTitle} position at ${coverLetterData.companyName || coverLetterData.recipient?.company}`);
+    lines.push('');
+  }
+  
+  // Greeting
+  lines.push('Dear Hiring Manager,');
+  lines.push('');
+  
+  // Cover letter body
+  if (coverLetterData.content) {
+    // Split content into paragraphs and add proper spacing
+    const paragraphs = coverLetterData.content.split('\n').filter((p: string) => p.trim());
+    paragraphs.forEach((paragraph: string, index: number) => {
+      lines.push(paragraph);
+      if (index < paragraphs.length - 1) {
+        lines.push('');
+      }
+    });
+    lines.push('');
+  } else if (coverLetterData.paragraphs && Array.isArray(coverLetterData.paragraphs)) {
+    // Handle paragraphs array format
+    coverLetterData.paragraphs.forEach((paragraph: string, index: number) => {
+      lines.push(paragraph);
+      if (index < coverLetterData.paragraphs.length - 1) {
+        lines.push('');
+      }
+    });
+    lines.push('');
+  }
+  
+  // Closing
+  lines.push('Sincerely,');
+  lines.push('');
+  if (coverLetterData.fullName) {
+    lines.push(coverLetterData.fullName);
+  }
+  
+  return lines.join('\n');
+}
 
 export async function GET(
   request: NextRequest,
@@ -419,10 +687,10 @@ export async function GET(
     
     try {
       if (document.doc_type === 'resume') {
-        txtContent = generateResumeTXT(documentData);
+        txtContent = extractTextFromResumeData(documentData);
         filename = document.file_name.replace('.pdf', '.txt');
       } else if (document.doc_type === 'cover_letter') {
-        txtContent = generateCoverLetterTXT(documentData);
+        txtContent = extractTextFromCoverLetterData(documentData);
         filename = document.file_name.replace('.pdf', '.txt');
       } else {
         return NextResponse.json({ error: 'Unsupported document type' }, { status: 400 });

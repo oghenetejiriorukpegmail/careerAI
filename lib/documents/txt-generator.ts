@@ -214,7 +214,7 @@ export function generateResumeTXT(data: ResumeData): string {
         }
       }
       
-      let certLine = isExpired ? `${cert.name} (INACTIVE)` : cert.name;
+      let certLine = cert.name;
       
       if (cert.issuer) {
         certLine += ` | ${cert.issuer}`;

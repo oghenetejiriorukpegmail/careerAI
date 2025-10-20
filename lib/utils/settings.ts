@@ -27,11 +27,11 @@ declare global {
   } | undefined;
 }
 
-// Default settings - using Qwen 3 235B via OpenRouter as specified in PRD
+// Default settings - Updated for latest 2025 models
 export const defaultSettings: UserSettings = {
   aiProvider: 'openrouter',
-  aiModel: 'qwen/qwen3-235b-a22b:free',  // Free tier Qwen model via OpenRouter
-  visionModel: 'google/gemini-2.0-flash-exp:free', // Default vision model
+  aiModel: 'moonshotai/kimi-k2:free',  // Best free model in 2025: 1T params, outperforms GPT-4
+  visionModel: 'qwen/qwen2.5-vl-72b-instruct:free', // Free vision model with 72B params
   documentAiOnly: true,
   enableLogging: true,
   showAiAttribution: false,

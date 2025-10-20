@@ -473,7 +473,7 @@ export class JobProcessor {
       }
       
       // Generate the resume with merged data
-      const { document, fileName, contentType } = await generateAtsResumeWithFormat(
+      const { document, fileName, contentType, txtContent, txtFileName } = await generateAtsResumeWithFormat(
         mergedResumeData,
         jobDescription as ParsedJobDescription,
         userName,
@@ -483,7 +483,7 @@ export class JobProcessor {
         bypassTokenLimits || false
       );
       
-      // Save to storage (reuse existing supabase client)
+      // Save main document to storage
       const filePath = `resumes/${userId}/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
@@ -497,13 +497,34 @@ export class JobProcessor {
         throw uploadError;
       }
       
-      // Save document record
+      // Save TXT file to storage if available
+      let txtFilePath;
+      if (txtContent && txtFileName) {
+        txtFilePath = `resumes/${userId}/${txtFileName}`;
+        
+        const { error: txtUploadError } = await supabase.storage
+          .from('user_files')
+          .upload(txtFilePath, txtContent, {
+            contentType: 'text/plain',
+            upsert: true  // Allow overwriting for retries
+          });
+        
+        if (txtUploadError) {
+          console.error('Error uploading TXT file:', txtUploadError);
+          // Don't fail the entire job, just log the error
+        } else {
+          console.log('Successfully uploaded TXT file:', txtFilePath);
+        }
+      }
+      
+      // Save document record with TXT file path
       const docId = await saveGeneratedDocument(
         userId,
         jobDescriptionId,
         'resume',
         fileName,
-        filePath
+        filePath,
+        txtFilePath
       );
       
       // Create or update application
@@ -685,19 +706,19 @@ export class JobProcessor {
   }
   
   /**
-   * Main job processor - processes pending jobs
+   * Main job processor - processes pending jobs (newest first)
    */
   static async processPendingJobs(batchSize: number = 1): Promise<void> {
     const supabase = createServiceRoleClient();
     
     console.log(`[JOB PROCESSOR] Querying for pending jobs (batch size: ${batchSize})`);
     
-    // Get oldest pending jobs
+    // Get newest pending jobs
     const { data: jobs, error } = await supabase
       .from('job_processing')
       .select('*')
       .eq('status', 'pending')
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(batchSize);
     
     if (error) {

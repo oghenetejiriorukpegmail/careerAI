@@ -17,6 +17,7 @@ export interface ResumeData {
     location?: string;
     startDate: string;
     endDate?: string;
+    summary?: string;
     description: string[];
   }>;
   education: Array<{
@@ -64,6 +65,7 @@ export interface CoverLetterData {
     email: string;
     phone?: string;
     location?: string;
+    linkedin?: string;
   };
   date: string;
   recipient?: {
@@ -451,6 +453,17 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     });
     currentY -= 15;
     
+    // Job summary if available
+    if (job.summary && job.summary.trim()) {
+      const pageInfoSummary = checkAndAddPage(pdfDoc, currentPage, currentY, 12, margins);
+      currentPage = pageInfoSummary.page;
+      currentY = pageInfoSummary.y;
+      
+      // Draw summary in italics with slightly darker color
+      currentY = drawWrappedText(job.summary, margins.left, 10.5, helvetica, colors.text, contentWidth, 1.3);
+      currentY -= 12; // Space before bullets
+    }
+    
     // Achievement bullets with modern styling
     for (const bullet of job.description) {
       // Skip empty or whitespace-only bullets
@@ -682,8 +695,8 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         const dateWidth = helvetica.widthOfTextAtSize(certDate, 9);
         const dateX = width - margins.right - dateWidth;
         
-        // Prepare certification name with inactive indicator
-        const displayName = isExpired ? `${cert.name} (INACTIVE)` : cert.name;
+        // Prepare certification name (grayed out if expired)
+        const displayName = cert.name;
         const nameColor = isExpired ? rgb(0.6, 0.6, 0.6) : colors.primary; // Gray for inactive, normal color otherwise
         
         // Check if certification name fits on one line with date
@@ -725,7 +738,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         }
       } else {
         // No date: use full width for certification name
-        const displayName = isExpired ? `${cert.name} (INACTIVE)` : cert.name;
+        const displayName = cert.name;
         const nameColor = isExpired ? rgb(0.6, 0.6, 0.6) : colors.primary; // Gray for inactive, normal color otherwise
         
         currentY = drawWrappedText(displayName, margins.left, 11, helveticaBold, nameColor, contentWidth, 1.4);
@@ -885,7 +898,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
           color: colors.primary,
         });
         
-        currentY = drawWrappedText(description, margins.left + 15, 10.5, helvetica, colors.text, contentWidth - 15, 1.5);
+        currentY = drawWrappedText(description, margins.left + 15, 10.5, helvetica, colors.text, contentWidth - 15, 1.2);
         currentY -= 6; // Space before tech tags
         
         // Extract and display technology tags

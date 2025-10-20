@@ -127,20 +127,27 @@ interface Experience {
   title: string;
   company: string;
   location?: string;
-  duration: string;
+  startDate: string;
+  endDate?: string;
+  duration?: string;
+  summary?: string;
   description: string[];
   technologies?: string[];
 }
 
 interface Education {
+  institution: string;
   degree: string;
-  school: string;
+  field?: string;
+  graduationDate?: string;
   location?: string;
-  year: string;
+  year?: string;
   gpa?: string;
 }
 
 interface ResumeData {
+  fullName: string;
+  jobTitle?: string; // Target job title for this tailored resume
   contactInfo: ContactInfo;
   summary?: string;
   experience: Experience[];
@@ -162,25 +169,50 @@ interface ResumeData {
     date?: string;
     url?: string;
   }>;
+  trainings?: Array<{
+    name: string;
+    provider?: string;
+    date?: string;
+    duration?: string;
+    description?: string;
+  }>;
+  references?: Array<{
+    name: string;
+    title?: string;
+    company?: string;
+    phone?: string;
+    email?: string;
+  }>;
   languages?: Array<{
     language: string;
     proficiency: string;
   }>;
+  workAuthorization?: string;
 }
 
 export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8Array> {
+  console.log('[DOCX] Starting document generation with sections:', {
+    experience: resumeData.experience?.length || 0,
+    education: resumeData.education?.length || 0,
+    skills: resumeData.skills?.length || 0,
+    certifications: resumeData.certifications?.length || 0,
+    projects: resumeData.projects?.length || 0,
+    references: resumeData.references?.length || 0,
+    languages: resumeData.languages?.length || 0
+  });
+
   const sections = [];
 
   // Header with contact information
   const headerParagraphs = [];
   
   // Name
-  if (resumeData.contactInfo.fullName) {
+  if (resumeData.fullName) {
     headerParagraphs.push(
       new Paragraph({
         children: [
           new TextRun({
-            text: resumeData.contactInfo.fullName,
+            text: resumeData.fullName,
             bold: true,
             size: 32,
           }),
@@ -233,6 +265,44 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
   }
 
   sections.push(...headerParagraphs);
+
+  // Job Title (if provided)
+  if (resumeData.jobTitle) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: resumeData.jobTitle,
+            bold: true,
+            size: 24,
+            color: "1144BB",
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 180 },
+      })
+    );
+  }
+
+  // Work Authorization (if provided)
+  if (resumeData.workAuthorization) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "Work Authorization: ",
+            bold: true,
+            size: 20,
+          }),
+          new TextRun({
+            text: resumeData.workAuthorization,
+            size: 20,
+          }),
+        ],
+        spacing: { after: 120 },
+      })
+    );
+  }
 
   // Professional Summary
   if (resumeData.summary) {
@@ -309,19 +379,42 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
         })
       );
 
-      // Location and duration
-      const locationDuration = [];
-      if (exp.location) locationDuration.push(exp.location);
-      if (exp.duration) locationDuration.push(exp.duration);
+      // Location and dates
+      const locationDateInfo = [];
+      if (exp.location) locationDateInfo.push(exp.location);
+      
+      // Format dates similar to PDF generator
+      if (exp.startDate) {
+        const dateText = `${exp.startDate} - ${exp.endDate || 'Present'}`;
+        locationDateInfo.push(dateText);
+      } else if (exp.duration) {
+        locationDateInfo.push(exp.duration);
+      }
 
-      if (locationDuration.length > 0) {
+      if (locationDateInfo.length > 0) {
         sections.push(
           new Paragraph({
             children: [
               new TextRun({
-                text: locationDuration.join(' | '),
+                text: locationDateInfo.join(' | '),
                 italics: true,
                 size: 20,
+              }),
+            ],
+            spacing: { after: 120 },
+          })
+        );
+      }
+
+      // Job summary if available
+      if (exp.summary && exp.summary.trim()) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: exp.summary,
+                size: 20,
+                italics: true,
               }),
             ],
             spacing: { after: 120 },
@@ -394,16 +487,15 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
     );
 
     resumeData.education.forEach((edu, index) => {
+      // Format degree similar to PDF generator
+      const degree = `${edu.degree}${edu.field ? ' in ' + edu.field : ''}`;
+      
       sections.push(
         new Paragraph({
           children: [
             new TextRun({
-              text: edu.degree,
+              text: degree,
               bold: true,
-              size: 22,
-            }),
-            new TextRun({
-              text: ` | ${edu.school}`,
               size: 22,
             }),
           ],
@@ -411,9 +503,23 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
         })
       );
 
+      // Institution name
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: edu.institution,
+              size: 20,
+            }),
+          ],
+          spacing: { after: 60 },
+        })
+      );
+
+      // Additional details
       const eduDetails = [];
       if (edu.location) eduDetails.push(edu.location);
-      if (edu.year) eduDetails.push(edu.year);
+      if (edu.graduationDate || edu.year) eduDetails.push(edu.graduationDate || edu.year);
       if (edu.gpa) eduDetails.push(`GPA: ${edu.gpa}`);
 
       if (eduDetails.length > 0) {
@@ -491,6 +597,7 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
   }
 
   // Certifications Section
+  console.log('[DOCX] Adding certifications section:', resumeData.certifications?.length || 0);
   if (resumeData.certifications && resumeData.certifications.length > 0) {
     sections.push(
       new Paragraph({
@@ -560,7 +667,7 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
       }
       
       // Build certification text with formatted date if available
-      let certText = isExpired ? `${cert.name} (INACTIVE) - ${cert.issuer}` : `${cert.name} - ${cert.issuer}`;
+      let certText = `${cert.name} - ${cert.issuer}`;
       if (certDate) {
         certText += ` (${certDate})`;
       }
@@ -574,6 +681,7 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
             new TextRun({
               text: `• ${certText}`,
               size: 20,
+              color: isExpired ? '999999' : undefined, // Gray out expired certifications
             }),
           ],
           spacing: { after: 60 },
@@ -583,7 +691,89 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
     });
   }
 
+  // Professional Development (Training) Section
+  if (resumeData.trainings && resumeData.trainings.length > 0) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "PROFESSIONAL DEVELOPMENT",
+            bold: true,
+            size: 24,
+          }),
+        ],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 240, after: 120 },
+        border: {
+          bottom: {
+            color: "000000",
+            size: 6,
+            style: BorderStyle.SINGLE,
+          },
+        },
+      })
+    );
+
+    resumeData.trainings.forEach((training, index) => {
+      // Training name and provider
+      const trainingLine = training.name + (training.provider ? ` | ${training.provider}` : '');
+      
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: trainingLine,
+              bold: true,
+              size: 22,
+            }),
+          ],
+          spacing: { before: index === 0 ? 0 : 120, after: 60 },
+        })
+      );
+
+      // Date and duration
+      if (training.date || training.duration) {
+        const dateInfo = [];
+        if (training.date) dateInfo.push(training.date);
+        if (training.duration) dateInfo.push(training.duration);
+        
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: dateInfo.join(' | '),
+                size: 20,
+              }),
+            ],
+            spacing: { after: 60 },
+          })
+        );
+      }
+
+      // Description
+      if (training.description) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: training.description,
+                size: 20,
+              }),
+            ],
+            spacing: { after: 120 },
+          })
+        );
+      }
+    });
+  }
+
   // Projects Section - enhanced for executive-level positions ($500K+ roles)
+  console.log('[DOCX] Adding projects section:', resumeData.projects?.length || 0);
+  
+  if (!resumeData.projects) {
+    console.log('[DOCX] No projects data provided');
+  }
+  
   const validProjects = resumeData.projects?.filter(project => {
     // For executive roles, include all projects with any meaningful content
     if (!project.name && !project.description) {
@@ -714,13 +904,12 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
         technologies.forEach((tech, index) => {
           const techColor = getTechColor(tech);
           
-          // Add tech tag with colored background
+          // Add tech tag (DOCX doesn't support custom hex highlight colors)
           techRuns.push(
             new TextRun({
               text: ` ${tech} `,
               size: 16,
-              color: 'ffffff',
-              highlight: techColor,
+              color: '1144BB',
               bold: true,
             })
           );
@@ -822,17 +1011,120 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
     );
   }
 
-  // Create the document
-  const doc = new Document({
-    sections: [
-      {
-        properties: {},
-        children: sections,
-      },
-    ],
-  });
+  // References Section
+  if (resumeData.references && resumeData.references.length > 0) {
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "REFERENCES",
+            bold: true,
+            size: 24,
+          }),
+        ],
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 240, after: 120 },
+        border: {
+          bottom: {
+            color: "000000",
+            size: 6,
+            style: BorderStyle.SINGLE,
+          },
+        },
+      })
+    );
 
-  // Generate the document buffer
-  const buffer = await Packer.toBuffer(doc);
-  return new Uint8Array(buffer);
+    resumeData.references.forEach((ref) => {
+      // Handle "References available upon request" case
+      if (ref.name === "References available upon request") {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "References available upon request",
+                size: 20,
+                italics: true,
+              }),
+            ],
+            spacing: { after: 240 },
+          })
+        );
+      } else {
+        // Reference name and title
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: ref.name,
+                bold: true,
+                size: 22,
+              }),
+              new TextRun({
+                text: ref.title ? ` | ${ref.title}` : '',
+                size: 22,
+              }),
+            ],
+            spacing: { after: 60 },
+          })
+        );
+
+        // Company
+        if (ref.company) {
+          sections.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: ref.company,
+                  size: 20,
+                }),
+              ],
+              spacing: { after: 60 },
+            })
+          );
+        }
+
+        // Contact information
+        const contactInfo = [];
+        if (ref.phone) contactInfo.push(ref.phone);
+        if (ref.email) contactInfo.push(ref.email);
+        
+        if (contactInfo.length > 0) {
+          sections.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: contactInfo.join(' | '),
+                  size: 20,
+                }),
+              ],
+              spacing: { after: 180 },
+            })
+          );
+        }
+      }
+    });
+  }
+
+  // Create the document
+  console.log('[DOCX] Creating document with', sections.length, 'sections');
+  
+  try {
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: sections,
+        },
+      ],
+    });
+
+    // Generate the document buffer
+    console.log('[DOCX] Generating document buffer...');
+    const buffer = await Packer.toBuffer(doc);
+    console.log('[DOCX] Document generated successfully, size:', buffer.length);
+    return new Uint8Array(buffer);
+  } catch (error) {
+    console.error('[DOCX] Error generating document:', error);
+    throw error;
+  }
 }

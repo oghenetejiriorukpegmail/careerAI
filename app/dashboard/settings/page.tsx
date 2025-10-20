@@ -24,64 +24,69 @@ const AI_PROVIDERS = [
 // Define available AI models by provider
 const AI_MODELS = {
   requesty: [
+    { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Latest)' },
+    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
     { id: 'coding/gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview (Coding)' },
     { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (Fast)' },
-    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
-    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (Fast)' },
-    { id: 'meta/llama-3-70b-instruct', name: 'Llama 3 70B' },
-    { id: 'mistral/mistral-large', name: 'Mistral Large' },
+    { id: 'meta/llama-4-maverick', name: 'Llama 4 Maverick (400B MoE)' },
+    { id: 'meta/llama-4-scout', name: 'Llama 4 Scout (109B MoE)' },
   ],
   openrouter: [
-    // Free Models
-    { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Recommended - Free)' },
-    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash Experimental (Free)' },
-    { id: 'deepseek/deepseek-r1-0528:free', name: 'DeepSeek R1 (Free)' },
-    { id: 'mistralai/devstral-small:free', name: 'Mistral DevStral Small (Free)' },
-    { id: 'mistral/mistral-large-2407:free', name: 'Mistral Large (Free)' },
-    // Google Models
-    { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-    { id: 'google/gemini-2.5-flash-preview-05-20', name: 'Gemini 2.5 Flash Preview (Latest)' },
-    { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (April)' },
-    { id: 'google/gemini-2.5-flash-preview-05-20:thinking', name: 'Gemini 2.5 Flash (Thinking Mode)' },
-    { id: 'google/gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-    { id: 'google/gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-    // Anthropic Models
+    // 🔥 Latest 2025 Models - Premium
+    { id: 'openai/gpt-5', name: '🔥 GPT-5 (Aug 2025 - Ultimate)' },
+    { id: 'anthropic/claude-opus-4.1', name: '🔥 Claude Opus 4.1 (Aug 2025 - 74.5% SWE-bench)' },
+    { id: 'moonshotai/kimi-k2', name: '🔥 Kimi K2 (1T params - Best Value)' },
+    { id: 'meta/llama-4-maverick', name: '🔥 Llama 4 Maverick (400B MoE)' },
+    
+    // ⚡ Latest 2025 Models - Cost-Effective
+    { id: 'openai/gpt-5-mini', name: '⚡ GPT-5 Mini (Aug 2025 - Fast & Cheap)' },
+    { id: 'qwen/qwen3-30b-a3b-instruct-2507', name: '⚡ Qwen3 30B A3B (1M context)' },
+    { id: 'zhipu/glm-4.5', name: '⚡ GLM 4.5 (355B MoE - Agent-Native)' },
+    { id: 'meta/llama-4-scout', name: '⚡ Llama 4 Scout (109B MoE - Fast)' },
+    
+    // 🆓 Free Tier Models (2025)
+    { id: 'openai/gpt-oss-120b:free', name: '🆕 GPT-OSS 120B (OpenAI Open Source)' },
+    { id: 'openai/gpt-oss-20b:free', name: '🆕 GPT-OSS 20B (OpenAI Open Source)' },
+    { id: 'moonshotai/kimi-k2:free', name: 'Kimi K2 (Free Tier)' },
+    { id: 'x-ai/grok-4-fast:free', name: '🆕 Grok 4 Fast (Free)' },
+    { id: 'zhipu/glm-4.5:free', name: 'GLM 4.5 (Free Tier)' },
+    { id: 'deepseek/deepseek-r1-zero:free', name: 'DeepSeek R1 Zero (Free)' },
+    { id: 'qwen/qwen3-30b-a3b-instruct-2507:free', name: 'Qwen3 30B A3B (Free)' },
+
+    // Reliable Options
     { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
-    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (Fast)' },
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
-    { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
-    // OpenAI Models
-    { id: 'openai/gpt-4o', name: 'GPT-4o' },
-    { id: 'openai/gpt-4-vision-preview', name: 'GPT-4 Vision' },
-    // DeepSeek Models
-    { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Paid)' },
-    // xAI Models
     { id: 'x-ai/grok-4', name: 'Grok 4' },
-    // MoonshotAI Models
-    { id: 'moonshotai/kimi-k2', name: 'Kimi K2' },
+    { id: 'x-ai/grok-code-fast-1', name: 'Grok Code Fast 1 (Specialized for Code)' },
+    { id: 'openai/gpt-4o', name: 'GPT-4o' },
+    { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    
+    // Legacy (for comparison)
+    { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Previous Default)' },
   ],
   anthropic: [
+    { id: 'claude-opus-4.1', name: 'Claude Opus 4.1 (Latest - 74.5% SWE-bench)' },
     { id: 'claude-sonnet-4', name: 'Claude Sonnet 4' },
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
-    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
+    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Fast)' },
   ],
   google: [
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Latest)' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Latest)' },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-    { id: 'gemini-pro', name: 'Gemini Pro' },
   ],
   openai: [
+    { id: 'gpt-5', name: 'GPT-5 (Aug 2025 - Latest)' },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini (Aug 2025 - Cost Effective)' },
+    { id: 'gpt-5-nano', name: 'GPT-5 Nano (Aug 2025 - Ultra Fast)' },
     { id: 'gpt-4o', name: 'GPT-4o' },
     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
-    { id: 'gpt-4', name: 'GPT-4' },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
   ],
   vertex: [
+    { id: 'vertex/anthropic/claude-opus-4.1@us-east5', name: 'Claude Opus 4.1 (Vertex)' },
     { id: 'vertex/anthropic/claude-sonnet-4@us-east5', name: 'Claude Sonnet 4 (Vertex)' },
-    { id: 'vertex/anthropic/claude-3-opus-latest@us-east5', name: 'Claude 3 Opus (Vertex)' },
-    { id: 'vertex/anthropic/claude-3-sonnet-latest@us-east5', name: 'Claude 3 Sonnet (Vertex)' },
+    { id: 'vertex/gemini-2.5-pro-latest@us-east5', name: 'Gemini 2.5 Pro (Vertex)' },
     { id: 'vertex/gemini-1.5-pro-latest@us-east5', name: 'Gemini 1.5 Pro (Vertex)' },
   ],
 };
@@ -96,11 +101,11 @@ interface UserSettings {
   updatedAt?: number;
 }
 
-// Default settings
+// Default settings - Updated for 2025 models
 const defaultSettings: UserSettings = {
   aiProvider: 'openrouter',
-  aiModel: 'qwen/qwen3-235b-a22b:free',
-  visionModel: 'google/gemini-2.0-flash-exp:free',
+  aiModel: 'moonshotai/kimi-k2:free', // Best free model in 2025
+  visionModel: 'qwen/qwen2.5-vl-72b-instruct:free', // Free vision model
   documentAiOnly: true,
   enableLogging: true,
   showAiAttribution: false,
@@ -113,8 +118,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [resettingCache, setResettingCache] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<string>('openrouter');
-  const [selectedModel, setSelectedModel] = useState<string>('qwen/qwen3-235b-a22b:free');
-  const [selectedVisionModel, setSelectedVisionModel] = useState<string>('google/gemini-2.0-flash-exp:free');
+  const [selectedModel, setSelectedModel] = useState<string>('moonshotai/kimi-k2:free');
+  const [selectedVisionModel, setSelectedVisionModel] = useState<string>('qwen/qwen2.5-vl-72b-instruct:free');
   const [documentAiOnly, setDocumentAiOnly] = useState<boolean>(true);
   const [enableLogging, setEnableLogging] = useState<boolean>(true);
   const [showAiAttribution, setShowAiAttribution] = useState<boolean>(false);

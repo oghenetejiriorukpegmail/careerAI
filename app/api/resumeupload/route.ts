@@ -100,15 +100,45 @@ function normalizeSkills(data: any): any {
   return normalized;
 }
 
+// Function to load settings for a specific user
+async function loadUserSettings(userId: string) {
+  try {
+    const { createServiceRoleClient } = await import('@/lib/supabase/server-client');
+    const { defaultSettings } = await import('@/lib/utils/settings');
+    
+    // Use service role client to bypass RLS and access database
+    const supabaseAdmin = createServiceRoleClient();
+    const { data, error } = await supabaseAdmin
+      .from('user_settings')
+      .select('settings')
+      .eq('user_id', userId)
+      .single();
+      
+    if (!error && data?.settings) {
+      console.log(`[USER SETTINGS] Loaded settings from database for user: ${userId}`, {
+        provider: data.settings.aiProvider,
+        model: data.settings.aiModel
+      });
+      return data.settings;
+    } else {
+      console.log(`[USER SETTINGS] No settings found for user ${userId}, using defaults`);
+      return defaultSettings;
+    }
+  } catch (error) {
+    console.error(`[USER SETTINGS] Error loading settings for user ${userId}:`, error);
+    const { defaultSettings } = await import('@/lib/utils/settings');
+    return defaultSettings;
+  }
+}
+
 // AI-powered resume parsing function
-async function parseResumeText(text: string) {
+async function parseResumeText(text: string, userId?: string) {
   try {
     // Import AI configuration functions
     const { queryAI } = await import('@/lib/ai/config');
-    const { loadServerSettings } = await import('@/lib/ai/settings-loader');
     
-    // Load current AI settings
-    const settings = loadServerSettings();
+    // Load user-specific AI settings
+    const settings = userId ? await loadUserSettings(userId) : (await import('@/lib/ai/settings-loader')).loadServerSettings();
     
     console.log(`[AI PROCESSING] Starting resume parsing with provider: ${settings.aiProvider}, model: ${settings.aiModel}`);
     console.log(`[AI PROCESSING] Text length: ${text.length} characters`);
@@ -174,7 +204,7 @@ async function parseResumeText(text: string) {
     console.log(`[AI PROCESSING] Sending request to ${settings.aiProvider} with model ${settings.aiModel}`);
     const startTime = Date.now();
     
-    const response = await queryAI(userPrompt, systemPrompt);
+    const response = await queryAI(userPrompt, systemPrompt, settings, 'resume-parsing');
     
     const endTime = Date.now();
     const processingTime = endTime - startTime;
@@ -196,9 +226,39 @@ async function parseResumeText(text: string) {
 
     // Parse the JSON response with enhanced error handling
     let structuredData;
+    
+    // First, extract JSON from potentially wrapped content (thinking tags, markdown, etc.)
+    const extractJSONFromResponse = (content: string): string => {
+      let cleaned = content.trim();
+      
+      // Remove thinking tags if present
+      if (cleaned.includes('<think>') && cleaned.includes('</think>')) {
+        const thinkStart = cleaned.indexOf('<think>');
+        const thinkEnd = cleaned.lastIndexOf('</think>') + 8;
+        cleaned = cleaned.substring(0, thinkStart) + cleaned.substring(thinkEnd);
+        console.log(`[AI PROCESSING] Removed thinking tags from response`);
+      }
+      
+      // Remove markdown code blocks if present
+      cleaned = cleaned.replace(/^```(?:json)?\s*/gm, '').replace(/```\s*$/gm, '');
+      
+      // Look for JSON object boundaries
+      const jsonStart = cleaned.indexOf('{');
+      const jsonEnd = cleaned.lastIndexOf('}');
+      
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+        console.log(`[AI PROCESSING] Extracted JSON from position ${jsonStart} to ${jsonEnd + 1}`);
+      }
+      
+      return cleaned.trim();
+    };
+    
+    const cleanedContent = extractJSONFromResponse(parsedContent);
+    
     try {
-      // First, try parsing as-is
-      structuredData = JSON.parse(parsedContent);
+      // First, try parsing the cleaned content
+      structuredData = JSON.parse(cleanedContent);
       console.log(`[AI PROCESSING] Successfully parsed JSON response`);
       
       if (settings.enableLogging) {
@@ -216,6 +276,8 @@ async function parseResumeText(text: string) {
       structuredData = normalizeSkills(structuredData);
     } catch (parseError) {
       console.error('[AI PROCESSING] Initial JSON parsing failed:', parseError);
+      console.log('[AI PROCESSING] Original content length:', parsedContent.length);
+      console.log('[AI PROCESSING] Cleaned content length:', cleanedContent.length);
       console.log('[AI PROCESSING] Attempting to fix malformed JSON...');
       
       // Advanced JSON repair function
@@ -314,7 +376,7 @@ async function parseResumeText(text: string) {
         return fixed;
       }
       
-      const fixedContent = repairJSON(parsedContent);
+      const fixedContent = repairJSON(cleanedContent);
       
       try {
         structuredData = JSON.parse(fixedContent);
@@ -336,9 +398,11 @@ async function parseResumeText(text: string) {
       } catch (secondParseError) {
         console.error('[AI PROCESSING] JSON fixing failed:', secondParseError);
         console.error('[AI PROCESSING] Original content length:', parsedContent.length);
+        console.error('[AI PROCESSING] Cleaned content length:', cleanedContent.length);
         console.error('[AI PROCESSING] Fixed content length:', fixedContent.length);
-        console.error('[AI PROCESSING] Raw content causing parse error (first 1000 chars):', parsedContent.substring(0, 1000));
-        console.error('[AI PROCESSING] Raw content causing parse error (last 1000 chars):', parsedContent.substring(Math.max(0, parsedContent.length - 1000)));
+        console.error('[AI PROCESSING] Original content preview (first 500 chars):', parsedContent.substring(0, 500));
+        console.error('[AI PROCESSING] Cleaned content causing parse error (first 1000 chars):', cleanedContent.substring(0, 1000));
+        console.error('[AI PROCESSING] Cleaned content causing parse error (last 1000 chars):', cleanedContent.substring(Math.max(0, cleanedContent.length - 1000)));
         
         // Return a basic structure with extracted text as fallback
         structuredData = {
@@ -346,14 +410,15 @@ async function parseResumeText(text: string) {
           summary: "AI response was malformed. Raw text extraction successful but structured parsing failed.",
           parse_error: true,
           error_details: parseError instanceof Error ? parseError.message : 'Unknown parsing error',
-          raw_content_length: parsedContent.length
+          raw_content_length: parsedContent.length,
+          cleaned_content_length: cleanedContent.length
         };
         
         console.log(`[AI PROCESSING] Using fallback structure due to parsing failure`);
       }
     }
 
-    return structuredData;
+    return { structuredData, settings };
   } catch (error) {
     console.error('[AI PROCESSING] Error parsing resume with AI:', error);
     throw error;
@@ -395,10 +460,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`[DOCUMENT PROCESSING] Processing resume: ${file.name} (${file.size} bytes)`);
 
-    // Load AI settings for later use
-    const { loadServerSettings } = await import('@/lib/ai/settings-loader');
-    const settings = loadServerSettings();
-
     // Convert file to buffer
     const fileBuffer = await file.arrayBuffer();
 
@@ -426,7 +487,7 @@ export async function POST(request: NextRequest) {
     console.log('[AI PARSING] Starting resume structure parsing...');
     const aiParsingStartTime = Date.now();
     
-    const structuredData = await parseResumeText(extractedText);
+    const { structuredData, settings } = await parseResumeText(extractedText, userId);
     
     const aiParsingEndTime = Date.now();
     const aiParsingTime = aiParsingEndTime - aiParsingStartTime;
