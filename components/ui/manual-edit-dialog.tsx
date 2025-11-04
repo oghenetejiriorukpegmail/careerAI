@@ -174,7 +174,8 @@ export function ManualEditDialog({
   const handleObjectAdd = () => {
     const newObject: any = {};
     fieldDefinitions.forEach(field => {
-      newObject[field.key] = '';
+      // Initialize array fields with empty arrays, others with empty strings
+      newObject[field.key] = field.type === 'array' ? [] : '';
     });
     const currentArray = Array.isArray(editedContent) ? editedContent : [];
     setEditedContent([...currentArray, newObject]);
@@ -265,7 +266,7 @@ export function ManualEditDialog({
                           onDragEnd={(event) => {
                             const { active, over } = event;
                             if (active.id !== over?.id) {
-                              const bullets = item[field.key] || [];
+                              const bullets = Array.isArray(item[field.key]) ? item[field.key] : [];
                               const oldIndex = parseInt(active.id as string);
                               const newIndex = parseInt(over?.id as string);
                               const newBullets = arrayMove(bullets, oldIndex, newIndex);
@@ -274,7 +275,7 @@ export function ManualEditDialog({
                           }}
                         >
                           <SortableContext
-                            items={(item[field.key] || []).map((_: any, i: number) => i.toString())}
+                            items={(Array.isArray(item[field.key]) ? item[field.key] : []).map((_: any, i: number) => i.toString())}
                             strategy={verticalListSortingStrategy}
                           >
                             {(Array.isArray(item[field.key]) ? item[field.key] : []).map((bulletItem: string, bulletIndex: number) => (
@@ -283,7 +284,8 @@ export function ManualEditDialog({
                                   <Textarea
                                     value={bulletItem}
                                     onChange={(e) => {
-                                      const newBullets = [...(item[field.key] || [])];
+                                      const currentBullets = Array.isArray(item[field.key]) ? item[field.key] : [];
+                                      const newBullets = [...currentBullets];
                                       newBullets[bulletIndex] = e.target.value;
                                       handleObjectFieldChange(index, field.key, newBullets);
                                     }}
@@ -294,7 +296,8 @@ export function ManualEditDialog({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => {
-                                      const newBullets = (item[field.key] || []).filter((_: any, i: number) => i !== bulletIndex);
+                                      const currentBullets = Array.isArray(item[field.key]) ? item[field.key] : [];
+                                      const newBullets = currentBullets.filter((_: any, i: number) => i !== bulletIndex);
                                       handleObjectFieldChange(index, field.key, newBullets);
                                     }}
                                     className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
@@ -311,7 +314,8 @@ export function ManualEditDialog({
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const newBullets = [...(item[field.key] || []), ''];
+                          const currentBullets = Array.isArray(item[field.key]) ? item[field.key] : [];
+                          const newBullets = [...currentBullets, ''];
                           handleObjectFieldChange(index, field.key, newBullets);
                         }}
                         className="w-full text-xs"

@@ -19,12 +19,16 @@ export interface ResumeData {
     endDate?: string;
     summary?: string;
     description: string[];
+    technologies?: string[];
   }>;
   education: Array<{
     institution: string;
     degree: string;
     field?: string;
     graduationDate?: string;
+    year?: string;
+    location?: string;
+    gpa?: string;
   }>;
   skills: string[];
   certifications?: Array<{
@@ -46,6 +50,9 @@ export interface ResumeData {
   projects?: Array<{
     name: string;
     description: string;
+    technologies?: string[];
+    date?: string;
+    url?: string;
   }>;
   references?: Array<{
     name: string;
@@ -54,6 +61,10 @@ export interface ResumeData {
     phone?: string;
     email?: string;
     relationship?: string;
+  }>;
+  languages?: Array<{
+    language: string;
+    proficiency: string;
   }>;
   workAuthorization?: string;
 }
@@ -90,13 +101,68 @@ const colors = {
   white: rgb(1, 1, 1)                    // Pure white
 };
 
+// Helper function to parse date strings into sortable values
+function parseDateForSorting(dateString: string): number {
+  if (!dateString) return 0;
+
+  // Handle "Present" or current job
+  if (dateString.toLowerCase() === 'present' || dateString.toLowerCase() === 'current') {
+    return Date.now();
+  }
+
+  // Try parsing as full date first
+  const fullDate = new Date(dateString);
+  if (!isNaN(fullDate.getTime())) {
+    return fullDate.getTime();
+  }
+
+  // Try parsing year-month formats like "2024-01" or "Jan 2024"
+  const yearMonthMatch = dateString.match(/(\d{4})-(\d{2})/);
+  if (yearMonthMatch) {
+    return new Date(parseInt(yearMonthMatch[1]), parseInt(yearMonthMatch[2]) - 1).getTime();
+  }
+
+  // Try parsing month-year formats like "January 2024"
+  const monthYearMatch = dateString.match(/([A-Za-z]+)\s+(\d{4})/);
+  if (monthYearMatch) {
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+                       'july', 'august', 'september', 'october', 'november', 'december'];
+    const monthIndex = monthNames.indexOf(monthYearMatch[1].toLowerCase());
+    if (monthIndex !== -1) {
+      return new Date(parseInt(monthYearMatch[2]), monthIndex).getTime();
+    }
+  }
+
+  // Try parsing just year
+  const yearMatch = dateString.match(/(\d{4})/);
+  if (yearMatch) {
+    return new Date(parseInt(yearMatch[1]), 0).getTime();
+  }
+
+  return 0;
+}
+
+// Helper function to sort experience chronologically (most recent first)
+function sortExperienceChronologically<T extends { startDate?: string; endDate?: string }>(experience: T[]): T[] {
+  if (!experience || !Array.isArray(experience)) return [];
+
+  return [...experience].sort((a, b) => {
+    // Use endDate for sorting, fallback to startDate if no endDate
+    const dateA = parseDateForSorting(a.endDate || a.startDate || '');
+    const dateB = parseDateForSorting(b.endDate || b.startDate || '');
+
+    // Sort descending (most recent first)
+    return dateB - dateA;
+  });
+}
+
 // Helper function to format dates consistently
 function formatCertificationDate(dateString: string): string {
   if (!dateString) return '';
-  
+
   // Try to parse the date
   const date = new Date(dateString);
-  
+
   // Check if it's a valid date
   if (!isNaN(date.getTime())) {
     // Format as "Month Year" (e.g., "October 2023")
@@ -269,6 +335,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
     contactEmail: data.contactInfo?.email,
     hasContactInfo: !!data.contactInfo
   });
+
+  // Sort experience chronologically (most recent first)
+  if (data.experience) {
+    data.experience = sortExperienceChronologically(data.experience);
+  }
 
   const pdfDoc = await PDFDocument.create();
   let currentPage = pdfDoc.addPage([612, 792]); // US Letter
@@ -486,10 +557,31 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentY = drawWrappedText(bullet, margins.left + 15, 10, helvetica, colors.secondary, contentWidth - 15, 1.5);
       currentY -= 5;
     }
-    
+
+    // Technologies used (if available)
+    if (job.technologies && job.technologies.length > 0) {
+      const pageInfoTech = checkAndAddPage(pdfDoc, currentPage, currentY, 15, margins);
+      currentPage = pageInfoTech.page;
+      currentY = pageInfoTech.y;
+
+      currentPage.drawText('Technologies: ', {
+        x: margins.left + 15,
+        y: currentY,
+        size: 9.5,
+        font: helveticaBold,
+        color: colors.secondary,
+      });
+
+      const techLabelWidth = helveticaBold.widthOfTextAtSize('Technologies: ', 9.5);
+      const technologiesText = job.technologies.join(', ');
+
+      currentY = drawWrappedText(technologiesText, margins.left + 15 + techLabelWidth, 9.5, helvetica, colors.secondary, contentWidth - 15 - techLabelWidth, 1.3);
+      currentY -= 8;
+    }
+
     currentY -= 10;
   }
-  
+
   // EDUCATION SECTION
   const pageInfo4 = checkSectionStart(pdfDoc, currentPage, currentY, 60, margins);
   currentPage = pageInfo4.page;
@@ -511,11 +603,12 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       font: helveticaBold,
       color: colors.primary,
     });
-    
+
     // Graduation date (right-aligned)
-    if (edu.graduationDate) {
-      const dateWidth = helvetica.widthOfTextAtSize(edu.graduationDate, 9);
-      currentPage.drawText(edu.graduationDate, {
+    const graduationDate = edu.graduationDate || edu.year;
+    if (graduationDate) {
+      const dateWidth = helvetica.widthOfTextAtSize(graduationDate, 9);
+      currentPage.drawText(graduationDate, {
         x: width - margins.right - dateWidth,
         y: currentY,
         size: 9,
@@ -524,7 +617,7 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       });
     }
     currentY -= 16;
-    
+
     // Institution
     currentPage.drawText(edu.institution, {
       x: margins.left,
@@ -533,7 +626,25 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       font: helvetica,
       color: colors.secondary,
     });
-    currentY -= 20;
+    currentY -= 14;
+
+    // Additional details (location and GPA)
+    const eduDetails = [];
+    if (edu.location) eduDetails.push(edu.location);
+    if (edu.gpa) eduDetails.push(`GPA: ${edu.gpa}`);
+
+    if (eduDetails.length > 0) {
+      currentPage.drawText(eduDetails.join(' | '), {
+        x: margins.left,
+        y: currentY,
+        size: 9,
+        font: helvetica,
+        color: colors.secondary,
+      });
+      currentY -= 14;
+    }
+
+    currentY -= 6;
   }
   
   // SKILLS SECTION - Enhanced for Executive-Level Technical Prowess ($500K+ roles)
@@ -882,7 +993,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       
       // Enhanced project name with executive-level formatting
       if (project.name && project.name.trim()) {
-        currentY = drawWrappedText(project.name.trim(), margins.left, 12, helveticaBold, colors.primary, contentWidth, 1.3);
+        let projectNameText = project.name.trim();
+        if (project.date) {
+          projectNameText += ` (${project.date})`;
+        }
+        currentY = drawWrappedText(projectNameText, margins.left, 12, helveticaBold, colors.primary, contentWidth, 1.3);
         currentY -= 6; // Reduced spacing after title
       }
       
@@ -900,11 +1015,11 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         
         currentY = drawWrappedText(description, margins.left + 15, 10.5, helvetica, colors.text, contentWidth - 15, 1.2);
         currentY -= 6; // Space before tech tags
-        
-        // Extract and display technology tags
+
+        // Use provided technologies or extract from text
         const projectText = (project.name || '') + ' ' + description;
-        const technologies = extractTechnologies(projectText);
-        
+        const technologies = project.technologies || extractTechnologies(projectText);
+
         if (technologies.length > 0) {
           // Draw technology tags
           let techX = margins.left + 15;
@@ -965,10 +1080,10 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
         });
         
         currentY = drawWrappedText('Strategic initiative contributing to organizational objectives and business growth.', margins.left + 15, 10, helvetica, colors.secondary, contentWidth - 15, 1.5);
-        
-        // Extract technologies from project name if no description
-        const technologies = extractTechnologies(project.name);
-        
+
+        // Use provided technologies or extract from project name if no description
+        const technologies = project.technologies || extractTechnologies(project.name);
+
         if (technologies.length > 0) {
           currentY -= 6; // Space before tech tags
           
@@ -1025,7 +1140,36 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
       currentY -= 10; // Reduced spacing between projects
     }
   }
-  
+
+  // Languages section
+  if (data.languages && data.languages.length > 0) {
+    const pageInfoLang = checkSectionStart(pdfDoc, currentPage, currentY, 70, margins);
+    currentPage = pageInfoLang.page;
+    currentY = pageInfoLang.y;
+
+    currentY = drawSectionHeader(currentPage, 'Languages', margins.left, currentY, contentWidth, helveticaBold);
+
+    for (const lang of data.languages) {
+      const pageInfoLangItem = checkAndAddPage(pdfDoc, currentPage, currentY, 25, margins);
+      currentPage = pageInfoLangItem.page;
+      currentY = pageInfoLangItem.y;
+
+      // Language name and proficiency
+      const languageText = `${lang.language}: ${lang.proficiency}`;
+      currentPage.drawText(languageText, {
+        x: margins.left,
+        y: currentY,
+        size: 11,
+        font: helvetica,
+        color: colors.text,
+      });
+
+      currentY -= 15; // Spacing between language items
+    }
+
+    currentY -= 5; // Extra spacing after languages section
+  }
+
   // References section
   if (data.references && data.references.length > 0) {
     const pageInfoRef = checkSectionStart(pdfDoc, currentPage, currentY, 70, margins);

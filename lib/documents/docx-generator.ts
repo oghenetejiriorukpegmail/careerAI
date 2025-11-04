@@ -67,13 +67,68 @@ function getTechColor(tech: string): string {
   return '6b7280';
 }
 
+// Helper function to parse date strings into sortable values
+function parseDateForSorting(dateString: string): number {
+  if (!dateString) return 0;
+
+  // Handle "Present" or current job
+  if (dateString.toLowerCase() === 'present' || dateString.toLowerCase() === 'current') {
+    return Date.now();
+  }
+
+  // Try parsing as full date first
+  const fullDate = new Date(dateString);
+  if (!isNaN(fullDate.getTime())) {
+    return fullDate.getTime();
+  }
+
+  // Try parsing year-month formats like "2024-01" or "Jan 2024"
+  const yearMonthMatch = dateString.match(/(\d{4})-(\d{2})/);
+  if (yearMonthMatch) {
+    return new Date(parseInt(yearMonthMatch[1]), parseInt(yearMonthMatch[2]) - 1).getTime();
+  }
+
+  // Try parsing month-year formats like "January 2024"
+  const monthYearMatch = dateString.match(/([A-Za-z]+)\s+(\d{4})/);
+  if (monthYearMatch) {
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+                       'july', 'august', 'september', 'october', 'november', 'december'];
+    const monthIndex = monthNames.indexOf(monthYearMatch[1].toLowerCase());
+    if (monthIndex !== -1) {
+      return new Date(parseInt(monthYearMatch[2]), monthIndex).getTime();
+    }
+  }
+
+  // Try parsing just year
+  const yearMatch = dateString.match(/(\d{4})/);
+  if (yearMatch) {
+    return new Date(parseInt(yearMatch[1]), 0).getTime();
+  }
+
+  return 0;
+}
+
+// Helper function to sort experience chronologically (most recent first)
+function sortExperienceChronologically<T extends { startDate?: string; endDate?: string; duration?: string }>(experience: T[]): T[] {
+  if (!experience || !Array.isArray(experience)) return [];
+
+  return [...experience].sort((a, b) => {
+    // Use endDate for sorting, fallback to startDate if no endDate
+    const dateA = parseDateForSorting(a.endDate || a.startDate || a.duration || '');
+    const dateB = parseDateForSorting(b.endDate || b.startDate || b.duration || '');
+
+    // Sort descending (most recent first)
+    return dateB - dateA;
+  });
+}
+
 // Helper function to format dates consistently
 function formatCertificationDate(dateString: string): string {
   if (!dateString) return '';
-  
+
   // Try to parse the date
   const date = new Date(dateString);
-  
+
   // Check if it's a valid date
   if (!isNaN(date.getTime())) {
     // Format as "Month Year" (e.g., "October 2023")
@@ -200,6 +255,11 @@ export async function generateResumeDocx(resumeData: ResumeData): Promise<Uint8A
     references: resumeData.references?.length || 0,
     languages: resumeData.languages?.length || 0
   });
+
+  // Sort experience chronologically (most recent first)
+  if (resumeData.experience) {
+    resumeData.experience = sortExperienceChronologically(resumeData.experience);
+  }
 
   const sections = [];
 

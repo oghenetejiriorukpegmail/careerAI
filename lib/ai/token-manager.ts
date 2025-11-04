@@ -38,6 +38,7 @@ export const MODEL_TOKEN_CONFIGS: Record<string, TokenConfig> = {
   'claude-opus-4.1': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 15, supportsLongContext: true },
   'claude-sonnet-4': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
   'anthropic/claude-sonnet-4': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
+  'anthropic/claude-haiku-4.5': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.8, supportsLongContext: true },
   'claude-3-opus': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 15, supportsLongContext: true },
   'claude-3-sonnet': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
   'claude-3-haiku': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.25, supportsLongContext: true },

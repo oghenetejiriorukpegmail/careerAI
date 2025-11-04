@@ -55,6 +55,7 @@ const AI_MODELS = {
 
     // Reliable Options
     { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
+    { id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5 (Fast & Cost-Effective)' },
     { id: 'x-ai/grok-4', name: 'Grok 4' },
     { id: 'x-ai/grok-code-fast-1', name: 'Grok Code Fast 1 (Specialized for Code)' },
     { id: 'openai/gpt-4o', name: 'GPT-4o' },

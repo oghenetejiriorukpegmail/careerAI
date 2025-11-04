@@ -530,13 +530,13 @@ export default function ResumeViewPage() {
                         </SortableSection>
                       );
                     case "experience":
-                      return resume.parsed_data.experience && resume.parsed_data.experience.length > 0 ? (
+                      return (
                         <SortableSection key={sectionId} id={sectionId}>
                           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
                             <ExperienceSection data={resume.parsed_data.experience} onRewrite={handleRewriteClick} onManualEdit={handleManualEditClick} />
                           </Card>
                         </SortableSection>
-                      ) : null;
+                      );
                     case "education":
                       return resume.parsed_data.education && resume.parsed_data.education.length > 0 ? (
                         <SortableSection key={sectionId} id={sectionId}>

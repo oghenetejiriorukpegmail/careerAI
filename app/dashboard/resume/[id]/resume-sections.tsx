@@ -2,8 +2,63 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Phone, MapPin, Globe, Users, Briefcase, GraduationCap, Code, Award, BookOpen, Wrench, Trophy, Star, FileText, Zap, Edit2, Sparkles, Edit3, ShieldCheck } from "lucide-react";
+import { User, Mail, Phone, MapPin, Globe, Users, Briefcase, GraduationCap, Code, Award, BookOpen, Wrench, Trophy, Star, FileText, Zap, Edit2, Sparkles, Edit3, ShieldCheck, Plus } from "lucide-react";
 import { safeRender, logZoneObjects } from "@/lib/utils/safe-render";
+
+// Helper function to parse date strings into sortable values
+function parseDateForSorting(dateString: string): number {
+  if (!dateString) return 0;
+
+  // Handle "Present" or current job
+  if (dateString.toLowerCase() === 'present' || dateString.toLowerCase() === 'current') {
+    return Date.now();
+  }
+
+  // Try parsing as full date first
+  const fullDate = new Date(dateString);
+  if (!isNaN(fullDate.getTime())) {
+    return fullDate.getTime();
+  }
+
+  // Try parsing year-month formats like "2024-01" or "Jan 2024"
+  const yearMonthMatch = dateString.match(/(\d{4})-(\d{2})/);
+  if (yearMonthMatch) {
+    return new Date(parseInt(yearMonthMatch[1]), parseInt(yearMonthMatch[2]) - 1).getTime();
+  }
+
+  // Try parsing month-year formats like "January 2024"
+  const monthYearMatch = dateString.match(/([A-Za-z]+)\s+(\d{4})/);
+  if (monthYearMatch) {
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+                       'july', 'august', 'september', 'october', 'november', 'december'];
+    const monthIndex = monthNames.indexOf(monthYearMatch[1].toLowerCase());
+    if (monthIndex !== -1) {
+      return new Date(parseInt(monthYearMatch[2]), monthIndex).getTime();
+    }
+  }
+
+  // Try parsing just year
+  const yearMatch = dateString.match(/(\d{4})/);
+  if (yearMatch) {
+    return new Date(parseInt(yearMatch[1]), 0).getTime();
+  }
+
+  return 0;
+}
+
+// Helper function to sort experience chronologically (most recent first)
+function sortExperienceChronologically<T extends { startDate?: string; endDate?: string; duration?: string }>(experience: T[]): T[] {
+  if (!experience || !Array.isArray(experience)) return [];
+
+  return [...experience].sort((a, b) => {
+    // Use endDate for sorting, fallback to startDate or duration if no endDate
+    const dateA = parseDateForSorting(a.endDate || a.startDate || a.duration || '');
+    const dateB = parseDateForSorting(b.endDate || b.startDate || b.duration || '');
+
+    // Sort descending (most recent first)
+    return dateB - dateA;
+  });
+}
 
 interface SectionProps {
   data: any;
@@ -170,19 +225,56 @@ export function PersonalInfoSection({ data, onRewrite, onManualEdit }: SectionPr
 }
 
 export function ExperienceSection({ data, onRewrite, onManualEdit }: SectionProps) {
-  if (!data || data.length === 0) return null;
-  
+  const fieldDefs = [
+    { key: 'title', label: 'Job Title', type: 'text' as const },
+    { key: 'company', label: 'Company', type: 'text' as const },
+    { key: 'duration', label: 'Duration', type: 'text' as const },
+    { key: 'description', label: 'Description', type: 'array' as const }
+  ];
+
+  // Sort experience chronologically (most recent first)
+  const experiences = Array.isArray(data) ? sortExperienceChronologically(data) : [];
+  const hasExperiences = experiences.length > 0;
+
   return (
     <>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Briefcase className="h-5 w-5 text-orange-600" />
-          Experience ({data.length})
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Briefcase className="h-5 w-5 text-orange-600" />
+            Experience ({experiences.length})
+          </CardTitle>
+          {onManualEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onManualEdit(
+                  "Manage Experience",
+                  experiences,
+                  ["experience"],
+                  "array-of-objects",
+                  fieldDefs
+                );
+              }}
+              className="print:hidden"
+              title="Add or Edit Experience"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {hasExperiences ? 'Add' : 'Add Experience'}
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {data.map((exp: any, index: number) => (
+        {!hasExperiences ? (
+          <div className="text-center py-8 text-slate-500">
+            <Briefcase className="h-12 w-12 mx-auto mb-2 text-slate-300" />
+            <p>No experience entries yet. Click "Add Experience" to get started.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {experiences.map((exp: any, index: number) => (
             <div key={index} className="relative pl-5 pb-4 border-l-2 border-orange-200 last:border-l-0 last:pb-0">
               <div className="absolute -left-[9px] top-0 w-4 h-4 bg-orange-500 rounded-full border-2 border-white"></div>
               <div className="bg-gradient-to-r from-orange-50 to-red-50 p-3 rounded-lg">
@@ -275,7 +367,8 @@ export function ExperienceSection({ data, onRewrite, onManualEdit }: SectionProp
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </CardContent>
     </>
   );
