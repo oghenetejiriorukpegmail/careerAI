@@ -134,7 +134,7 @@ export async function scrapeJobWithJina(url: string): Promise<ParsedJobDescripti
           const fallbackUrl = `https://r.jina.ai/${encodeURIComponent(url)}`;
           const fallbackResponse = await fetch(fallbackUrl, {
             method: 'GET',
-            headers: strategy.headers
+            headers: strategy.headers as unknown as Record<string, string>
           });
           
           if (fallbackResponse.ok) {
@@ -544,7 +544,7 @@ function extractKeywords(content: string): string[] {
   }
 
   // Remove duplicates and return
-  return [...new Set(keywords)];
+  return Array.from(new Set(keywords));
 }
 
 function extractCompanyCulture(content: string): string[] {

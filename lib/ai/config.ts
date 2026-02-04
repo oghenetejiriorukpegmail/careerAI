@@ -1,4 +1,5 @@
 import { calculateOptimalTokens } from './token-manager';
+import OpenAI from 'openai';
 
 // Debug environment variables during initialization
 console.log('[AI_CONFIG] Initializing with environment:', {
@@ -1063,10 +1064,25 @@ function normalizeJson(jsonString: string): string {
   }
 }
 
-// Function to query OpenRouter API
+// Create OpenAI client configured for OpenRouter
+function getOpenRouterClient() {
+  return new OpenAI({
+    baseURL: AI_CONFIG.openrouter.baseUrl,
+    apiKey: AI_CONFIG.openrouter.apiKey,
+    defaultHeaders: {
+      'HTTP-Referer': 'https://careeraisystem.com',
+      'X-Title': 'CareerAI System'
+    },
+    timeout: 600000, // 10 minutes
+  });
+}
+
+// Function to query OpenRouter API using OpenAI SDK (handles streaming properly)
 export async function queryOpenRouter(prompt: string, systemPrompt?: string, useCase: string = 'default', tokenLimits?: any, bypassLimits: boolean = false, overrideModel?: string) {
+  const modelToUse = overrideModel || AI_CONFIG.openrouter.model;
+  const requestStartTime = Date.now();
+
   try {
-    const modelToUse = overrideModel || AI_CONFIG.openrouter.model;
     console.log(`Calling OpenRouter API with model: ${modelToUse}`);
     
     // Apply token limiting based on the model - Claude models have much higher limits
@@ -1088,48 +1104,26 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
     if (truncatedPrompt.length < originalLength) {
       console.log(`Truncated prompt from ${originalLength} to ${truncatedPrompt.length} characters`);
     }
-    
-    // Prepare the request body
-    const messages = [];
-    
-    // Add system prompt if provided
-    if (systemPrompt) {
-      messages.push({
-        role: 'system',
-        content: systemPrompt
-      });
-    }
-    
-    // Add user prompt
-    messages.push({
-      role: 'user',
-      content: truncatedPrompt
-    });
-    
-    // Log token usage of the prompt for debugging
+
+    // Log token usage
     logTokenUsage("OpenRouter prompt", truncatedPrompt, systemPrompt ? estimateTokenCount(systemPrompt) : 0);
 
-    // Add JSON formatting instructions to the system prompt if necessary
+    // Get OpenAI client configured for OpenRouter
+    const client = getOpenRouterClient();
+
+    // Build messages array
+    const messages: OpenAI.ChatCompletionMessageParam[] = [];
     if (systemPrompt) {
-      if (!systemPrompt.includes("JSON") && !systemPrompt.includes("json")) {
-        console.log("Adding JSON formatting to system prompt");
-        systemPrompt += "\nIMPORTANT: Return your response as a valid JSON object without any markdown formatting or code blocks.";
-      }
+      messages.push({ role: 'system', content: systemPrompt });
     }
-    
-    // Debug log the API key availability
-    if (!AI_CONFIG.openrouter.apiKey) {
-      console.error('[OPENROUTER] API key is not set! Check OPENROUTER_API_KEY environment variable.');
-      console.error('[OPENROUTER] Current env check:', {
-        hasKey: !!process.env.OPENROUTER_API_KEY,
-        keyPrefix: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.substring(0, 10) : 'undefined'
-      });
-    }
-    
-    // Prepare request body
-    const requestBody: any = {
+    messages.push({ role: 'user', content: truncatedPrompt });
+
+    console.log(`[OPENROUTER] Starting streaming request to ${modelToUse} at ${new Date().toISOString()}`);
+
+    // Use streaming for long-running requests to prevent TCP timeouts
+    const stream = await client.chat.completions.create({
       model: modelToUse,
-      messages: messages,
+      messages,
       temperature: 0.2,
       max_tokens: calculateOptimalTokens(
         modelToUse,
@@ -1138,51 +1132,47 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
         tokenLimits?.[useCase] || tokenLimits?.general,
         bypassLimits
       ),
-      top_p: 0.1,  // Lower top_p for more deterministic output
-      top_k: 40,   // Adjust top_k for more focused output
-    };
-    
-    // Only add response_format for Claude models that support it
-    const claudeModels = [
-      'anthropic/claude-sonnet-4',
-      'anthropic/claude-3-haiku', 
-      'claude-3-opus-20240229',
-      'claude-3-sonnet-20240229'
-    ];
-    
-    if (claudeModels.includes(modelToUse)) {
-      requestBody.response_format = { type: "json_object" };
-    }
-    
-    // Make the request to OpenRouter API
-    const response = await fetch(`${AI_CONFIG.openrouter.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_CONFIG.openrouter.apiKey}`,
-        'HTTP-Referer': 'https://careeraisystem.com',
-        'X-Title': 'CareerAI System'
-      },
-      body: JSON.stringify(requestBody),
-      // No timeout - let the request complete
-      // signal: AbortSignal.timeout(180000) // Removed timeout
+      stream: true
     });
-    
-    // Check for HTTP errors
-    if (!response.ok) {
-      let errorMessage = `Status ${response.status}: ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = JSON.stringify(errorData);
-        console.error('OpenRouter API error:', errorData);
-      } catch (parseError) {
-        console.error('Failed to parse OpenRouter error response:', parseError);
+
+    // Accumulate streaming response
+    let fullContent = '';
+    let chunkCount = 0;
+    let finishReason = 'stop';
+
+    console.log('[OPENROUTER] Reading streaming response...');
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || '';
+      if (delta) {
+        fullContent += delta;
+        chunkCount++;
       }
-      throw new Error(`OpenRouter API error: ${errorMessage}`);
+
+      if (chunk.choices[0]?.finish_reason) {
+        finishReason = chunk.choices[0].finish_reason;
+      }
+
+      // Log progress every 100 chunks
+      if (chunkCount > 0 && chunkCount % 100 === 0) {
+        console.log(`[OPENROUTER] Received ${chunkCount} chunks, ${fullContent.length} chars so far...`);
+      }
     }
-    
-    // Parse response JSON
-    const data = await response.json();
+
+    const streamElapsed = Date.now() - requestStartTime;
+    console.log(`[OPENROUTER] Streaming complete in ${streamElapsed}ms (${(streamElapsed / 1000).toFixed(1)}s), ${chunkCount} chunks, ${fullContent.length} chars, finish: ${finishReason}`);
+
+    // Build a response object that matches the non-streaming format
+    const data = {
+      choices: [{
+        message: {
+          content: fullContent,
+          role: 'assistant'
+        },
+        index: 0,
+        finish_reason: finishReason
+      }]
+    };
     
     // Log the raw response for debugging
     if (data.choices && data.choices[0] && data.choices[0].message) {
@@ -1406,8 +1396,28 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
     }
     
     return data;
-  } catch (error) {
-    console.error('Error calling OpenRouter:', error);
+  } catch (error: any) {
+    const errorElapsed = Date.now() - requestStartTime;
+    console.error(`[OPENROUTER] Error after ${errorElapsed}ms (${(errorElapsed / 1000).toFixed(1)}s):`, error);
+
+    // Check if this is a timeout or network error
+    if (error?.cause?.code === 'ETIMEDOUT' || error?.cause?.code === 'ENETUNREACH' ||
+        error?.name === 'AbortError' || error?.code === 'ECONNRESET') {
+      console.error('[OPENROUTER] Request timed out or network unreachable. The model may be taking too long to respond.');
+      throw new Error(`OpenRouter request failed after ${(errorElapsed / 1000).toFixed(1)}s: Network timeout. The ${modelToUse} model may be overloaded.`);
+    }
+
+    // Handle OpenAI SDK specific errors
+    if (error?.status) {
+      console.error(`[OPENROUTER] API error status: ${error.status}`);
+      if (error.status === 429) {
+        throw new Error(`Rate limit exceeded for ${modelToUse}. Please try again later.`);
+      }
+      if (error.status === 503) {
+        throw new Error(`Model ${modelToUse} is currently unavailable. Please try a different model.`);
+      }
+    }
+
     throw error;
   }
 }

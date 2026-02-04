@@ -24,7 +24,9 @@ const AI_PROVIDERS = [
 // Define available AI models by provider
 const AI_MODELS = {
   requesty: [
-    { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Latest)' },
+    { id: 'anthropic/claude-opus-4.5', name: 'Claude Opus 4.5 (Latest)' },
+    { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5 (Latest)' },
+    { id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5 (Latest)' },
     { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
     { id: 'coding/gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview (Coding)' },
     { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (Fast)' },
@@ -33,60 +35,79 @@ const AI_MODELS = {
   ],
   openrouter: [
     // 🔥 Latest 2025 Models - Premium
-    { id: 'openai/gpt-5', name: '🔥 GPT-5 (Aug 2025 - Ultimate)' },
-    { id: 'anthropic/claude-opus-4.1', name: '🔥 Claude Opus 4.1 (Aug 2025 - 74.5% SWE-bench)' },
+    { id: 'openai/gpt-5.2', name: '🔥 GPT-5.2 (Dec 2025 - Latest Flagship)' },
+    { id: 'openai/gpt-5.2-pro', name: '🔥 GPT-5.2 Pro (512K context - Professional)' },
+    { id: 'openai/gpt-5', name: '🔥 GPT-5 (Aug 2025)' },
+    { id: 'openai/gpt-5.1', name: '🔥 GPT-5.1 (Enhanced)' },
+    { id: 'anthropic/claude-opus-4.5', name: '🔥 Claude Opus 4.5 (Latest - Frontier Reasoning)' },
+    { id: 'anthropic/claude-sonnet-4.5', name: '🔥 Claude Sonnet 4.5 (Latest - Best Coding)' },
+    { id: 'anthropic/claude-haiku-4.5', name: '🔥 Claude Haiku 4.5 (Latest - Fast & Efficient)' },
     { id: 'moonshotai/kimi-k2', name: '🔥 Kimi K2 (1T params - Best Value)' },
     { id: 'meta/llama-4-maverick', name: '🔥 Llama 4 Maverick (400B MoE)' },
-    
+
     // ⚡ Latest 2025 Models - Cost-Effective
     { id: 'openai/gpt-5-mini', name: '⚡ GPT-5 Mini (Aug 2025 - Fast & Cheap)' },
     { id: 'qwen/qwen3-30b-a3b-instruct-2507', name: '⚡ Qwen3 30B A3B (1M context)' },
-    { id: 'zhipu/glm-4.5', name: '⚡ GLM 4.5 (355B MoE - Agent-Native)' },
+    { id: 'z-ai/glm-4.7', name: '⚡ GLM 4.7 (200K context - Agent-Native)' },
     { id: 'meta/llama-4-scout', name: '⚡ Llama 4 Scout (109B MoE - Fast)' },
-    
+
     // 🆓 Free Tier Models (2025)
     { id: 'openai/gpt-oss-120b:free', name: '🆕 GPT-OSS 120B (OpenAI Open Source)' },
     { id: 'openai/gpt-oss-20b:free', name: '🆕 GPT-OSS 20B (OpenAI Open Source)' },
     { id: 'moonshotai/kimi-k2:free', name: 'Kimi K2 (Free Tier)' },
-    { id: 'x-ai/grok-4-fast:free', name: '🆕 Grok 4 Fast (Free)' },
-    { id: 'zhipu/glm-4.5:free', name: 'GLM 4.5 (Free Tier)' },
+    { id: 'x-ai/grok-4-fast:free', name: 'Grok 4 Fast (Free - 2M context)' },
+    { id: 'z-ai/glm-4.7:free', name: 'GLM 4.7 (Free - 128K context)' },
     { id: 'deepseek/deepseek-r1-zero:free', name: 'DeepSeek R1 Zero (Free)' },
     { id: 'qwen/qwen3-30b-a3b-instruct-2507:free', name: 'Qwen3 30B A3B (Free)' },
 
     // Reliable Options
-    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
-    { id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5 (Fast & Cost-Effective)' },
-    { id: 'x-ai/grok-4', name: 'Grok 4' },
+    { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Previous Gen)' },
+    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4 (Previous Gen)' },
+    { id: 'x-ai/grok-4', name: 'Grok 4 (Reasoning - 256K)' },
+    { id: 'x-ai/grok-4-fast', name: 'Grok 4 Fast (2M context)' },
     { id: 'x-ai/grok-code-fast-1', name: 'Grok Code Fast 1 (Specialized for Code)' },
     { id: 'openai/gpt-4o', name: 'GPT-4o' },
+    { id: 'google/gemini-3-preview', name: 'Gemini 3 Preview (Latest - 2M context)' },
+    { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (Latest - Fast)' },
     { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-    
+
     // Legacy (for comparison)
     { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Previous Default)' },
   ],
   anthropic: [
-    { id: 'claude-opus-4.1', name: 'Claude Opus 4.1 (Latest - 74.5% SWE-bench)' },
+    { id: 'claude-opus-4.5', name: 'Claude Opus 4.5 (Latest - Frontier Reasoning)' },
+    { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5 (Latest - Best Coding)' },
+    { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5 (Latest - Fast & Efficient)' },
+    { id: 'claude-opus-4.1', name: 'Claude Opus 4.1' },
     { id: 'claude-sonnet-4', name: 'Claude Sonnet 4' },
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
     { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Fast)' },
   ],
   google: [
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Latest)' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Latest)' },
+    { id: 'models/gemini-3-preview', name: 'Gemini 3 Preview (Latest - 2M context)' },
+    { id: 'models/gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (Latest - Fast)' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
   ],
   openai: [
-    { id: 'gpt-5', name: 'GPT-5 (Aug 2025 - Latest)' },
-    { id: 'gpt-5-mini', name: 'GPT-5 Mini (Aug 2025 - Cost Effective)' },
-    { id: 'gpt-5-nano', name: 'GPT-5 Nano (Aug 2025 - Ultra Fast)' },
+    { id: 'gpt-5.2', name: 'GPT-5.2 (Dec 2025 - Latest Flagship)' },
+    { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro (512K context - Professional)' },
+    { id: 'gpt-5', name: 'GPT-5 (Aug 2025)' },
+    { id: 'gpt-5.1', name: 'GPT-5.1 (Enhanced)' },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini (Cost Effective)' },
+    { id: 'gpt-5-nano', name: 'GPT-5 Nano (Ultra Fast)' },
     { id: 'gpt-4o', name: 'GPT-4o' },
     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
   ],
   vertex: [
-    { id: 'vertex/anthropic/claude-opus-4.1@us-east5', name: 'Claude Opus 4.1 (Vertex)' },
+    { id: 'vertex/anthropic/claude-opus-4.5@us-east5', name: 'Claude Opus 4.5 (Vertex - Latest)' },
+    { id: 'vertex/anthropic/claude-sonnet-4.5@us-east5', name: 'Claude Sonnet 4.5 (Vertex - Latest)' },
+    { id: 'vertex/anthropic/claude-haiku-4.5@us-east5', name: 'Claude Haiku 4.5 (Vertex - Latest)' },
     { id: 'vertex/anthropic/claude-sonnet-4@us-east5', name: 'Claude Sonnet 4 (Vertex)' },
+    { id: 'vertex/gemini-3-preview@us-east5', name: 'Gemini 3 Preview (Vertex - Latest)' },
     { id: 'vertex/gemini-2.5-pro-latest@us-east5', name: 'Gemini 2.5 Pro (Vertex)' },
     { id: 'vertex/gemini-1.5-pro-latest@us-east5', name: 'Gemini 1.5 Pro (Vertex)' },
   ],

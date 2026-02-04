@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Generate the cover letter with user's AI settings
-    const { pdf, txt, pdfFileName, txtFileName, structuredData } = await generateCoverLetter(
+    const { pdf, fileName: pdfFileName } = await generateCoverLetter(
       parsedResumeData,
       parsedJobDescription,
       userName,
@@ -153,10 +153,9 @@ export async function POST(request: NextRequest) {
     let applicationResult: any;
 
     try {
-      // Save both PDF and TXT files to storage
+      // Save PDF file to storage
       const pdfFilePath = `cover-letters/${jobUserId}/${pdfFileName}`;
-      const txtFilePath = txtFileName ? `cover-letters/${jobUserId}/${txtFileName}` : undefined;
-      
+
       // Store PDF file in Supabase Storage
       const { error: pdfUploadError } = await supabase.storage
         .from('user_files')
@@ -164,27 +163,12 @@ export async function POST(request: NextRequest) {
           upsert: true,
           contentType: 'application/pdf'
         });
-      
+
       if (pdfUploadError) {
         console.error('Error uploading PDF file:', pdfUploadError);
         // Continue without failing the entire request
       }
-      
-      // Store TXT file in Supabase Storage if available
-      if (txt && txtFilePath) {
-        const { error: txtUploadError } = await supabase.storage
-          .from('user_files')
-          .upload(txtFilePath, txt, {
-            upsert: true,
-            contentType: 'text/plain'
-          });
-        
-        if (txtUploadError) {
-          console.error('Error uploading TXT file:', txtUploadError);
-          // Continue without failing the entire request
-        }
-      }
-      
+
       // Save the generated document metadata to database
       coverLetterDocumentId = await saveGeneratedDocument(
         jobUserId,
@@ -192,7 +176,7 @@ export async function POST(request: NextRequest) {
         'cover_letter',
         pdfFileName,
         pdfFilePath,
-        txtFilePath
+        undefined
       );
 
       console.log('Generated document saved:', { coverLetterDocumentId, pdfFileName });

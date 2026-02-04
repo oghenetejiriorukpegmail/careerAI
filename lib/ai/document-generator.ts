@@ -153,12 +153,12 @@ async function extractTextFromPDF(pdfBytes: Uint8Array, resumeData?: ResumeData)
   }
   
   // Professional Development/Training
-  if (resumeData.training && resumeData.training.length > 0) {
+  if (resumeData.trainings && resumeData.trainings.length > 0) {
     lines.push('PROFESSIONAL DEVELOPMENT');
     lines.push('━'.repeat(50));
     lines.push('');
     
-    resumeData.training.forEach(training => {
+    resumeData.trainings.forEach(training => {
       const trainingLine = training.name + (training.provider ? ` | ${training.provider}` : '');
       lines.push(trainingLine);
       if (training.date) {
@@ -1828,16 +1828,12 @@ export async function generateCoverLetter(
     // Extract TXT content from the cover letter data to ensure identical content to PDF
     const txtContent = await extractTextFromCoverLetterPDF(pdf, coverLetterData);
     
-    // Generate the filenames
-    const pdfFileName = generateFileName(companyName, userName, 'CoverLetter', jobDescription.jobTitle);
-    const txtFileName = generateFileName(companyName, userName, 'CoverLetter', jobDescription.jobTitle).replace('.pdf', '.txt');
-    
-    return { 
-      pdf, 
-      txt: txtContent,
-      pdfFileName,
-      txtFileName,
-      structuredData: coverLetterData // Keep for future use
+    // Generate the filename
+    const fileName = generateFileName(companyName, userName, 'CoverLetter', jobDescription.jobTitle);
+
+    return {
+      pdf,
+      fileName
     };
   } catch (error) {
     console.error('Error generating cover letter:', error);

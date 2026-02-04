@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { clearAllAuthStorage, handleAuthError, isRefreshTokenError } from '@/lib/auth/auth-recovery';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 export function useAuthRecovery() {
   const router = useRouter();
@@ -10,7 +11,7 @@ export function useAuthRecovery() {
     if (!supabase) return;
     
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       console.log('Auth state change:', event, session ? 'Session exists' : 'No session');
       
       if (event === 'SIGNED_OUT') {

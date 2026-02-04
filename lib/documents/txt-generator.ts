@@ -178,9 +178,9 @@ export function generateResumeTXT(data: ResumeData): string {
       let isExpired = rawExpiryDate ? new Date(rawExpiryDate) < new Date() : false;
       
       // If no explicit expiry date, check for commonly expired certifications based on their typical validity periods
-      if (!rawExpiryDate && (cert.date || cert.issueDate)) {
-        const certDate = cert.date || cert.issueDate;
-        const certificationDate = new Date(certDate);
+      const expiryCheckDate = cert.date || cert.issueDate;
+      if (!rawExpiryDate && expiryCheckDate) {
+        const certificationDate = new Date(expiryCheckDate);
         const currentDate = new Date();
         const yearsSinceCertification = (currentDate.getTime() - certificationDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
         

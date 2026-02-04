@@ -13,53 +13,90 @@ export interface TokenConfig {
 // Model-specific token configurations
 export const MODEL_TOKEN_CONFIGS: Record<string, TokenConfig> = {
   // Latest 2025 Models - Premium
+  'openai/gpt-5.2': { baseTokens: 8192, maxTokens: 256000, costPerKToken: 1.5, supportsLongContext: true },
+  'openai/gpt-5.2-pro': { baseTokens: 8192, maxTokens: 512000, costPerKToken: 2.0, supportsLongContext: true },
   'openai/gpt-5': { baseTokens: 8192, maxTokens: 256000, costPerKToken: 1.25, supportsLongContext: true },
+  'openai/gpt-5.1': { baseTokens: 8192, maxTokens: 256000, costPerKToken: 1.35, supportsLongContext: true },
   'openai/gpt-5-mini': { baseTokens: 4096, maxTokens: 128000, costPerKToken: 0.5, supportsLongContext: true },
   'openai/gpt-5-nano': { baseTokens: 4096, maxTokens: 64000, costPerKToken: 0.1, supportsLongContext: true },
+  'anthropic/claude-opus-4.5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 5, supportsLongContext: true },
+  'anthropic/claude-sonnet-4.5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
+  'anthropic/claude-haiku-4.5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 0.8, supportsLongContext: true },
   'anthropic/claude-opus-4.1': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 15, supportsLongContext: true },
   'moonshotai/kimi-k2': { baseTokens: 8192, maxTokens: 128000, costPerKToken: 2.5, supportsLongContext: true },
   'meta/llama-4-maverick': { baseTokens: 8192, maxTokens: 256000, costPerKToken: 5.0, supportsLongContext: true },
   'meta/llama-4-scout': { baseTokens: 8192, maxTokens: 512000, costPerKToken: 3.0, supportsLongContext: true },
-  
+
   // Latest 2025 Models - Cost Effective
   'qwen/qwen3-30b-a3b-instruct-2507': { baseTokens: 8192, maxTokens: 1000000, costPerKToken: 1.0, supportsLongContext: true },
-  'zhipu/glm-4.5': { baseTokens: 8192, maxTokens: 128000, costPerKToken: 0.28, supportsLongContext: true },
-  'zhipu/glm-4.5-air': { baseTokens: 4096, maxTokens: 96000, costPerKToken: 0.15, supportsLongContext: true },
-  
+  'z-ai/glm-4.7': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 0.28, supportsLongContext: true },
+  'z-ai/glm-4.7-air': { baseTokens: 4096, maxTokens: 96000, costPerKToken: 0.15, supportsLongContext: true },
+
   // Latest 2025 Models - Free Tier
   'openai/gpt-oss-120b:free': { baseTokens: 4096, maxTokens: 32000, costPerKToken: 0, supportsLongContext: false },
   'openai/gpt-oss-20b:free': { baseTokens: 4096, maxTokens: 32000, costPerKToken: 0, supportsLongContext: false },
   'moonshotai/kimi-k2:free': { baseTokens: 4096, maxTokens: 60000, costPerKToken: 0, supportsLongContext: true },
-  'zhipu/glm-4.5:free': { baseTokens: 4096, maxTokens: 64000, costPerKToken: 0, supportsLongContext: true },
+  'z-ai/glm-4.7:free': { baseTokens: 8192, maxTokens: 128000, costPerKToken: 0, supportsLongContext: true },
   'deepseek/deepseek-r1-zero:free': { baseTokens: 4096, maxTokens: 64000, costPerKToken: 0, supportsLongContext: true },
   'qwen/qwen3-30b-a3b-instruct-2507:free': { baseTokens: 4096, maxTokens: 256000, costPerKToken: 0, supportsLongContext: true },
   
   // Claude models (including OpenRouter format)
+  'claude-opus-4.5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 5, supportsLongContext: true },
+  'claude-sonnet-4.5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
+  'claude-haiku-4.5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 0.8, supportsLongContext: true },
   'claude-opus-4.1': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 15, supportsLongContext: true },
   'claude-sonnet-4': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
   'anthropic/claude-sonnet-4': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
-  'anthropic/claude-haiku-4.5': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.8, supportsLongContext: true },
   'claude-3-opus': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 15, supportsLongContext: true },
   'claude-3-sonnet': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
   'claude-3-haiku': { baseTokens: 4096, maxTokens: 200000, costPerKToken: 0.25, supportsLongContext: true },
   
-  // GPT models  
+  // GPT models
+  'gpt-5.2': { baseTokens: 8192, maxTokens: 256000, costPerKToken: 1.5, supportsLongContext: true },
+  'gpt-5.2-pro': { baseTokens: 8192, maxTokens: 512000, costPerKToken: 2.0, supportsLongContext: true },
   'gpt-5': { baseTokens: 8192, maxTokens: 256000, costPerKToken: 1.25, supportsLongContext: true },
+  'gpt-5.1': { baseTokens: 8192, maxTokens: 256000, costPerKToken: 1.35, supportsLongContext: true },
   'gpt-5-mini': { baseTokens: 4096, maxTokens: 128000, costPerKToken: 0.5, supportsLongContext: true },
   'gpt-4o': { baseTokens: 4096, maxTokens: 128000, costPerKToken: 5, supportsLongContext: true },
   'gpt-4-turbo': { baseTokens: 4096, maxTokens: 128000, costPerKToken: 10, supportsLongContext: true },
   'gpt-4': { baseTokens: 4096, maxTokens: 8192, costPerKToken: 30 },
-  
-  // Gemini models
+
+  // Gemini models (OpenRouter format)
+  'google/gemini-3-preview': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 1.5, supportsLongContext: true },
+  'google/gemini-3-flash-preview': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 0.3, supportsLongContext: true },
+
+  // Gemini models (Direct API format)
+  'models/gemini-3-preview': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 1.5, supportsLongContext: true },
+  'models/gemini-3-flash-preview': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 0.3, supportsLongContext: true },
+
+  // Gemini models (short format for fallback matching)
+  'gemini-3-preview': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 1.5, supportsLongContext: true },
+  'gemini-3-flash-preview': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 0.3, supportsLongContext: true },
+  'gemini-3': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 1.5, supportsLongContext: true },
+  'gemini-3-flash': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 0.3, supportsLongContext: true },
   'gemini-2.5-pro': { baseTokens: 8192, maxTokens: 1048576, costPerKToken: 1.25, supportsLongContext: true },
   'gemini-2.5-flash': { baseTokens: 8192, maxTokens: 1048576, costPerKToken: 0.25, supportsLongContext: true },
   'gemini-1.5-pro': { baseTokens: 8192, maxTokens: 1048576, costPerKToken: 1.25, supportsLongContext: true },
   'gemini-1.5-flash': { baseTokens: 8192, maxTokens: 1048576, costPerKToken: 0.25, supportsLongContext: true },
-  
+
+  // Gemini models (Vertex AI format)
+  'vertex/gemini-3-preview@us-east5': { baseTokens: 8192, maxTokens: 2097152, costPerKToken: 1.5, supportsLongContext: true },
+
+  // Claude models (Vertex AI format)
+  'vertex/anthropic/claude-opus-4.5@us-east5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 5, supportsLongContext: true },
+  'vertex/anthropic/claude-sonnet-4.5@us-east5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 3, supportsLongContext: true },
+  'vertex/anthropic/claude-haiku-4.5@us-east5': { baseTokens: 8192, maxTokens: 200000, costPerKToken: 0.8, supportsLongContext: true },
+
   // X.AI models
   'x-ai/grok-4': { baseTokens: 4096, maxTokens: 256000, costPerKToken: 5, supportsLongContext: true },
+  'x-ai/grok-4-fast': { baseTokens: 8192, maxTokens: 2000000, costPerKToken: 2.5, supportsLongContext: true },
   'x-ai/grok-4-fast:free': { baseTokens: 8192, maxTokens: 2000000, costPerKToken: 0, supportsLongContext: true },
+  'x-ai/grok-4.1-fast': { baseTokens: 8192, maxTokens: 2000000, costPerKToken: 0, supportsLongContext: true },
   'x-ai/grok-code-fast-1': { baseTokens: 4096, maxTokens: 256000, costPerKToken: 2.5, supportsLongContext: true },
+
+  // Vision-specific model aliases (for compatibility)
+  'openai/gpt-4o': { baseTokens: 4096, maxTokens: 128000, costPerKToken: 5, supportsLongContext: true },
+  'google/gemini-2.0-flash-exp:free': { baseTokens: 8192, maxTokens: 1048576, costPerKToken: 0, supportsLongContext: true },
 
   // Legacy for compatibility
   'qwen/qwen3-235b-a22b:free': { baseTokens: 4096, maxTokens: 32000, costPerKToken: 0, supportsLongContext: false },

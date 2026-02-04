@@ -273,15 +273,15 @@ function formatJobDescriptionAsText(jobDesc: any): string {
   }
   
   if (jobDesc.responsibilities && jobDesc.responsibilities.length > 0) {
-    sections.push(`\nResponsibilities:\n${jobDesc.responsibilities.map(r => `• ${r}`).join('\n')}`);
+    sections.push(`\nResponsibilities:\n${jobDesc.responsibilities.map((r: string) => `• ${r}`).join('\n')}`);
   }
-  
+
   if (jobDesc.requirements && jobDesc.requirements.length > 0) {
-    sections.push(`\nRequirements:\n${jobDesc.requirements.map(r => `• ${r}`).join('\n')}`);
+    sections.push(`\nRequirements:\n${jobDesc.requirements.map((r: string) => `• ${r}`).join('\n')}`);
   }
-  
+
   if (jobDesc.qualifications && jobDesc.qualifications.length > 0) {
-    sections.push(`\nQualifications:\n${jobDesc.qualifications.map(q => `• ${q}`).join('\n')}`);
+    sections.push(`\nQualifications:\n${jobDesc.qualifications.map((q: string) => `• ${q}`).join('\n')}`);
   }
   
   if (jobDesc.keywords && jobDesc.keywords.length > 0) {
@@ -289,7 +289,7 @@ function formatJobDescriptionAsText(jobDesc: any): string {
   }
   
   if (jobDesc.company_culture && jobDesc.company_culture.length > 0) {
-    sections.push(`\nCompany Culture:\n${jobDesc.company_culture.map(c => `• ${c}`).join('\n')}`);
+    sections.push(`\nCompany Culture:\n${jobDesc.company_culture.map((c: string) => `• ${c}`).join('\n')}`);
   }
   
   return sections.join('\n\n');

@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont, RGB } from 'pdf-lib';
 
 // Interface for resume data
 export interface ResumeData {
@@ -657,8 +657,8 @@ export async function generateResumePDF(data: ResumeData): Promise<Uint8Array> {
   // Enhanced skills display with comprehensive coverage
   if (data.skills && data.skills.length > 0) {
     // Split complex skills into individual components
-    const processSkills = (skills) => {
-      const individualSkills = [];
+    const processSkills = (skills: string[]): string[] => {
+      const individualSkills: string[] = [];
       
       for (const skill of skills) {
         // Handle skills that contain parentheses with comma-separated items
