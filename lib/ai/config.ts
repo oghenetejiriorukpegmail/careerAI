@@ -12,37 +12,37 @@ export const AI_CONFIG = {
   // OpenRouter configuration
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY || '', // Set OPENROUTER_API_KEY in your environment variables
-    model: 'mistralai/devstral-small-2505:free', // Updated to use devstral-small free model
-    // Alternative model: 'moonshotai/kimi-k2:free' - Free Kimi K2 model
+    model: 'moonshotai/kimi-k2:free', // Best free model - 1T params, outperforms GPT-4
+    // Alternatives: 'x-ai/grok-4-fast:free', 'deepseek/deepseek-r1-zero:free'
     baseUrl: 'https://openrouter.ai/api/v1'
   },
   // Requesty Router configuration
   requesty: {
     apiKey: process.env.ROUTER_API_KEY || '', // Set ROUTER_API_KEY in your environment variables
-    model: 'anthropic/claude-sonnet-4',
+    model: 'anthropic/claude-4.5-sonnet',
     baseUrl: 'https://router.requesty.ai/v1'
   },
   // OpenAI configuration (keeping for backwards compatibility)
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '', // Set OPENAI_API_KEY in your environment variables
-    model: 'gpt-4'
+    model: 'gpt-5.4'
   },
   // Keep Gemini reference for backward compatibility
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '', // Set GEMINI_API_KEY in your environment variables
-    model: 'gemini-pro'
+    model: 'gemini-3-pro-preview'
   },
   // Vertex AI configuration
   vertex: {
     apiKey: process.env.VERTEX_API_KEY || process.env.GOOGLE_API_KEY || '', // Set VERTEX_API_KEY or GOOGLE_API_KEY in your environment variables
-    model: 'vertex/anthropic/claude-3-5-sonnet-20241022@us-east5',
+    model: 'vertex/anthropic/claude-opus-4-6@us-east5',
     projectId: process.env.GOOGLE_PROJECT_ID || '', // Set GOOGLE_PROJECT_ID in your environment variables
     location: 'us-east5'
   },
   // Direct Anthropic configuration for fallback
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || '', // Set ANTHROPIC_API_KEY in your environment variables
-    model: 'claude-sonnet-4', // Claude Sonnet 4
+    model: 'claude-opus-4-6', // Claude Opus 4.6 — SoTA March 2026
     baseUrl: 'https://api.anthropic.com'
   }
 };
@@ -1089,7 +1089,7 @@ export async function queryOpenRouter(prompt: string, systemPrompt?: string, use
     let MAX_TOKENS = 30000; // Default for most models
     
     // Claude models have much higher context limits
-    if (modelToUse.includes('claude-sonnet-4') || modelToUse.includes('claude-3-5-sonnet') || modelToUse.includes('claude-3-opus')) {
+    if (modelToUse.includes('claude-opus-4') || modelToUse.includes('claude-4.5') || modelToUse.includes('claude-sonnet-4') || modelToUse.includes('claude-sonnet-5') || modelToUse.includes('claude-3-5-sonnet') || modelToUse.includes('claude-3-opus')) {
       MAX_TOKENS = 150000; // Claude Sonnet 4 and 3.5 have 200K context, use 150K to be safe
       console.log(`[OPENROUTER] Using higher token limit (${MAX_TOKENS}) for Claude model: ${modelToUse}`);
     } else if (modelToUse.includes('claude')) {
@@ -1469,10 +1469,10 @@ async function loadUserSettings() {
       // Server side - use cached settings if available
       return global.userSettings;
     } else {
-      // Server side - use devstral-small via OpenRouter
+      // Server side - use Kimi K2 free via OpenRouter
       return {
         aiProvider: 'openrouter',
-        aiModel: 'mistralai/devstral-small-2505:free',
+        aiModel: 'moonshotai/kimi-k2:free',
         documentAiOnly: true,
         enableLogging: true
       };
@@ -1484,7 +1484,7 @@ async function loadUserSettings() {
   // Default settings if loading fails
   return {
     aiProvider: 'openrouter',
-    aiModel: 'mistralai/devstral-small-2505:free',
+    aiModel: 'moonshotai/kimi-k2:free',
     documentAiOnly: true,
     enableLogging: true
   };
@@ -1560,22 +1560,9 @@ export async function queryAI(prompt: string, systemPrompt?: string, providedSet
         return await queryRequesty(prompt, systemPrompt, bypassLimits);
     }
   } catch (error) {
-    console.error(`Primary AI provider ${provider} failed:`, error);
-    
-    // Try Claude Sonnet 4 as fallback via OpenRouter
-    if (AI_CONFIG.openrouter.apiKey) {
-      console.log('Attempting fallback to Claude Sonnet 4 via OpenRouter...');
-      try {
-        // Use Claude Sonnet 4 as fallback
-        return await queryOpenRouter(prompt, systemPrompt, useCase, { general: { maxTokens: 32000 } }, bypassLimits, 'anthropic/claude-sonnet-4');
-      } catch (fallbackError) {
-        console.error('Fallback to Claude Sonnet 4 also failed:', fallbackError);
-        throw error; // Throw the original error
-      }
-    } else {
-      console.error('No OpenRouter API key available for fallback');
-      throw error;
-    }
+    console.error(`AI provider ${provider} with model ${model} failed:`, error);
+    // No fallback — respect user's configured model. Surface the error.
+    throw error;
   }
 }
 

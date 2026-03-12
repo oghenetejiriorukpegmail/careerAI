@@ -21,95 +21,100 @@ const AI_PROVIDERS = [
   { id: 'vertex', name: 'Google Vertex AI' },
 ];
 
-// Define available AI models by provider
+// Define available AI models by provider — Updated March 2026
 const AI_MODELS = {
   requesty: [
-    { id: 'anthropic/claude-opus-4.5', name: 'Claude Opus 4.5 (Latest)' },
-    { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5 (Latest)' },
-    { id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5 (Latest)' },
+    { id: 'anthropic/claude-opus-4-6', name: '🏆 Claude Opus 4.6 (SoTA — Architectural Coding & Reasoning)' },
+    { id: 'anthropic/claude-sonnet-4-6', name: '🔥 Claude Sonnet 4.6 (Fast + Powerful)' },
+    { id: 'anthropic/claude-4.5-sonnet', name: 'Claude 4.5 Sonnet (Best Agentic Coding)' },
     { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
-    { id: 'coding/gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview (Coding)' },
-    { id: 'google/gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash Preview (Fast)' },
-    { id: 'meta/llama-4-maverick', name: 'Llama 4 Maverick (400B MoE)' },
+    { id: 'google/gemini-3.1-pro-preview', name: '🔥 Gemini 3.1 Pro Preview (2M context)' },
+    { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash (Sub-second latency)' },
+    { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'meta/llama-4.1-maverick', name: 'Llama 4.1 Maverick (Best Open-Weights)' },
     { id: 'meta/llama-4-scout', name: 'Llama 4 Scout (109B MoE)' },
   ],
   openrouter: [
-    // 🔥 Latest 2025 Models - Premium
-    { id: 'openai/gpt-5.2', name: '🔥 GPT-5.2 (Dec 2025 - Latest Flagship)' },
-    { id: 'openai/gpt-5.2-pro', name: '🔥 GPT-5.2 Pro (512K context - Professional)' },
-    { id: 'openai/gpt-5', name: '🔥 GPT-5 (Aug 2025)' },
-    { id: 'openai/gpt-5.1', name: '🔥 GPT-5.1 (Enhanced)' },
-    { id: 'anthropic/claude-opus-4.5', name: '🔥 Claude Opus 4.5 (Latest - Frontier Reasoning)' },
-    { id: 'anthropic/claude-sonnet-4.5', name: '🔥 Claude Sonnet 4.5 (Latest - Best Coding)' },
-    { id: 'anthropic/claude-haiku-4.5', name: '🔥 Claude Haiku 4.5 (Latest - Fast & Efficient)' },
-    { id: 'moonshotai/kimi-k2', name: '🔥 Kimi K2 (1T params - Best Value)' },
-    { id: 'meta/llama-4-maverick', name: '🔥 Llama 4 Maverick (400B MoE)' },
+    // 🏆 S-Tier — March 2026 Frontier
+    { id: 'openai/gpt-5.4', name: '🏆 GPT-5.4 (Mar 2026 — #1 Reasoning)' },
+    { id: 'openai/gpt-5.4-pro', name: '🏆 GPT-5.4 Pro (Extended Reasoning)' },
+    { id: 'anthropic/claude-opus-4-6', name: '🏆 Claude Opus 4.6 (#2 Overall — Best Coding)' },
+    { id: 'anthropic/claude-sonnet-4-6', name: '🔥 Claude Sonnet 4.6 (Fast + Powerful)' },
+    { id: 'google/gemini-3.1-pro-preview', name: '🏆 Gemini 3.1 Pro Preview (#3 — 2M context)' },
+    { id: 'deepseek/deepseek-r2', name: '🏆 DeepSeek R2 (Best Reasoning Efficiency)' },
 
-    // ⚡ Latest 2025 Models - Cost-Effective
-    { id: 'openai/gpt-5-mini', name: '⚡ GPT-5 Mini (Aug 2025 - Fast & Cheap)' },
-    { id: 'qwen/qwen3-30b-a3b-instruct-2507', name: '⚡ Qwen3 30B A3B (1M context)' },
-    { id: 'z-ai/glm-4.7', name: '⚡ GLM 4.7 (200K context - Agent-Native)' },
-    { id: 'meta/llama-4-scout', name: '⚡ Llama 4 Scout (109B MoE - Fast)' },
+    // 🔥 A-Tier — High Performance
+    { id: 'anthropic/claude-4.5-sonnet', name: '🔥 Claude 4.5 Sonnet (Best Agentic Coding)' },
+    { id: 'anthropic/claude-opus-4.5', name: '🔥 Claude Opus 4.5 (Frontier Reasoning)' },
+    { id: 'openai/gpt-5.2', name: '🔥 GPT-5.2 (Generalist Workhorse)' },
+    { id: 'openai/gpt-5.3-codex', name: '🔥 GPT-5.3 Codex (Code Specialist)' },
+    { id: 'openai/gpt-5.1', name: 'GPT-5.1 (Adaptive Reasoning)' },
+    { id: 'x-ai/grok-4.2', name: '⚡ Grok 4.2 (Speed King + Real-time X data)' },
+    { id: 'x-ai/grok-4', name: 'Grok 4 (Reasoning — 256K)' },
+    { id: 'moonshotai/kimi-k3', name: '🔥 Kimi K3 (Agentic Swarms & Research)' },
+    { id: 'moonshotai/kimi-k2', name: 'Kimi K2 (1T params — Best Value)' },
+    { id: 'meta/llama-4.1-maverick', name: '🔥 Llama 4.1 Maverick (Best Open-Weights)' },
+    { id: 'google/gemini-3-pro-preview', name: 'Gemini 3 Pro Preview (2M context)' },
+    { id: 'google/gemini-3-flash', name: 'Gemini 3 Flash (Sub-second latency)' },
 
-    // 🆓 Free Tier Models (2025)
-    { id: 'openai/gpt-oss-120b:free', name: '🆕 GPT-OSS 120B (OpenAI Open Source)' },
-    { id: 'openai/gpt-oss-20b:free', name: '🆕 GPT-OSS 20B (OpenAI Open Source)' },
-    { id: 'moonshotai/kimi-k2:free', name: 'Kimi K2 (Free Tier)' },
-    { id: 'x-ai/grok-4-fast:free', name: 'Grok 4 Fast (Free - 2M context)' },
-    { id: 'z-ai/glm-4.7:free', name: 'GLM 4.7 (Free - 128K context)' },
-    { id: 'deepseek/deepseek-r1-zero:free', name: 'DeepSeek R1 Zero (Free)' },
-    { id: 'qwen/qwen3-30b-a3b-instruct-2507:free', name: 'Qwen3 30B A3B (Free)' },
+    // ⚡ Cost-Effective
+    { id: 'openai/gpt-5-mini', name: '⚡ GPT-5 Mini (Fast & Cheap)' },
+    { id: 'qwen/qwen-3.5-max', name: '⚡ Qwen 3.5 Max (Multilingual Depth)' },
+    { id: 'meta/llama-4-scout', name: '⚡ Llama 4 Scout (10M context — Fast)' },
+    { id: 'mistralai/mistral-large-3.1', name: '⚡ Mistral Large 3.1 (Concise Reasoning)' },
+    { id: 'z-ai/glm-5', name: '⚡ GLM-5 (Multimodal Video-to-Text)' },
 
-    // Reliable Options
-    { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Previous Gen)' },
-    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4 (Previous Gen)' },
-    { id: 'x-ai/grok-4', name: 'Grok 4 (Reasoning - 256K)' },
-    { id: 'x-ai/grok-4-fast', name: 'Grok 4 Fast (2M context)' },
-    { id: 'x-ai/grok-code-fast-1', name: 'Grok Code Fast 1 (Specialized for Code)' },
-    { id: 'openai/gpt-4o', name: 'GPT-4o' },
-    { id: 'google/gemini-3-preview', name: 'Gemini 3 Preview (Latest - 2M context)' },
-    { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (Latest - Fast)' },
+    // 🆓 Free Tier
+    { id: 'moonshotai/kimi-k2:free', name: '🆓 Kimi K2 (Free — 1T params)' },
+    { id: 'x-ai/grok-4-fast:free', name: '🆓 Grok 4 Fast (Free — 2M context)' },
+    { id: 'deepseek/deepseek-r1-zero:free', name: '🆓 DeepSeek R1 Zero (Free)' },
+    { id: 'z-ai/glm-5:free', name: '🆓 GLM-5 (Free — Multimodal)' },
+    { id: 'qwen/qwen3-30b-a3b-instruct-2507:free', name: '🆓 Qwen3 30B (Free)' },
+
+    // Previous Gen
+    { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1' },
+    { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4' },
+    { id: 'openai/gpt-5', name: 'GPT-5 (Aug 2025)' },
+    { id: 'openai/gpt-4o', name: 'GPT-4o (Legacy)' },
     { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-
-    // Legacy (for comparison)
-    { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Previous Default)' },
   ],
   anthropic: [
-    { id: 'claude-opus-4.5', name: 'Claude Opus 4.5 (Latest - Frontier Reasoning)' },
-    { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5 (Latest - Best Coding)' },
-    { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5 (Latest - Fast & Efficient)' },
+    { id: 'claude-opus-4-6', name: '🏆 Claude Opus 4.6 (SoTA — Mar 2026)' },
+    { id: 'claude-sonnet-4-6', name: '🔥 Claude Sonnet 4.6 (Fast + Powerful)' },
+    { id: 'claude-4.5-sonnet', name: 'Claude 4.5 Sonnet (Best Agentic Coding)' },
+    { id: 'claude-opus-4.5', name: 'Claude Opus 4.5 (Frontier Reasoning)' },
+    { id: 'claude-sonnet-5', name: 'Claude Sonnet 5 (Fast Agentic)' },
     { id: 'claude-opus-4.1', name: 'Claude Opus 4.1' },
     { id: 'claude-sonnet-4', name: 'Claude Sonnet 4' },
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
-    { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
-    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Fast)' },
+    { id: 'claude-3.5-haiku', name: 'Claude 3.5 Haiku (Fast)' },
   ],
   google: [
-    { id: 'models/gemini-3-preview', name: 'Gemini 3 Preview (Latest - 2M context)' },
-    { id: 'models/gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (Latest - Fast)' },
+    { id: 'models/gemini-3.1-pro-preview', name: '🏆 Gemini 3.1 Pro Preview (SoTA — 2M context)' },
+    { id: 'models/gemini-3-pro-preview', name: 'Gemini 3 Pro Preview (2M context)' },
+    { id: 'models/gemini-3-flash', name: '⚡ Gemini 3 Flash (Sub-second latency)' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
   ],
   openai: [
-    { id: 'gpt-5.2', name: 'GPT-5.2 (Dec 2025 - Latest Flagship)' },
-    { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro (512K context - Professional)' },
+    { id: 'gpt-5.4', name: '🏆 GPT-5.4 (Mar 2026 — Latest Flagship)' },
+    { id: 'gpt-5.4-pro', name: '🏆 GPT-5.4 Pro (Extended Reasoning)' },
+    { id: 'gpt-5.3-codex', name: '🔥 GPT-5.3 Codex (Code Specialist)' },
+    { id: 'gpt-5.2', name: 'GPT-5.2 (Generalist Workhorse)' },
+    { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro (512K context)' },
+    { id: 'gpt-5.1', name: 'GPT-5.1 (Adaptive Reasoning)' },
     { id: 'gpt-5', name: 'GPT-5 (Aug 2025)' },
-    { id: 'gpt-5.1', name: 'GPT-5.1 (Enhanced)' },
-    { id: 'gpt-5-mini', name: 'GPT-5 Mini (Cost Effective)' },
-    { id: 'gpt-5-nano', name: 'GPT-5 Nano (Ultra Fast)' },
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+    { id: 'gpt-5-mini', name: '⚡ GPT-5 Mini (Cost Effective)' },
+    { id: 'gpt-4o', name: 'GPT-4o (Legacy)' },
   ],
   vertex: [
-    { id: 'vertex/anthropic/claude-opus-4.5@us-east5', name: 'Claude Opus 4.5 (Vertex - Latest)' },
-    { id: 'vertex/anthropic/claude-sonnet-4.5@us-east5', name: 'Claude Sonnet 4.5 (Vertex - Latest)' },
-    { id: 'vertex/anthropic/claude-haiku-4.5@us-east5', name: 'Claude Haiku 4.5 (Vertex - Latest)' },
+    { id: 'vertex/anthropic/claude-opus-4-6@us-east5', name: '🏆 Claude Opus 4.6 (Vertex — SoTA)' },
+    { id: 'vertex/anthropic/claude-sonnet-4-6@us-east5', name: '🔥 Claude Sonnet 4.6 (Vertex)' },
+    { id: 'vertex/anthropic/claude-4.5-sonnet@us-east5', name: 'Claude 4.5 Sonnet (Vertex)' },
+    { id: 'vertex/anthropic/claude-opus-4.5@us-east5', name: 'Claude Opus 4.5 (Vertex)' },
     { id: 'vertex/anthropic/claude-sonnet-4@us-east5', name: 'Claude Sonnet 4 (Vertex)' },
-    { id: 'vertex/gemini-3-preview@us-east5', name: 'Gemini 3 Preview (Vertex - Latest)' },
+    { id: 'vertex/gemini-3.1-pro-preview@us-east5', name: '🏆 Gemini 3.1 Pro Preview (Vertex)' },
+    { id: 'vertex/gemini-3-pro-preview@us-east5', name: 'Gemini 3 Pro Preview (Vertex)' },
     { id: 'vertex/gemini-2.5-pro-latest@us-east5', name: 'Gemini 2.5 Pro (Vertex)' },
-    { id: 'vertex/gemini-1.5-pro-latest@us-east5', name: 'Gemini 1.5 Pro (Vertex)' },
   ],
 };
 
@@ -123,10 +128,10 @@ interface UserSettings {
   updatedAt?: number;
 }
 
-// Default settings - Updated for 2025 models
+// Default settings - Updated March 2026
 const defaultSettings: UserSettings = {
   aiProvider: 'openrouter',
-  aiModel: 'moonshotai/kimi-k2:free', // Best free model in 2025
+  aiModel: 'moonshotai/kimi-k2:free', // Best free model — 1T params
   visionModel: 'qwen/qwen2.5-vl-72b-instruct:free', // Free vision model
   documentAiOnly: true,
   enableLogging: true,
@@ -768,9 +773,10 @@ export default function SettingsPage() {
             <div>
               <h3 className="font-semibold text-sm mb-1">Recommended Settings</h3>
               <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1 mt-2">
-                <li>For resume parsing: OpenRouter with Qwen3 235B</li>
-                <li>For fast responses: Requesty with Gemini 2.5 Flash</li>
-                <li>For highest quality: Anthropic with Claude 3.7 Sonnet</li>
+                <li>For resume parsing: OpenRouter with Claude 4.5 Sonnet or GPT-5.4</li>
+                <li>For fast responses: Gemini 3 Flash or GPT-5 Mini</li>
+                <li>For highest quality: Claude Opus 4.6 or GPT-5.4 Pro</li>
+                <li>Best free option: Kimi K2 or Grok 4 Fast</li>
               </ul>
             </div>
             

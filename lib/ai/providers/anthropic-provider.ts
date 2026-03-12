@@ -24,7 +24,9 @@ export class AnthropicProvider extends BaseAIProvider {
             type: 'image',
             source: {
               type: 'base64',
-              media_type: 'image/png',
+              media_type: imageData.startsWith('data:') 
+                ? (imageData.match(/^data:(image\/[^;]+);/)?.[1] || 'image/jpeg')
+                : 'image/jpeg',
               data: imageData.replace(/^data:image\/[^;]+;base64,/, '')
             }
           }

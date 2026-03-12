@@ -18,10 +18,12 @@ export class GeminiProvider extends BaseAIProvider {
     
     // Add image part if provided
     if (imageData) {
+      const mimeMatch = imageData.match(/^data:(image\/[^;]+);base64,/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
       const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
       parts.push({
         inline_data: {
-          mime_type: 'image/png',
+          mime_type: mimeType,
           data: base64Data
         }
       });

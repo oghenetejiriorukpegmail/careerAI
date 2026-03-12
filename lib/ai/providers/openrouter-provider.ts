@@ -27,7 +27,7 @@ export class OpenRouterProvider extends BaseAIProvider {
           {
             type: 'image_url',
             image_url: {
-              url: imageData.startsWith('data:') ? imageData : `data:image/png;base64,${imageData}`
+              url: imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`
             }
           }
         ]

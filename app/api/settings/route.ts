@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     
     // Create AI settings schema (separate from full settings)
     const aiSettingsSchema = z.object({
-      aiProvider: z.enum(['openai', 'gemini', 'openrouter', 'requesty']),
+      aiProvider: z.enum(['openai', 'gemini', 'openrouter', 'requesty', 'anthropic', 'google', 'vertex']),
       aiModel: z.string().min(1),
       visionModel: z.string().optional(),
       documentAiOnly: z.boolean().optional(),

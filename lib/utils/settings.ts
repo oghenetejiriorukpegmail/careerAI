@@ -27,10 +27,10 @@ declare global {
   } | undefined;
 }
 
-// Default settings - Updated for latest 2025 models
+// Default settings - Updated March 2026 (SoTA)
 export const defaultSettings: UserSettings = {
   aiProvider: 'openrouter',
-  aiModel: 'moonshotai/kimi-k2:free',  // Best free model in 2025: 1T params, outperforms GPT-4
+  aiModel: 'moonshotai/kimi-k2:free',  // Best free model — 1T params, outperforms GPT-4
   visionModel: 'qwen/qwen2.5-vl-72b-instruct:free', // Free vision model with 72B params
   documentAiOnly: true,
   enableLogging: true,

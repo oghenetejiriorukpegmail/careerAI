@@ -20,7 +20,7 @@ export class OpenAIProvider extends BaseAIProvider {
         role: 'user',
         content: [
           { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageData.startsWith('data:') ? imageData : `data:image/png;base64,${imageData}` } }
+          { type: 'image_url', image_url: { url: imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}` } }
         ]
       });
     } else {

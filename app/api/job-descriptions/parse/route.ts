@@ -347,7 +347,8 @@ async function scrapeJobFromURL(url: string, userId?: string, visionModel?: stri
         const puppeteerResult = await scrapeWithDirectPuppeteer(url, visionModel);
         
         if (puppeteerResult.success && puppeteerResult.extractedContent && puppeteerResult.extractedContent.length > 100) {
-          console.log('[URL SCRAPING] Puppeteer extraction successful (PRIMARY METHOD)');
+          console.log(`[URL SCRAPING] Puppeteer extraction successful (${puppeteerResult.contentSource || 'PRIMARY METHOD'})`);
+          console.log(`[URL SCRAPING] Text content: ${puppeteerResult.textContent?.length || 0} chars, Total: ${puppeteerResult.extractedContent.length} chars`);
           scrapingCache.set(url, puppeteerResult.extractedContent);
           return puppeteerResult.extractedContent;
         } else if (puppeteerResult.error) {
